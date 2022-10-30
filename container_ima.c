@@ -27,12 +27,41 @@ struct mmap_args_t {
 	int fd;
 	off_t offset
 };
+struct container_ima_hash {
+	u8 algo;
+	u8 length;
+};
+struct container_ima_hash_data {
+	u8 algo;
+	u8 length;
+	u8 digest[HASH_MAX_DIGESTSIZE];
+};
+struct container_ima_entry {
+	int pcr;
+	struct tpm_digest *digests;
+	u32 container_id;
+	u32 data_len;
+};
+struct inode_ima_data {
+	struct mutex mut;
+	struct inode *inode;
+	unsigned long flags;
+	struct container_ima_hash_data *hash;
+};
+struct container_ima_data {
+	struct inode_ima_data iiam;
+	struct file *file;
+	const char *filename;
+	const void *buf;
+	int len;
+};
 /*
  * ima_hash_setup
  *
  * Set up container IMA hashing/crypto algorithm 
  * use the alorithm that the kernel IMA defaulted 
- * to
+ * to. Kernel IMA defaults to PCR IDX 10 (range 8-14), make sure
+ * to choose a different register than host IMA
  */
 void ima_hash_setup() 
 {
