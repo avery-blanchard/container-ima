@@ -18,11 +18,12 @@
 #include <keys/system_keyring.h>
 
 #define MODULE_NAME "ContainerIMA"
-#define MAX 10
+#define KEYRING_SIZE 10
 
 const char *measure_log_dir = "/secure/container_ima/"; // in this dir, per container measurement logs 
 struct vtpm_proxy_new_dev *container_vtpms;
-struct key *keyring[10];
+struct key *keyring[KEYRING_SIZE];
+
 
 struct mmap_args_t {
 	void *addr;
@@ -110,6 +111,7 @@ long ima_vtpm_setup()
 	new_vtpm.fd = "/dev/vtpm1";
 	new_vtpm.major = 0; // major number of the TPM device
 	new_vtp.minor = 1; // minor number of the TPM device
+
 
 	ret = vtpmx_ioc_new_dev(vtpm_file, ioctl, (unsigned long)&new_vtpm);
 	
@@ -216,8 +218,23 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	 * 	2. call functions to create hash digest, extend,
 	 * 		and send to TPM for IMA per container.
 	 */
-	
+	struct mmap_args_t *args = {};
+	struct task_struct *task = bpf_get_current_task();
+	unsigned int inum = task->nsproxy->cgroup_ns->ns_common->inum;
 
+	active_mmap_args_map.pop(&args);
+
+	if (inum == host_inum) {
+		return 0;
+	}
+
+	if (args->prot != PROT_READ && args->prot != PROR_EXEC) {
+		return 0;
+	}
+
+	/* Check if container already has an active ML, create hash of page and add to ML */
+
+	/* If not, create vTPM and key ring, create hash of page and add to ML */
 
 
 }
