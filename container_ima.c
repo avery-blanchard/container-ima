@@ -14,11 +14,16 @@
 #include <linux/ima.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <keyutils.h>
 #include <keys/system_keyring.h>
 
 #define MODULE_NAME "ContainerIMA"
+#define MAX 10
 
-struct tpm_chip *container_ima_tpm;
+const char *measure_log_dir = "/secure/container_ima/"; // in this dir, per container measurement logs 
+struct vtpm_proxy_new_dev *container_vtpms;
+struct key *keyring[10];
+
 struct mmap_args_t {
 	void *addr;
 	size_t length;
@@ -50,22 +55,69 @@ struct inode_ima_data {
 };
 struct container_ima_data {
 	struct inode_ima_data iiam;
+	struct vtpm_proxy_new_dev vtpm;
 	struct file *file;
 	const char *filename;
 	const void *buf;
 	int len;
 };
-/*
- * ima_hash_setup
- *
- * Set up container IMA hashing/crypto algorithm 
- * use the alorithm that the kernel IMA defaulted 
- * to. Kernel IMA defaults to PCR IDX 10 (range 8-14), make sure
- * to choose a different register than host IMA
- */
-void ima_hash_setup() 
+int container_ima_fs_init() 
 {
+	int res;
+	mode_t dir_mode= 0755;
+
+	res = mkdir(measure_log_dir, dir_mode);
+
+	return res;
+}
+/*
+ * container_keyring_init 
+ * 
+ * 
+ * https://man7.org/linux/man-pages/man7/keyrings.7.html
+ * https://man7.org/linux/man-pages/man2/add_key.2.html 
+ */
+int contain_keyring_init()
+{
+
+
+}
+/*
+ * container_keyring_add_key
+ * create key from loading the vTPM x.509 cert
+ */
+int container_keyring_add_key() 
+{
+
+}
+/*
+ * ima_vtpm_setup 
+ *
+ * Set up per container vTPM, PCR 10 for IMA
+ * https://www.kernel.org/doc/html/v4.13/security/tpm/tpm_vtpm_proxy.html
+ * https://elixir.bootlin.com/linux/v6.0.5/source/drivers/char/tpm/tpm_vtpm_proxy.c#L624 
+ */
+long ima_vtpm_setup() 
+{
+	struct vtpm_proxy_new_dev new_vtpm;
+	long ret;
+	int ioctl; 
+	struct file *vtpm_file;
+
+
+	new_vtpm.flags = VTPM_PROXY_FLAG_TPM2;
+	new_vtpm.tpm_num = 1; // change to unique container ID or use a countet
+	new_vtpm.fd = "/dev/vtpm1";
+	new_vtpm.major = 0; // major number of the TPM device
+	new_vtp.minor = 1; // minor number of the TPM device
+
+	ret = vtpmx_ioc_new_dev(vtpm_file, ioctl, (unsigned long)&new_vtpm);
 	
+	if (ret != 0) {
+		pr_err("Failed to create a new vTPM device\n");
+	}
+
+	return ret;
 	
 }
 /*
@@ -87,10 +139,9 @@ int container_ima_init()
 {
 	int ret;
 
-	container_ima_tpm = tpm_default_chip();
-	if (!container_ima_chip)
-		pr_info("No TPM chip detected, bypassing\n");
-	ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // decide whether to use normal IMA keyring or not. Think about how this will affect normal IMA
+	container_ima_tpm = ima_vtpm_setup() // per container vTPM
+
+	ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
 
 	if (ret)
 		return ret;
@@ -99,7 +150,7 @@ int container_ima_init()
 	if (ret)
 		return ret;
 
-	ret = container_ima_fs_init(); // set up directory for per container Measurment Log
+	ret = container_ima_ml_init(); // set up directory for per container Measurment Log
 
 	if (ret) 
 		return ret;
@@ -168,6 +219,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	
 
 
+
 }
 static int container_ima_init(void)
 {
@@ -181,6 +233,9 @@ static int container_ima_init(void)
 
 static void container_ima_init(void)
 {
+	/* Clean up 
+	 * Free keyring and vTPMs
+	 */
 	return NULL;
 }
 
