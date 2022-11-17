@@ -158,6 +158,48 @@ long ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip, struct cont
 	
 }
 /*
+ * retrieve the file from mmap arguments
+ *
+ * https://elixir.bootlin.com/linux/v6.0.9/source/mm/mmap.c#L1586 
+ */
+struct file *retrieve_file(struct mmap_args_t *args) 
+{
+	int ret;
+	struct file *file;
+
+	/* Get file from fd, len, and address for measurment */
+	if (!(flags & MAP_ANONYMOUS)) {
+		audit_mmap_fd(fd, flags);
+		file = fget(args->fd);
+		if (!file) {
+			pr_error("fget fails\n");
+		}
+		if (is_file_hugepages(file)) {
+			args->len = ALIGN(len, huge_page_size(hstate_file(file)));
+		} else if (unlikely(flags & MAP_HUGETLB)) {
+			file = NULL;
+			goto out;
+		}
+	} else if (flags & MAP_HUGETLB) {
+		struct hstate *hs;
+		hs =  hstate_sizelog((flags >> MAP_HUGE_SHIFT) & MAP_HUGE_MASK);
+		if (!hs) {
+			ret = -EINVAL;
+			return ret;
+		}
+		len = ALIGN(len, huge_page_size(hs));
+		file = hugetlb_file_setup(HUGETLB_ANON_FILE, len,
+				VM_NORESERVE,
+				HUGETLB_ANONHUGE_INODE,
+				(flags >> MAP_HUGE_SHIFT) & MAP_HUGE_MASK);
+		if (IS_ERR(file)) {
+			ret = PTR_ERR(file);
+			retrun ret;
+		}
+	}
+	return file;
+ }
+/*
  * container_ima_setup
  *
  * Set up environment to initalize container IMA
@@ -249,6 +291,7 @@ BPF_HASH(active_mmap_args_map, uint64, struct mmap_args_t);
  */
 int syscall__probe_entry_mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int flags, int fd, off_t offset) 
 {
+	pr_info("In mmap probe entry\n");
 	uint64_t id = bpf_get_current_pid_tgid();
 	
 	struct mmap_args_t args = {};
@@ -281,6 +324,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	 * 	2. call functions to create hash digest, extend,
 	 * 		and send to TPM for IMA per container.
 	 */
+	pr_into("In mmap probe return\n");
 	int ret;
 	struct task_struct *task;
 	unsigned int inum;
@@ -301,11 +345,9 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	}
 
 	/* Check if container already has an active ML, create hash of page and add to ML */
-
-
 	/* If not, create vTPM and key ring, create hash of page and add to ML */
 	ret = container_ima_init(inum); 
-	queue_measurement();
+	queue_measurement(args);
 
 	return ret;
 
