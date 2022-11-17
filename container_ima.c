@@ -23,8 +23,14 @@
 const char *measure_log_dir = "/secure/container_ima/"; // in this dir, per container measurement logs 
 struct vtpm_proxy_new_dev *container_vtpms;
 struct key *keyring[KEYRING_SIZE];
+struct tpm_chip *ima_tpm_chip;
 
-
+/*
+notes 
+use integrity_iint_cache, not namespace specific
+ima_collect_measurement
+write own store measurement
+*/
 struct mmap_args_t {
 	void *addr;
 	size_t length;
@@ -98,19 +104,29 @@ int container_keyring_add_key()
  * https://www.kernel.org/doc/html/v4.13/security/tpm/tpm_vtpm_proxy.html
  * https://elixir.bootlin.com/linux/v6.0.5/source/drivers/char/tpm/tpm_vtpm_proxy.c#L624 
  */
-long ima_vtpm_setup() 
+long ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip) 
 {
 	struct vtpm_proxy_new_dev new_vtpm;
 	long ret;
 	int ioctl; 
 	struct file *vtpm_file;
-
+	const char *vtpm_fd_name;
+	char id[10];
+	int check;
+	
+	check = sprintf(id, "%d", container_id);
+	if (check < 0)
+		pr_err("sprintf fails in vtpm setup \n");
+	
+	check = strcat_s("/dev/vtpm", id);
+	if (check == -1)
+		pr_err("strcat_s fails in vtpm setup\n");
 
 	new_vtpm.flags = VTPM_PROXY_FLAG_TPM2;
-	new_vtpm.tpm_num = 1; // change to unique container ID or use a countet
-	new_vtpm.fd = "/dev/vtpm1";
-	new_vtpm.major = 0; // major number of the TPM device
-	new_vtp.minor = 1; // minor number of the TPM device
+	new_vtpm.tpm_num = container_id;
+	new_vtpm.fd = "/dev/vtpm";
+	new_vtpm.major = MAJOR(ima_tpm_chip->device->devt); // MAJOR(dev_t dev); major number of the TPM device
+	new_vtp.minor = MINOR(ima_tpm_chip->device->devt); // MINOR(dev_t dev); minor number of the TPM device
 
 
 	ret = vtpmx_ioc_new_dev(vtpm_file, ioctl, (unsigned long)&new_vtpm);
@@ -136,28 +152,42 @@ void container_ima_setup()
  * container_ima_init
  *
  * Initalize container IMA
+ * Create vTPM proxy using container_id as its number
+ * Create measurment log 
+ * Default policy 
+ * 
+ * To do:
+ * - Seperate policies per container 
+ * - Seperate key ring? 
+ * - Secure FS instance per container or store all logs in the same instance?
+ * - Would having the vtpm device number relate to the container namespace ID be a problem for keylime?
+ * - Visability of vTPM to the container? Require container-side config?
  */
-int container_ima_init() 
+int container_ima_init(int container_id) 
 {
 	int ret;
+	
+	ima_tpm_chip = tpm_default_chip();
+	if (!ima_tpm_chip)
+		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
-	container_ima_tpm = ima_vtpm_setup() // per container vTPM
+	container_ima_tpm = ima_vtpm_setup(container_id, ima_tpm_chip); // per container vTPM
 
 	ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
 
 	if (ret)
 		return ret;
-	ret = container_ima_crypto_init(); // iterate over PCR banks and init the algorithms per bank  
+	ret = container_ima_crypto_init(container_id); // iterate over PCR banks and init the algorithms per bank  
 
 	if (ret)
 		return ret;
 
-	ret = container_ima_ml_init(); // set up directory for per container Measurment Log
+	ret = container_ima_ml_init(container_id); // set up directory for per container Measurment Log
 
 	if (ret) 
 		return ret;
 
-	container_ima_policy_init();
+	container_ima_policy_init(container_id); // start with default policy for all containers
 
 	return ret;
 }
