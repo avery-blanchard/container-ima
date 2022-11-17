@@ -27,6 +27,11 @@ struct container_data *cur;
 struct tpm_chip *ima_tpm_chip;
 int host_inum;
 
+
+/* mapping of id to system call arguments */
+BPF_HASH(active_mmap_args_map, uint64, struct mmap_args_t);
+
+
 /*
 notes 
 use integrity_iint_cache, not namespace specific
@@ -77,7 +82,7 @@ struct container_data {
 	int container_id;
 	inr keyring;
 	struct file *ml;
-	u8 algo; 
+	struct container_ima_hash *hash; 
 	int policy_num; 
 	struct container_data *next;
 };
@@ -199,6 +204,83 @@ struct file *retrieve_file(struct mmap_args_t *args)
 	}
 	return file;
  }
+ /*
+  * data_from_container_id
+  * 
+  * Retiever container_data struct using id
+  * For later, when adding multiple containers
+  */
+ struct container_data *data_from_container_id(int container_id)
+ {
+	struct container_data *cur;
+	return head;
+ }
+ /*
+  * measure
+  *
+  * Get file from mmap args and measure
+  */
+ int measure(struct mmap_args_t *arg , int container_id) 
+ {
+	int ret;
+	struct file *file;
+	struct container_data *data;
+	struct container_ima_hash *hash; 
+	char *buf;
+	loff_t i_size;
+	loff_t offset;
+
+
+
+	file = retrieve_file(args);
+	if (!file) {
+		pr_err("error retrieving file\n");
+		return -1;
+	}
+
+	data = data_from_container_id(container_id);
+	if (!data) {
+		pr_err("unable to get container data from id\n");
+		return -1;
+	}
+
+	hash = data->hash;
+
+	/* If it cannot read, handle later */
+	if (!(file->f_mode & FMODE_READ)) {
+		pr_err("Cannot read\n");
+		return -1;
+	}
+
+	i_size = i_size_read(file_inode(file));
+	if (i_size == 0) 
+		goto out;
+	
+	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+	
+	while (offset < i_size) {
+		int buf_len; 
+		buf_len = integrity_kernel_read(file, offset, rbuf, PAGE_SIZE);
+		if (buf_len < 0) {
+			ret = buf_len;
+			break;
+		}
+		if (buf_len == 0) {
+			ret = -EINVAL;
+			break;
+		}
+		offset += buf_len;
+		buf = crypto_shash_update(shash, buf, buf_len);
+		if (buf)
+			break;
+	}
+	kfree(buf);
+out:
+
+
+ }
 /*
  * container_ima_setup
  *
@@ -276,9 +358,6 @@ int container_ima_init(int container_id)
 	return ret;
 }
 
-/* mapping of id to system call arguments */
-BPF_HASH(active_mmap_args_map, uint64, struct mmap_args_t);
-
 /*
  * syscall__probe_entry_mmap
  * 
@@ -347,7 +426,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	/* Check if container already has an active ML, create hash of page and add to ML */
 	/* If not, create vTPM and key ring, create hash of page and add to ML */
 	ret = container_ima_init(inum); 
-	queue_measurement(args);
+	queue_measurement(args, inum);
 
 	return ret;
 
