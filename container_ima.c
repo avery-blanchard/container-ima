@@ -18,12 +18,14 @@
 #include <keys/system_keyring.h>
 
 #define MODULE_NAME "ContainerIMA"
-#define KEYRING_SIZE 10
+#define INTEGRITY_KEYRING_IMA 1
 
 const char *measure_log_dir = "/secure/container_ima/"; // in this dir, per container measurement logs 
 struct vtpm_proxy_new_dev *container_vtpms;
-struct key *keyring[KEYRING_SIZE];
+struct container_data *head;
+struct container_data *cur;
 struct tpm_chip *ima_tpm_chip;
+int host_inum;
 
 /*
 notes 
@@ -51,23 +53,35 @@ struct container_ima_hash_data {
 struct container_ima_entry {
 	int pcr;
 	struct tpm_digest *digests;
-	u32 container_id;
+	int container_id;
 	u32 data_len;
 };
 struct inode_ima_data {
 	struct mutex mut;
 	struct inode *inode;
 	unsigned long flags;
+	int container_id
 	struct container_ima_hash_data *hash;
 };
-struct container_ima_data {
+struct container_ima_inode_data {
 	struct inode_ima_data iiam;
 	struct vtpm_proxy_new_dev vtpm;
+	int container_id;
 	struct file *file;
 	const char *filename;
 	const void *buf;
 	int len;
 };
+struct container_data {
+	struct vtpm_proxy_new_dev vtpm;
+	int container_id;
+	inr keyring;
+	struct file *ml;
+	u8 algo; 
+	int policy_num; 
+	struct container_data *next;
+};
+
 int container_ima_fs_init() 
 {
 	int res;
@@ -86,8 +100,7 @@ int container_ima_fs_init()
  */
 int contain_keyring_init()
 {
-
-
+	return 0;
 }
 /*
  * container_keyring_add_key
@@ -95,7 +108,7 @@ int contain_keyring_init()
  */
 int container_keyring_add_key() 
 {
-
+	return 0;
 }
 /*
  * ima_vtpm_setup 
@@ -104,9 +117,9 @@ int container_keyring_add_key()
  * https://www.kernel.org/doc/html/v4.13/security/tpm/tpm_vtpm_proxy.html
  * https://elixir.bootlin.com/linux/v6.0.5/source/drivers/char/tpm/tpm_vtpm_proxy.c#L624 
  */
-long ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip) 
+long ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip, struct container_data *data) 
 {
-	struct vtpm_proxy_new_dev new_vtpm;
+	struct vtpm_proxy_new_dev *new_vtpm;
 	long ret;
 	int ioctl; 
 	struct file *vtpm_file;
@@ -114,6 +127,11 @@ long ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip)
 	char id[10];
 	int check;
 	
+	new_vtpm = kmalloc(sizeof(struct vtpm_proxy_new_dev), GFP_KERNEL);
+	if (!new_vtpm) {
+		pr_err("kmalloc failed\n");
+	}
+
 	check = sprintf(id, "%d", container_id);
 	if (check < 0)
 		pr_err("sprintf fails in vtpm setup \n");
@@ -135,6 +153,7 @@ long ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip)
 		pr_err("Failed to create a new vTPM device\n");
 	}
 
+	data->vtpm = new_vtpm;
 	return ret;
 	
 }
@@ -142,10 +161,25 @@ long ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip)
  * container_ima_setup
  *
  * Set up environment to initalize container IMA
+ * Malloc structure to hold container ids and other data to preserve state
  */
 void container_ima_setup()
 {
 	ima_hash_setup();
+
+}
+/*
+ * container_ima_crypto_init
+ * 
+ * Iterate over PCRs, check algorithm for PCR10 and record
+ */
+int container_ima_crypto_init(struct container_data *data)
+{
+	int ret;
+	int i;
+
+
+	return 0;
 
 }
 /*
@@ -166,18 +200,26 @@ void container_ima_setup()
 int container_ima_init(int container_id) 
 {
 	int ret;
-	
+	struct container_data *data;
+
+	data = kmalloc(size_of(struct container_data), GFP_KERNEL);
+	if (!data) {
+		pr_error("kmalloc failed\n");
+		return -1;
+	}
 	ima_tpm_chip = tpm_default_chip();
 	if (!ima_tpm_chip)
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
-	container_ima_tpm = ima_vtpm_setup(container_id, ima_tpm_chip); // per container vTPM
+	container_ima_vtpm = ima_vtpm_setup(container_id, ima_tpm_chip, data); // per container vTPM
 
-	ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
+	//ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
+
+	data->keyring = INTEGRITY_KEYRING_IMA;
 
 	if (ret)
 		return ret;
-	ret = container_ima_crypto_init(container_id); // iterate over PCR banks and init the algorithms per bank  
+	ret = container_ima_crypto_init(container_id, data); // iterate over PCR banks and init the algorithms per bank  
 
 	if (ret)
 		return ret;
@@ -190,15 +232,6 @@ int container_ima_init(int container_id)
 	container_ima_policy_init(container_id); // start with default policy for all containers
 
 	return ret;
-}
-/* check_container_map 
- * 
- * Determine whether mmap call was from a container or host process  
- */
-int check_container_map() 
-{
-
-
 }
 
 /* mapping of id to system call arguments */
@@ -248,42 +281,66 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	 * 	2. call functions to create hash digest, extend,
 	 * 		and send to TPM for IMA per container.
 	 */
+	int ret;
+	struct task_struct *task;
+	unsigned int inum;
 	struct mmap_args_t *args = {};
-	struct task_struct *task = bpf_get_current_task();
-	unsigned int inum = task->nsproxy->cgroup_ns->ns_common->inum;
+	
+	ret = 0;
+	task =  bpf_get_current_task();
+    inum = task->nsproxy->cgroup_ns->ns_common->inum;
 
 	active_mmap_args_map.pop(&args);
 
 	if (inum == host_inum) {
-		return 0;
+		return ret;
 	}
 
 	if (args->prot != PROT_READ && args->prot != PROR_EXEC) {
-		return 0;
+		return ret;
 	}
 
 	/* Check if container already has an active ML, create hash of page and add to ML */
 
+
 	/* If not, create vTPM and key ring, create hash of page and add to ML */
+	ret = container_ima_init(inum); 
+	queue_measurement();
+
+	return ret;
 
 
+}
+int container_ima_cleanup() {
+	
+	return 0;
 }
 static int container_ima_init(void)
 {
 	/* Start container IMA */
 	int ret;
+	struct task_struct *task;
+
+	task = current;
+	host_inum = task->nsproxy->cgroup_ns->ns_common->inum;
+
+	head = NULL;
+	cur = NULL;
 	container_ima_setup();
 	ret = container_ima_init();
+
 
 	return ret;
 }
 
-static void container_ima_init(void)
+static int container_ima_init(void)
 {
 	/* Clean up 
 	 * Free keyring and vTPMs
 	 */
-	return NULL;
+	int ret;
+	ret = container_ima_cleanup();
+	return ret;
 }
 
 
