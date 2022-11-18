@@ -304,6 +304,14 @@ void container_ima_setup()
 
 }
 /*
+ * store_measurement
+ * store file measurement, later add mutexes
+ *
+ */
+int store_measurement(struct mmap_args_t *arg , int container_id) {
+
+}
+/*
  * container_ima_crypto_init
  * 
  * Iterate over PCRs, check algorithm for PCR10 and record
@@ -440,7 +448,34 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	/* Check if container already has an active ML, create hash of page and add to ML */
 	/* If not, create vTPM and key ring, create hash of page and add to ML */
 	ret = container_ima_init(inum); 
-	queue_measurement(args, inum);
+	if (ret != 0) {
+		pr_err("Init fails\n");
+		return ret;
+	}
+
+	ret = file_measurement(args, inum);
+	if (ret != 0) {
+		pr_err("File measurement fails\n");
+		return ret;
+	}
+
+	ret = store_measurement(args, inum);
+	if (ret != 0) {
+		pr_err("Writing to ML fails\n");
+		return ret;
+	}
+
+	ret = extend_vtpm_pcr(args, inum);
+	if (ret != 0) {
+		pr_err("Extending to PCR 10 failed\n");
+		return ret;
+	}
+	
+	ret = sign_pcr(args, inum);
+	if (ret != 0) {
+		pr_err("Signing the PCR failed\n");
+		return ret;
+	}
 
 	return ret;
 
