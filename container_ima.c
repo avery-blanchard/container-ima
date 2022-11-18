@@ -16,6 +16,7 @@
 #include <linux/fs.h>
 #include <keyutils.h>
 #include <keys/system_keyring.h>
+#include "ima.h"
 
 #define MODULE_NAME "ContainerIMA"
 #define INTEGRITY_KEYRING_IMA 1
@@ -219,18 +220,21 @@ struct file *retrieve_file(struct mmap_args_t *args)
   * measure
   *
   * Get file from mmap args and measure
+  * Add a per ima inode mutex, hold before measuring/reading
   */
- int measure(struct mmap_args_t *arg , int container_id) 
+ int collect_measurement(struct mmap_args_t *arg , int container_id) 
  {
 	int ret;
-	struct file *file;
+	struct file *file, *f;
+	struct inode *inode;
+	const char *filename;
 	struct container_data *data;
-	struct container_ima_hash *hash; 
-	char *buf;
+	struct ima_max_digest_data hash;
+	struct container_ima_hash *hash_data;
+	void *buf;
+	int length;
 	loff_t i_size;
-	loff_t offset;
-
-
+	loff_t offset; 
 
 	file = retrieve_file(args);
 	if (!file) {
@@ -238,24 +242,30 @@ struct file *retrieve_file(struct mmap_args_t *args)
 		return -1;
 	}
 
+	inode = file_inode(file);
+	filename = file->f_path.dentry->d_name.name;
+
 	data = data_from_container_id(container_id);
 	if (!data) {
 		pr_err("unable to get container data from id\n");
 		return -1;
 	}
 
-	hash = data->hash;
+	hash_data = data->hash;
+	hash.hdr.algo = hash_data->algo;
+	hash.hdr.lenght = hash_data->length;
+
+	/* zero out, in case of failue */
+	memset(&hash.digest, 0, sizeof(hash.digest));
 
 	/* If it cannot read, handle later */
 	if (!(file->f_mode & FMODE_READ)) {
 		pr_err("Cannot read\n");
 		return -1;
 	}
-
-	i_size = i_size_read(file_inode(file));
-	if (i_size == 0) 
-		goto out;
-	
+	f = file;
+	/*
+	Attempt to use existing IMA function 
 	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
@@ -278,7 +288,8 @@ struct file *retrieve_file(struct mmap_args_t *args)
 	}
 	kfree(buf);
 out:
-
+*/
+	return ima_calc_file_shash(f, hash);
 
  }
 /*
@@ -313,6 +324,9 @@ int container_ima_crypto_init(struct container_data *data)
  * Create vTPM proxy using container_id as its number
  * Create measurment log 
  * Default policy 
+ * 
+ * use struct ima_digest_data so you can use IMA measurement functions 
+ * https://elixir.bootlin.com/linux/v6.0.9/source/security/integrity/integrity.h#L99
  * 
  * To do:
  * - Seperate policies per container 
