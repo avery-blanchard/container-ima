@@ -453,6 +453,88 @@ out:
 	ima_free_modsig(modsig);
 
 }
+int container_ima_add_template_entry(struct ima_template_entry *entry, int violation,
+			   const char *op, struct inode *inode,
+			   const unsigned char *filename, int container_id)
+{
+	u8 *digest = entry->digests[ima_hash_algo_idx].digest;
+	struct tpm_digest *digests_arg = entry->digests;
+	const char *audit_cause = "hash_added";
+	char tpm_audit_cause[AUDIT_CAUSE_LEN_MAX];
+	int audit_info = 1;
+	int result = 0, tpmresult = 0;
+
+	// create a mutex per container list 
+
+	/* 
+	 * hash table lookup, need to reimplement for container specific hash tables 
+	 * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L48 
+	 */
+	if (!violation && !IS_ENABLED(CONFIG_IMA_DISABLE_HTABLE)) {
+		if (ima_lookup_digest_entry(digest, entry->pcr)) {
+			audit_cause = "hash_exists";
+			result = -EEXIST;
+			goto out;
+		}
+	}
+	/*
+	 * add digest to the hashtable, need to reimplement for container specific hash tables 
+	 * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L93 
+	 */
+	res = container_ima_add_digest_entry(entry, container_id);
+
+	if (res < 0) {
+		audit_cause = "ENOMEM";
+		audit_info = 0;
+		goto out;
+	}	
+
+	/* if violation occurs, invalidate the PCR */
+	if (violation)
+		digest_args = digests;
+	
+	/* 
+	 * extend PCR of container's vTPM, figure out functions for extending vTPM 
+	 * https://elixir.bootlin.com/linux/latest/source/drivers/char/tpm/tpm-interface.c#L314 
+	 */
+	res = vtpm_pcr_extend(digest_args, entry->pcr, container_id);
+	if (res != 0) {
+		pr_err("vTPM failed\n");
+		audit_info = 0;
+	}
+out:
+	// unlock ml mutex here
+	return res;
+
+
+}
+int container_ima_store_template(struct ima_template_entry *entry,
+		       int violation, struct inode *inode,
+		       const unsigned char *filename, int container_id)
+{
+	int res;
+	static contst char op[] = "add_template_measure";
+	static const char audit_cause[] = "ENOMEM";
+	char *template_name = entry->template_desc->name;
+
+	if (!violation) {
+		// try to use IMA's hashing functions, hash should be in entry->digests[tfm_idx].digest
+		res = ima_calc_field_array_hash(&entry->template_data[0],
+						   entry, container_id);
+		if (res < 0) {
+			// error, add logging
+			pr_err("error calculating hash\n");
+			return 0;
+		}
+
+	}
+	entry->pcr = PCR;
+	// Add template list to ML and hash table, and extend the PCR
+	res = container_ima_add_template_entry(entry, violation, op, inode, filename, container_id);
+
+	return res;
+
+}
 /*
  * store_measurement
  * store file measurement, later add mutexes
@@ -477,16 +559,16 @@ int store_measurement(struct mmap_args_t *arg , int container_id, struct integri
 		pr_err("unable to get container data from id\n");
 		return -1;
 	}
-	if (iint->measured_pcrs & (0x1 << pcr) && !modsig)
+	if (iint->measured_pcrs & (0x1 << PCR) && !modsig)
 		return 0;
 
 	// write own func to allocate template 
 	//res = init_template(&event_data, entry, template_desc, container_id);
 	// going to need to rewrite store template due to host specific stuff
-	res = ima_store_template(entry, violation, inode, filename, pcr);
+	res = container_ima_store_template(entry, violation, inode, filename, container_id);
 	if ((!res || res == -EEXIST) && !(file->f_flags & O_DIRECT)) {
 		iint->flags |= IMA_MEASURED;
-		iint->measured_pcrs |= (0x1 << pcr);
+		iint->measured_pcrs |= (0x1 << PCR);
 	}
 	if (res < 0)
 		ima_free_template_entry(entry);
