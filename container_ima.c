@@ -460,7 +460,7 @@ out:
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L159
  * Notes; change to use struct integrity_iint_cache 
  */
-int store_measurement(struct mmap_args_t *arg , int container_id, struct integrity_iinit_cache *iint, struct modsig modsig, struct ima_template_desc *template_desc) 
+int store_measurement(struct mmap_args_t *arg , int container_id, struct integrity_iinit_cache *iint, struct file *file, struct modsig modsig, struct ima_template_desc *template_desc) 
 {
 	struct inode *inode;
 	struct ima_template_entry *entry;
@@ -468,24 +468,30 @@ int store_measurement(struct mmap_args_t *arg , int container_id, struct integri
 	struct container_data *data;
 	static contst char op[] = "add_template_measure";
 	static const char audit_cause[] = "ENOMEM";
-	int res = -ENOMEM;
-
-	file = retrieve_file(args);
-	if (!file) {
-		pr_err("error retrieving file\n");
-		return -1;
-	}
+	int res;
 
 	inode = file_inode(file);
-	filename = file->f_path.dentry->d_name.name;
 
 	data = data_from_container_id(container_id);
 	if (!data) {
 		pr_err("unable to get container data from id\n");
 		return -1;
 	}
-		
+	if (iint->measured_pcrs & (0x1 << pcr) && !modsig)
+		return 0;
 
+	// write own func to allocate template 
+	//res = init_template(&event_data, entry, template_desc, container_id);
+	// going to need to rewrite store template due to host specific stuff
+	res = ima_store_template(entry, violation, inode, filename, pcr);
+	if ((!res || res == -EEXIST) && !(file->f_flags & O_DIRECT)) {
+		iint->flags |= IMA_MEASURED;
+		iint->measured_pcrs |= (0x1 << pcr);
+	}
+	if (res < 0)
+		ima_free_template_entry(entry);
+	
+	return 0;
 
 }
 /*
