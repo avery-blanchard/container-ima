@@ -20,7 +20,7 @@
 
 #define MODULE_NAME "ContainerIMA"
 #define INTEGRITY_KEYRING_IMA 1
-
+#define PCR 10
 const char *measure_log_dir = "/secure/container_ima/"; // in this dir, per container measurement logs 
 struct vtpm_proxy_new_dev *container_vtpms;
 struct container_data *head;
@@ -71,12 +71,16 @@ struct inode_ima_data {
 };
 struct container_ima_inode_data {
 	struct inode_ima_data iiam;
+	struct inode *inode;
 	struct vtpm_proxy_new_dev vtpm;
 	int container_id;
 	struct file *file;
 	const char *filename;
 	const void *buf;
 	int len;
+	struct container_ima_inode_data *next;
+	// add mutex
+	// add 'dirty' bit for remeasuring
 };
 struct container_data {
 	struct vtpm_proxy_new_dev vtpm;
@@ -86,6 +90,7 @@ struct container_data {
 	struct container_ima_hash *hash; 
 	int policy_num; 
 	struct container_data *next;
+	struct container_ima_inode_data *head_inode;
 };
 
 int container_ima_fs_init() 
@@ -217,12 +222,20 @@ struct file *retrieve_file(struct mmap_args_t *args)
 	return head;
  }
  /*
+  *
+  * 
+  */
+ struct container_ima_inode_data *retrieve_inode_data(int container_id, struct file *file)
+ {
+
+ }
+ /*
   * measure
   *
   * Get file from mmap args and measure
   * Add a per ima inode mutex, hold before measuring/reading
   */
- int collect_measurement(struct mmap_args_t *arg , int container_id) 
+ int collect_measurement(struct mmap_args_t *args, int container_id, struct modsid *modsig, struct integrity_iinit_cache *iint) 
  {
 	int ret;
 	struct file *file, *f;
@@ -304,11 +317,175 @@ void container_ima_setup()
 
 }
 /*
+ * process_measurement
+ * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_main.c#L201
+ */
+int process_measurement(struct file *file, const struct cred *cred,
+			       u32 secid, char *buf, loff_t size, int mask, int container_id, struct mmap_args_t *args) 
+{
+	struct inode *inode;
+	struct integrity_iinit_cache *iint = NULL;
+	struct ima_template_desc *template_desc = NULL;
+	char filename[NAME_MAX];
+	const char *pathname = NULL;
+	struct container_data *data;
+	int ret, action, appraisal; 
+	struct evm_ima_xattr_data *xattr_value = NULL;
+	struct modsig *modsig = NULL;
+	int xattr_len = 0;
+	bool violation_check;
+	enum hash_algo hash_algo;
+	unsigned int allowed_algos = 0;
+
+	inode = file_inode(file);
+
+
+	if (!ima_policy_flag || !S_ISREG(inode->i_mode))
+		return 0;
+	action  = ima_get_action(file_mnt_user_ns(file), inode, cred, secid,
+				mask, func, &pcr, &template_desc, NULL,
+				&allowed_algos);
+	
+	violation_check = ((func == FILE_CHECK || func == MMAP_CHECK) &&
+			   (ima_policy_flag & IMA_MEASURE));
+	
+	if (!action && !violation_check)
+		return 0;
+	
+	//appraisal = action & IMA_APPRAISE; // implement apprasial in future
+	if (action & IMA_FILE_APPRAISE)
+		func = FILE_CHECK;
+	
+
+	inode_lock(inode);
+
+	if (action) {
+		iint = container_integrity_inode_get(inode); // have to re-implement for c-IMA, func has host specific stuff
+		if (!iint)
+			ret = -ENOMEM;
+	}
+
+	// handle violations 
+	if (!ret && violation_check)
+		ima_rdwr_violation_check(file, iint, action & IMA_MEASURE,
+					 &pathbuf, &pathname, filename); //rewirte this func to write to container specific log and use vTPM
+
+	inode_unlock(inode);
+	if (ret || !action)
+		return 0;
+
+	mutex_lock(&iint->mutex);
+
+	if (test_and_clear_bit(IMA_CHANGE_ATTR, &iint->atomic_flags))
+		iint->flags &= ~(IMA_APPRAISE | IMA_APPRAISED |
+				 IMA_APPRAISE_SUBMASK | IMA_APPRAISED_SUBMASK |
+				 IMA_NONACTION_FLAGS);
+
+	if (test_and_clear_bit(IMA_CHANGE_XATTR, &iint->atomic_flags) ||
+	    ((inode->i_sb->s_iflags & SB_I_IMA_UNVERIFIABLE_SIGNATURE) &&
+	     !(inode->i_sb->s_iflags & SB_I_UNTRUSTED_MOUNTER) &&
+	     !(action & IMA_FAIL_UNVERIFIABLE_SIGS))) {
+		iint->flags &= ~IMA_DONE_MASK;
+		iint->measured_pcrs = 0;
+	}
+	iint->flags |= action;
+	action &= IMA_DO_MASK;
+	action &= ~((iint->flags & (IMA_DONE_MASK ^ IMA_MEASURED)) >> 1);
+
+	if ((action & IMA_MEASURE) && (iint->measured_pcrs & (0x1 << pcr)))
+		action ^= IMA_MEASURE;
+	
+	if ((action & IMA_HASH) &&
+	    !(test_bit(IMA_DIGSIG, &iint->atomic_flags))) {
+		xattr_len = ima_read_xattr(file_dentry(file), &xattr_value);
+		if ((xattr_value && xattr_len > 2) &&
+		    (xattr_value->type == EVM_IMA_XATTR_DIGSIG))
+			set_bit(IMA_DIGSIG, &iint->atomic_flags);
+		iint->flags |= IMA_HASHED;
+		action ^= IMA_HASH;
+		set_bit(IMA_UPDATE_XATTR, &iint->atomic_flags);
+	}
+	// write mmap vilation checker in future?
+	// decide where to put ML for containers
+	// here normal ima reads from security.ima
+
+	if ((action & IMA_APPRAISE_SUBMASK) ||
+	    strcmp(template_desc->name, IMA_TEMPLATE_IMA_NAME) != 0) {
+			if (iint->flags & IMA_MODSIG_ALLOWED) {
+			ret = ima_read_modsig(func, buf, size, &modsig);
+
+			if (!ret && ima_template_has_modsig(template_desc) &&
+			    iint->flags & IMA_MEASURED)
+				action |= IMA_MEASURE;
+		}
+	}
+	data = data_from_container_id(container_id);
+	if (!data) {
+		pr_err("unable to get container data from id\n");
+		return -1;
+	}
+
+	hash_data = data->hash;
+	hash.hdr.algo = hash_data->algo;
+	hash.hdr.lenght = hash_data->length;
+	
+	ret = collect_measurement(args, container_id, modsig, iint);
+	if (ret != 0) {
+		pr_err("collecting measurement failed\n");
+		goto out;
+	}
+	if (action & IMA_MEASURE)
+		store_measurement(args, container_id, iinit, file, modsig,template_desc);
+	
+	// appraisal would go here
+
+	if (action & IMA_AUDIT)
+		ima_audit_measurement(iint, pathname);
+
+	if ((file->f_flags & O_DIRECT) && (iint->flags & IMA_PERMIT_DIRECTIO))
+		ret = 0;
+
+out:
+	if ((mask & MAY_WRITE) && test_bit(IMA_DIGSIG, &iint->atomic_flags) &&
+	     !(iint->flags & IMA_NEW_FILE))
+		ret = -EACCES;
+	mutex_unlock(&iint->mutex);
+	ima_free_modsig(modsig);
+
+}
+/*
  * store_measurement
  * store file measurement, later add mutexes
- *
+ * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_api.c#L339
+ * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L159
+ * Notes; change to use struct integrity_iint_cache 
  */
-int store_measurement(struct mmap_args_t *arg , int container_id) {
+int store_measurement(struct mmap_args_t *arg , int container_id, struct integrity_iinit_cache *iint, struct modsig modsig, struct ima_template_desc *template_desc) 
+{
+	struct inode *inode;
+	struct ima_template_entry *entry;
+	struct container_ima_event_data *event;
+	struct container_data *data;
+	static contst char op[] = "add_template_measure";
+	static const char audit_cause[] = "ENOMEM";
+	int res = -ENOMEM;
+
+	file = retrieve_file(args);
+	if (!file) {
+		pr_err("error retrieving file\n");
+		return -1;
+	}
+
+	inode = file_inode(file);
+	filename = file->f_path.dentry->d_name.name;
+
+	data = data_from_container_id(container_id);
+	if (!data) {
+		pr_err("unable to get container data from id\n");
+		return -1;
+	}
+		
+
 
 }
 /*
@@ -426,9 +603,12 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	 * 		and send to TPM for IMA per container.
 	 */
 	pr_into("In mmap probe return\n");
+
 	int ret;
 	struct task_struct *task;
+	struct file *file;
 	unsigned int inum;
+	u32 sec_id;
 	struct mmap_args_t *args = {};
 	
 	ret = 0;
@@ -447,13 +627,28 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 
 	/* Check if container already has an active ML, create hash of page and add to ML */
 	/* If not, create vTPM and key ring, create hash of page and add to ML */
+	
+	file = retrieve_file(args);
+	if (!file) {
+		pr_err("error retrieving file\n");
+		return -1;
+	}
+
+	security_current_getsecid_subj(&secid);
+
+	ret = ima_process_measurement(file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
+	if (ret != 0) {
+		pr_err("measurement fails\n");
+		return ret;
+	}
+	/*
 	ret = container_ima_init(inum); 
 	if (ret != 0) {
 		pr_err("Init fails\n");
 		return ret;
 	}
 
-	ret = file_measurement(args, inum);
+	ret = collect_measurement(args, inum);
 	if (ret != 0) {
 		pr_err("File measurement fails\n");
 		return ret;
@@ -475,7 +670,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	if (ret != 0) {
 		pr_err("Signing the PCR failed\n");
 		return ret;
-	}
+	}*/
 
 	return ret;
 
