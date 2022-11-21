@@ -7,7 +7,8 @@
 #include "container_ima.h"
 
 struct tpm_chip *ima_tpm_chip;
-
+static struct rb_root container_integrity_iint_tree = RB_ROOT;
+static DEFINE_RWLOCK(container_integrity_iint_lock);
 
 /*
  * container_ima_vtpm_setup 
@@ -79,7 +80,7 @@ int container_ima_init(int container_id)
 	if (!ima_tpm_chip)
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
-	container_ima_vtpm = ima_vtpm_setup(container_id, ima_tpm_chip, data); // per container vTPM
+	container_ima_vtpm = container_ima_vtpm_setup(container_id, ima_tpm_chip, data); // per container vTPM
 
 	//ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
 
@@ -143,5 +144,19 @@ int container_ima_cleanup() {
 void container_ima_setup()
 {
 	ima_hash_setup();
+
+}
+/*
+ * container_ima_crypto_init
+ * 
+ * Iterate over PCRs, check algorithm for PCR10 and record
+ */
+int container_ima_crypto_init(struct container_data *data)
+{
+	int ret;
+	int i;
+
+
+	return 0;
 
 }

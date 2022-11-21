@@ -7,6 +7,8 @@
 
 #include "container_ima.h"
 
+static struct rb_root container_integrity_iint_tree = RB_ROOT;
+static DEFINE_RWLOCK(container_integrity_iint_lock);
 
 /*
  * container_ima_retrieve_file
@@ -78,7 +80,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	inode = file_inode(file);
 	filename = file->f_path.dentry->d_name.name;
 
-	data = data_from_container_id(container_id);
+	data = get_data_from_container_id(container_id);
 	if (!data) {
 		pr_err("unable to get container data from id\n");
 		return -1;
@@ -97,38 +99,12 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 		return -1;
 	}
 	f = file;
-	/*
-	Attempt to use existing IMA function 
-	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
-	
-	while (offset < i_size) {
-		int buf_len; 
-		buf_len = integrity_kernel_read(file, offset, rbuf, PAGE_SIZE);
-		if (buf_len < 0) {
-			ret = buf_len;
-			break;
-		}
-		if (buf_len == 0) {
-			ret = -EINVAL;
-			break;
-		}
-		offset += buf_len;
-		buf = crypto_shash_update(shash, buf, buf_len);
-		if (buf)
-			break;
-	}
-	kfree(buf);
-out:
-*/
 	return ima_calc_file_shash(f, hash);
 
  }
  /*
   * container_integrity_inode_find
   *     Traverse rb_tree to see if the inode exists. If exits, return. Else, NULL.
-  *
   */
  struct integrity_iinit_cache *container_integrity_inode_find(struct inode *inode, int container_id)
  {
@@ -224,9 +200,10 @@ void container_ima_add_violation(struct file *file, const unsigned char *filenam
 	result = container_ima_store_template(entry, violation, inode,
 				    filename, CONFIG_IMA_MEASURE_PCR_IDX);
 	if (result < 0)
-		container_ima_free_template_entry(entry);
+		ima_free_template_entry(entry);
 err_out:
-	container_integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
+    // try to use IMA's audit messages? may be fine
+	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
 			    op, cause, result, 0, container_id);
 
 }
@@ -267,6 +244,7 @@ static void container_ima_rdwr_violation_check(struct file *file,
 
 	*pathname = ima_d_path(&file->f_path, pathbuf, filename); // try to use IMA's ima_d_path, don't see any issues so far
 
+    // are violations needed?
 	if (send_t)
 		container_ima_add_violation(file, *pathname, iint,
 				  "invalid_pcr", "ToMToU", container_id);
@@ -327,7 +305,7 @@ int container_ima_process_measurement(struct file *file, const struct cred *cred
 	// handle violations 
 	if (!ret && violation_check)
 		container_ima_rdwr_violation_check(file, iint, action & IMA_MEASURE,
-					 &pathbuf, &pathname, filename, container_id); //rewirte this func to write to container specific log and use vTPM
+					 &pathbuf, &pathname, filename, container_id);
 
 	inode_unlock(inode);
 	if (ret || !action)
@@ -378,7 +356,7 @@ int container_ima_process_measurement(struct file *file, const struct cred *cred
 				action |= IMA_MEASURE;
 		}
 	}
-	data = data_from_container_id(container_id);
+	data = get_data_from_container_id(container_id);
 	if (!data) {
 		pr_err("unable to get container data from id\n");
 		return -1;
@@ -388,13 +366,13 @@ int container_ima_process_measurement(struct file *file, const struct cred *cred
 	hash.hdr.algo = hash_data->algo;
 	hash.hdr.lenght = hash_data->length;
 	
-	ret = collect_measurement(args, container_id, modsig, iint);
+	ret = container_ima_collect_measurement(args, container_id, modsig, iint);
 	if (ret != 0) {
 		pr_err("collecting measurement failed\n");
 		goto out;
 	}
 	if (action & IMA_MEASURE)
-		store_measurement(args, container_id, iinit, file, modsig,template_desc);
+		container_ima_store_measurement(args, container_id, iinit, file, modsig,template_desc);
 	
 	// appraisal would go here
 
@@ -434,7 +412,7 @@ int container_ima_add_template_entry(struct ima_template_entry *entry, int viola
 	 * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L48 
 	 */
 	if (!violation && !IS_ENABLED(CONFIG_IMA_DISABLE_HTABLE)) {
-		if (ima_lookup_digest_entry(digest, entry->pcr)) {
+		if (container_ima_lookup_digest_entry(digest, entry->pcr, container_id)) {
 			audit_cause = "hash_exists";
 			result = -EEXIST;
 			goto out;
@@ -468,7 +446,6 @@ int container_ima_add_template_entry(struct ima_template_entry *entry, int viola
 out:
 	// unlock ml mutex here
 	return res;
-
 
 }
 /*
@@ -520,7 +497,7 @@ int container_ima_store_measurement(struct mmap_args_t *arg , int container_id, 
 
 	inode = file_inode(file);
 
-	data = data_from_container_id(container_id);
+	data = get_data_from_container_id(container_id);
 	if (!data) {
 		pr_err("unable to get container data from id\n");
 		return -1;
@@ -540,5 +517,42 @@ int container_ima_store_measurement(struct mmap_args_t *arg , int container_id, 
 		ima_free_template_entry(entry);
 	
 	return 0;
+
+}
+ /*
+  * get_data_from_container_id
+  *     Retiever container_data struct using id
+  *     For later, when adding multiple containers
+  */
+ struct container_data *get_data_from_container_id(int container_id)
+{
+	struct container_data *cur;
+	return head;
+}
+/*
+ * container_ima_lookup_digest_entry
+ *      Lookup digest in hashtable and return entry
+ * Notes: per container hash table or would it be better to keep track of shared files with a shared table? 
+ * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L55
+ */
+static struct ima_queue_entry *container_ima_lookup_digest_entry(u8 *digest_value,
+						       int pcr, int container_id)
+{
+    struct ima_queue_entry *entry, *ret = NULL;
+    int key, tmp;
+
+    key = ima_hash_key(digest_value);
+    rcu_read_lock();
+
+    hlist_for_each_entry_rcu(qe, &ima_hash_table.queue[key], hnext) {
+		tmp = memcmp(qe->entry->digests[ima_hash_algo_idx].digest,
+			    digest_value, hash_digest_size[ima_hash_algo]);
+		if ((tmp == 0) && (qe->entry->pcr == pcr)) {
+			ret = qe;
+			break;
+		}
+	}
+	rcu_read_unlock();
+	return ret;
 
 }

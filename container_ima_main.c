@@ -27,72 +27,10 @@ struct container_data *head;
 struct container_data *cur;
 struct tpm_chip *ima_tpm_chip;
 int host_inum;
-static struct rb_root container_integrity_iint_tree = RB_ROOT;
-static DEFINE_RWLOCK(container_integrity_iint_lock);
 
 /* mapping of id to system call arguments */
 BPF_HASH(active_mmap_args_map, uint64, struct mmap_args_t);
 
-
-/*
-notes 
-use integrity_iint_cache, not namespace specific
-ima_collect_measurement
-write own store measurement
-*/
-struct mmap_args_t {
-	void *addr;
-	size_t length;
-	int prot;
-	int flags;
-	int fd;
-	off_t offset
-};
-struct container_ima_hash {
-	u8 algo;
-	u8 length;
-};
-struct container_ima_hash_data {
-	u8 algo;
-	u8 length;
-	u8 digest[HASH_MAX_DIGESTSIZE];
-};
-struct container_ima_entry {
-	int pcr;
-	struct tpm_digest *digests;
-	int container_id;
-	u32 data_len;
-};
-struct inode_ima_data {
-	struct mutex mut;
-	struct inode *inode;
-	unsigned long flags;
-	int container_id
-	struct container_ima_hash_data *hash;
-};
-struct container_ima_inode_data {
-	struct inode_ima_data iiam;
-	struct inode *inode;
-	struct vtpm_proxy_new_dev vtpm;
-	int container_id;
-	struct file *file;
-	const char *filename;
-	const void *buf;
-	int len;
-	struct container_ima_inode_data *next;
-	// add mutex
-	// add 'dirty' bit for remeasuring
-};
-struct container_data {
-	struct vtpm_proxy_new_dev vtpm;
-	int container_id;
-	inr keyring;
-	struct file *ml;
-	struct container_ima_hash *hash; 
-	int policy_num; 
-	struct container_data *next;
-	struct container_ima_inode_data *head_inode;
-};
 /*
  * container_keyring_add_key
  * create key from loading the vTPM x.509 cert
@@ -100,32 +38,6 @@ struct container_data {
 int container_keyring_add_key() 
 {
 	return 0;
-}
- /*
-  * data_from_container_id
-  * 
-  * Retiever container_data struct using id
-  * For later, when adding multiple containers
-  */
- struct container_data *data_from_container_id(int container_id)
- {
-	struct container_data *cur;
-	return head;
- }
-
-/*
- * container_ima_crypto_init
- * 
- * Iterate over PCRs, check algorithm for PCR10 and record
- */
-int container_ima_crypto_init(struct container_data *data)
-{
-	int ret;
-	int i;
-
-
-	return 0;
-
 }
 /*
  * syscall__probe_entry_mmap
