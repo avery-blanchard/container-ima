@@ -383,6 +383,45 @@ void container_ima_setup()
 	ima_hash_setup();
 
 }
+static void container_ima_rdwr_violation_check(struct file *file,
+				     struct integrity_iint_cache *iint,
+				     int must_measure,
+				     char **pathbuf,
+				     const char **pathname,
+				     char *filename, int container_id)
+{
+	struct inode *inode = file_inode(file);
+	fmode_t mode = file->f_mode;
+	bool send_t = false;
+	bool send_w = false;
+
+	if (mode & FMODE_WRITE) {
+		if (atomic_read(&inode->i_readcount) && IS_IMA(inode)) {
+			if (!iint)
+				iint = container_integrity_iint_find(inode, container_id);
+			if (iint && test_bit(IMA_MUST_MEASURE,
+						&iint->atomic_flags))
+				send_t = true;
+		}
+	} else {
+		if (must_measure)
+			set_bit(IMA_MUST_MEASURE, &iint->atomic_flags);
+		if (inode_is_open_for_write(inode) && must_measure)
+			send_w = true;
+	}
+
+	if (!send_t && !send_w)
+		return;
+
+	*pathname = container_ima_d_path(&file->f_path, pathbuf, filename);
+
+	if (send_t)
+		container_ima_add_violation(file, *pathname, iint,
+				  "invalid_pcr", "ToMToU", container_id);
+	if (send_w)
+		container_ima_add_violation(file, *pathname, iint,
+				  "invalid_pcr", "open_writers", container_id);
+}
 /*
  * process_measurement
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_main.c#L201
@@ -409,6 +448,7 @@ int process_measurement(struct file *file, const struct cred *cred,
 
 	if (!ima_policy_flag || !S_ISREG(inode->i_mode))
 		return 0;
+
 	action  = ima_get_action(file_mnt_user_ns(file), inode, cred, secid,
 				mask, func, &pcr, &template_desc, NULL,
 				&allowed_algos);
@@ -427,15 +467,15 @@ int process_measurement(struct file *file, const struct cred *cred,
 	inode_lock(inode);
 
 	if (action) {
-		iint = container_integrity_inode_get(inode, container_id); // have to re-implement for c-IMA, func has host specific stuff
+		iint = container_integrity_inode_get(inode, container_id);
 		if (!iint)
 			ret = -ENOMEM;
 	}
 
 	// handle violations 
 	if (!ret && violation_check)
-		ima_rdwr_violation_check(file, iint, action & IMA_MEASURE,
-					 &pathbuf, &pathname, filename); //rewirte this func to write to container specific log and use vTPM
+		container_ima_rdwr_violation_check(file, iint, action & IMA_MEASURE,
+					 &pathbuf, &pathname, filename, container_id); //rewirte this func to write to container specific log and use vTPM
 
 	inode_unlock(inode);
 	if (ret || !action)
@@ -472,7 +512,7 @@ int process_measurement(struct file *file, const struct cred *cred,
 		action ^= IMA_HASH;
 		set_bit(IMA_UPDATE_XATTR, &iint->atomic_flags);
 	}
-	// write mmap vilation checker in future?
+	// write mmap violation checker in future?
 	// decide where to put ML for containers
 	// here normal ima reads from security.ima
 
