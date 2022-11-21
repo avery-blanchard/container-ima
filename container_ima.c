@@ -27,7 +27,8 @@ struct container_data *head;
 struct container_data *cur;
 struct tpm_chip *ima_tpm_chip;
 int host_inum;
-
+static struct rb_root container_integrity_iint_tree = RB_ROOT;
+static DEFINE_RWLOCK(container_integrity_iint_lock);
 
 /* mapping of id to system call arguments */
 BPF_HASH(active_mmap_args_map, uint64, struct mmap_args_t);
@@ -125,6 +126,7 @@ int container_keyring_add_key()
  * ima_vtpm_setup 
  *
  * Set up per container vTPM, PCR 10 for IMA
+ * https://elixir.bootlin.com/linux/latest/source/drivers/char/tpm/tpm_vtpm_proxy.c 
  * https://www.kernel.org/doc/html/v4.13/security/tpm/tpm_vtpm_proxy.html
  * https://elixir.bootlin.com/linux/v6.0.5/source/drivers/char/tpm/tpm_vtpm_proxy.c#L624 
  */
@@ -305,6 +307,71 @@ out:
 	return ima_calc_file_shash(f, hash);
 
  }
+  struct integrity_iinit_cache *container_integrity_inode_find(struct inode *inode, int container_id)
+ {
+	struct integrity_iint_cache *iint;
+	struct rb_node *node = container_integrity_iint_tree.rb_node; // root inode for per container tree, start one 
+	
+	while (node) {
+		iint = rb_entry(node, struct integrity_iint_cache, rb_node);
+
+		if (inode < iint->inode)
+			node = node->rb_left;
+		else if (inode > iint->inode)
+			node = node->rb_right;
+		else
+			break;
+	}
+	if (!node)
+		return NULL;
+
+	return iint;
+}
+ /*
+  * container_integrity_inode_get 
+  * find or allocate iint asscoiated with an inode 
+  * lock i_mutex
+  * 
+  * container specifics:
+  * 	1. original function traverses rb tree, so use container id to access to correct rb tree?
+  * 		figure out how to handle this, mantaining the seperate trees is going to be $
+  *     
+  */
+ struct integrity_iinit_cache *container_integrity_inode_get(struct inode *inode, int container_id)
+ {
+	 struct integrity_iint_cache *iint, tmp;
+	 struct rb_node **ptr;
+	 struct rb_node *node, *parent;
+	
+	iinit = container_integrity_inode_find(inode, container_id);
+		if (iint)
+		return iint;
+
+	iint = kmem_cache_alloc(iint_cache, GFP_NOFS);
+	if (!iint)
+		return NULL;
+
+	write_lock(&container_integrity_iint_lock);
+
+	ptr = &container_integrity_iint_tree.rb_node;
+	while (*ptr) {
+		parent = *ptr;
+		tmp = rb_entry(parent, struct integrity_iinit_cache, rb_node);
+		if (inode < tmp->inode)
+			ptr = &(*ptr)->rb_left;
+		else
+			ptr = &(*ptr)->rb_right;
+	}
+	iinit->inode = inode;
+	node = &iinit->rb_node;
+	inode->i_flags |= S_IMA;
+	rb_link_node(node, parent, ptr);
+	rb_insert_color(node, &container_iinit_tree);
+
+	write_unlock(&integrity_iint_lock);
+	return iint;
+
+ }
 /*
  * container_ima_setup
  *
@@ -360,7 +427,7 @@ int process_measurement(struct file *file, const struct cred *cred,
 	inode_lock(inode);
 
 	if (action) {
-		iint = container_integrity_inode_get(inode); // have to re-implement for c-IMA, func has host specific stuff
+		iint = container_integrity_inode_get(inode, container_id); // have to re-implement for c-IMA, func has host specific stuff
 		if (!iint)
 			ret = -ENOMEM;
 	}
@@ -729,36 +796,6 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 		pr_err("measurement fails\n");
 		return ret;
 	}
-	/*
-	ret = container_ima_init(inum); 
-	if (ret != 0) {
-		pr_err("Init fails\n");
-		return ret;
-	}
-
-	ret = collect_measurement(args, inum);
-	if (ret != 0) {
-		pr_err("File measurement fails\n");
-		return ret;
-	}
-
-	ret = store_measurement(args, inum);
-	if (ret != 0) {
-		pr_err("Writing to ML fails\n");
-		return ret;
-	}
-
-	ret = extend_vtpm_pcr(args, inum);
-	if (ret != 0) {
-		pr_err("Extending to PCR 10 failed\n");
-		return ret;
-	}
-	
-	ret = sign_pcr(args, inum);
-	if (ret != 0) {
-		pr_err("Signing the PCR failed\n");
-		return ret;
-	}*/
 
 	return ret;
 
