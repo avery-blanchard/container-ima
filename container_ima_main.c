@@ -110,7 +110,7 @@ int container_ima_fs_init()
  * https://man7.org/linux/man-pages/man7/keyrings.7.html
  * https://man7.org/linux/man-pages/man2/add_key.2.html 
  */
-int contain_keyring_init()
+int container_keyring_init()
 {
 	return 0;
 }
@@ -130,7 +130,7 @@ int container_keyring_add_key()
  * https://www.kernel.org/doc/html/v4.13/security/tpm/tpm_vtpm_proxy.html
  * https://elixir.bootlin.com/linux/v6.0.5/source/drivers/char/tpm/tpm_vtpm_proxy.c#L624 
  */
-long ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip, struct container_data *data) 
+long container_ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip, struct container_data *data) 
 {
 	struct vtpm_proxy_new_dev *new_vtpm;
 	long ret;
@@ -175,7 +175,7 @@ long ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip, struct cont
  *
  * https://elixir.bootlin.com/linux/v6.0.9/source/mm/mmap.c#L1586 
  */
-struct file *retrieve_file(struct mmap_args_t *args) 
+struct file *container_ima_retrieve_file(struct mmap_args_t *args) 
 {
 	int ret;
 	struct file *file;
@@ -227,7 +227,7 @@ struct file *retrieve_file(struct mmap_args_t *args)
   *
   * 
   */
- struct container_ima_inode_data *retrieve_inode_data(int container_id, struct file *file)
+ struct container_ima_inode_data *container_ima_retrieve_inode_data(int container_id, struct file *file)
  {
 
  }
@@ -237,7 +237,7 @@ struct file *retrieve_file(struct mmap_args_t *args)
   * Get file from mmap args and measure
   * Add a per ima inode mutex, hold before measuring/reading
   */
- int collect_measurement(struct mmap_args_t *args, int container_id, struct modsid *modsig, struct integrity_iinit_cache *iint) 
+ int container_ima_collect_measurement(struct mmap_args_t *args, int container_id, struct modsid *modsig, struct integrity_iinit_cache *iint) 
  {
 	int ret;
 	struct file *file, *f;
@@ -307,7 +307,7 @@ out:
 	return ima_calc_file_shash(f, hash);
 
  }
-  struct integrity_iinit_cache *container_integrity_inode_find(struct inode *inode, int container_id)
+struct integrity_iinit_cache *container_integrity_inode_find(struct inode *inode, int container_id)
  {
 	struct integrity_iint_cache *iint;
 	struct rb_node *node = container_integrity_iint_tree.rb_node; // root inode for per container tree, start one 
@@ -383,6 +383,36 @@ void container_ima_setup()
 	ima_hash_setup();
 
 }
+void container_ima_add_violation(struct file *file, const unsigned char *filename,
+		       struct integrity_iint_cache *iint,
+		       const char *op, const char *cause, int container) 
+{
+	struct ima_template_entry *entry;
+	struct inode *inode = file_inode(file);
+	struct ima_event_data event_data = { .iint = iint,
+					     .file = file,
+					     .filename = filename,
+					     .violation = cause };
+	int violation = 1;
+	int result;
+
+	/* can overflow, only indicator */
+	atomic_long_inc(&ima_htable.violations);
+
+	result = ima_alloc_init_template(&event_data, &entry, NULL);
+	if (result < 0) {
+		result = -ENOMEM;
+		goto err_out;
+	}
+	result = container_ima_store_template(entry, violation, inode,
+				    filename, CONFIG_IMA_MEASURE_PCR_IDX);
+	if (result < 0)
+		container_ima_free_template_entry(entry);
+err_out:
+	container_integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
+			    op, cause, result, 0, container_id);
+
+}
 static void container_ima_rdwr_violation_check(struct file *file,
 				     struct integrity_iint_cache *iint,
 				     int must_measure,
@@ -413,7 +443,7 @@ static void container_ima_rdwr_violation_check(struct file *file,
 	if (!send_t && !send_w)
 		return;
 
-	*pathname = container_ima_d_path(&file->f_path, pathbuf, filename);
+	*pathname = ima_d_path(&file->f_path, pathbuf, filename); // try to use IMA's ima_d_path, don't see any issues so far
 
 	if (send_t)
 		container_ima_add_violation(file, *pathname, iint,
@@ -426,7 +456,7 @@ static void container_ima_rdwr_violation_check(struct file *file,
  * process_measurement
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_main.c#L201
  */
-int process_measurement(struct file *file, const struct cred *cred,
+int container_ima_process_measurement(struct file *file, const struct cred *cred,
 			       u32 secid, char *buf, loff_t size, int mask, int container_id, struct mmap_args_t *args) 
 {
 	struct inode *inode;
@@ -649,7 +679,7 @@ int container_ima_store_template(struct ima_template_entry *entry,
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L159
  * Notes; change to use struct integrity_iint_cache 
  */
-int store_measurement(struct mmap_args_t *arg , int container_id, struct integrity_iinit_cache *iint, struct file *file, struct modsig modsig, struct ima_template_desc *template_desc) 
+int container_ima_store_measurement(struct mmap_args_t *arg , int container_id, struct integrity_iinit_cache *iint, struct file *file, struct modsig modsig, struct ima_template_desc *template_desc) 
 {
 	struct inode *inode;
 	struct ima_template_entry *entry;
@@ -863,7 +893,7 @@ static int container_ima_init(void)
 	return ret;
 }
 
-static int container_ima_init(void)
+static void container_ima_exit(void)
 {
 	/* Clean up 
 	 * Free keyring and vTPMs
