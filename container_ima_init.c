@@ -89,7 +89,7 @@ struct container_ima_data *init_container_ima_data(int container_id)
  *		Create measurment log 
  * 		Default policy 
  */
-int container_ima_init(int container_id) 
+int init_container_ima(int container_id, static struct dentry c_ima_dir, static struct dentry c_ima_symlink) 
 {
 	int ret;
 	struct container_ima_data *data;
@@ -107,6 +107,8 @@ int container_ima_init(int container_id)
 	container_ima_vtpm = container_ima_vtpm_setup(container_id, ima_tpm_chip, data); // per container vTPM
  
 	data = init_container_ima_data(container_id);
+
+	ret = container_ima_fs_init(container_id, c_ima_dir, c_ima_symlink);
 	//ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
 
 	//data->keyring = INTEGRITY_KEYRING_IMA;
@@ -130,14 +132,73 @@ int container_ima_init(int container_id)
 
 /*
  * container_ima_fs_init
+ * 		Securityfs
  *      Create a secure place to store per container measurement logs
+ * 		Idea: under /integrity/ima/containers/ have a directory per container named with container id
+ * 			
  */
-int container_ima_fs_init() 
+int container_ima_fs_init(struct container_ima_data *data, static struct dentry c_ima_dir, static struct dentry c_ima_symlink) 
 {
 	int res;
-	mode_t dir_mode= 0755;
+	struct dentry *binary_runtime_measurements = NULL;
+	struct dentry *ascii_runtime_measurements = NULL;
+	struct dentry *runtime_measurements_count = NULL;
+	struct dentry *violations = NULL;
+	struct dentry *active = NULL;
 
-	res = mkdir(measure_log_dir, dir_mode);
+	binary_runtime_measurements =
+	securityfs_create_file("binary_runtime_measurements",
+				   S_IRUSR | S_IRGRP, ima_dir, NULL,
+				   &ima_measurements_ops);
+
+	if (IS_ERR(binary_runtime_measurements)) {
+		ret = PTR_ERR(binary_runtime_measurements);
+		goto out;
+	}
+
+	ascii_runtime_measurements =
+	    securityfs_create_file("ascii_runtime_measurements",
+				   S_IRUSR | S_IRGRP, ima_dir, NULL,
+				   &ima_ascii_measurements_ops);
+	if (IS_ERR(ascii_runtime_measurements)) {
+		ret = PTR_ERR(ascii_runtime_measurements);
+		goto out;
+	}
+
+	runtime_measurements_count =
+	    securityfs_create_file("runtime_measurements_count",
+				   S_IRUSR | S_IRGRP, ima_dir, NULL,
+				   &ima_measurements_count_ops);
+	if (IS_ERR(runtime_measurements_count)) {
+		ret = PTR_ERR(runtime_measurements_count);
+		goto out;
+	}
+
+	violations =
+	    securityfs_create_file("violations", S_IRUSR | S_IRGRP,
+				   ima_dir, NULL, &ima_htable_violations_ops);
+	if (IS_ERR(violations)) {
+		ret = PTR_ERR(violations);
+		goto out;
+	}
+
+	data->c_ima_policy = securityfs_create_file("policy", POLICY_FILE_FLAGS,
+					    ima_dir, NULL,
+					    &ima_measure_policy_ops);
+	if (IS_ERR(ima_policy)) {
+		ret = PTR_ERR(ima_policy);
+		goto out;
+	}
+
+	return 0;
+out:
+	securityfs_remove(data->c_ima_policy);
+	securityfs_remove(violations);
+	securityfs_remove(runtime_measurements_count);
+	securityfs_remove(ascii_runtime_measurements);
+	securityfs_remove(binary_runtime_measurements);
+	securityfs_remove(ima_symlink);
+	securityfs_remove(ima_dir);
 
 	return res;
 }

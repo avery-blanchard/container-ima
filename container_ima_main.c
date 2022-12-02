@@ -27,6 +27,8 @@ struct container_data *head;
 struct container_data *cur;
 struct tpm_chip *ima_tpm_chip;
 int host_inum;
+static struct dentry *c_ima_dir;
+static struct dentry *c_ima_symlink;
 
 /* mapping of id to system call arguments */
 BPF_HASH(active_mmap_args_map, uint64, struct mmap_args_t);
@@ -131,19 +133,23 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 static int container_ima_init(void)
 {
 	/* Start container IMA */
-	int ret;
 	struct task_struct *task;
 
 	task = current;
 	host_inum = task->nsproxy->cgroup_ns->ns_common->inum;
 
-	head = NULL;
-	cur = NULL;
-	container_ima_setup();
-	ret = container_ima_init();
+	c_ima_dir = securityfs_create_dir("container_ima", "integrity/container_ima");
+	if (IS_ERR(c_ima_dir))
+		return -1;
+	
+	c_ima_symlink = securityfs_create_symlink("container_ima", NULL, "integrity/container_ima",
+						NULL);
+	if (IS_ERR(c_ima_symlink)) {
+		ret = PTR_ERR(c_ima_symlink);
+		return -1;
+	}
 
-
-	return ret;
+	return 0;
 }
 
 static void container_ima_exit(void)

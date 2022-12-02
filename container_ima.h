@@ -111,8 +111,8 @@ struct container_ima_data {
 	struct mutex c_ima_write_mutex;
 	unsigned long c_ima_fs_flags;
 	int valid_policy;
-
-	struct dentry *ima_policy
+	extern spinlock_t c_ima_queue_lock;
+	struct dentry *c_ima_policy
 };
 
 /* Internal container IMA function definitions */
