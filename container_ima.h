@@ -22,7 +22,7 @@
 
 /* define sizes for hash tables */
 #define CONTAINER_IMA_HASH_BITS 10
-#define CONTAINER_IMA_MEASURE_HTABLE_SIZE (1 << CONTAINER_IMA_HASH_BITS)
+#define CONTAINER_IMA_HTABLE_SIZE (1 << CONTAINER_IMA_HASH_BITS)
 
 extern struct tpm_chip *ima_tpm_chip;
 extern int host_inum;
@@ -36,8 +36,8 @@ struct mmap_args_t {
 	int fd;
 	off_t offset
 };
-/* container hash table structs for digests */
-struct container_ima_hash_table {
+
+struct c_ima_hash_table {
     atomic_long_t size;
     atomic_long_t violations;
     struct hlist_head queue[CONTAINER_IMA_MEASURE_HTABLE_SIZE];
@@ -55,7 +55,7 @@ struct container_ima_event_data {
 	const char *violation;
 	const void *buf;
 	int buf_len;
-    //int container_id;
+    int container_id;
 };
 
 struct container_ima_hash {
@@ -79,7 +79,7 @@ struct inode_ima_data {
 	unsigned long flags;
 	int container_id
 	struct container_ima_hash_data *hash;
-};
+};/*
 struct container_ima_inode_data {
 	struct inode_ima_data iiam;
 	struct inode *inode;
@@ -92,16 +92,27 @@ struct container_ima_inode_data {
 	struct container_ima_inode_data *next;
 	// add mutex
 	// add 'dirty' bit for remeasuring
-};
-struct container_data {
+};*/
+
+struct container_ima_data {
+	atomic_long_t len;
+	atomic_long_t violations;
+	struct hlist_head_queue[CONTAINER_IMA_HTABLE_SIZE];
 	struct vtpm_proxy_new_dev vtpm;
+	/* policy configurations */
+	struct list_head c_ima_default_rules;
+	struct list_head c_ima_policy_rules;
+	struct list_head __rcu *c_ima_rules;
 	int container_id;
-	inr keyring;
+	struct list_head c_ima_measurements;
+	unsigned long binary_runtime_size;
 	struct file *ml;
-	struct container_ima_hash *hash; 
-	int policy_num; 
-	struct container_data *next;
-	struct container_ima_inode_data *head_inode;
+	struct c_ima_hash *hash_tbl; 
+	struct mutex c_ima_write_mutex;
+	unsigned long c_ima_fs_flags;
+	int valid_policy;
+
+	struct dentry *ima_policy
 };
 
 /* Internal container IMA function definitions */
@@ -109,7 +120,7 @@ int container_keyring_init();
 int container_ima_fs_init();
 long container_ima_vtpm_setup(int, struct tpm_chip *, struct container_data *);
 struct file *container_ima_retrieve_file(struct mmap_args_t *);
-struct container_data *get_data_from_container_id(int);
+struct container_ima_data *get_data_from_container_id(int);
 struct container_ima_inode_data *container_ima_retrieve_inode_data(int, struct file *);
 int container_ima_collect_measurement(struct mmap_args_t *, int, struct modsid *, struct integrity_iinit_cache *);
 struct integrity_iinit_cache *container_integrity_inode_find(struct inode *, int);

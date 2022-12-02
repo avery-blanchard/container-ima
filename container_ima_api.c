@@ -438,13 +438,16 @@ int container_ima_add_template_entry(struct ima_template_entry *entry, int viola
 	 * extend PCR of container's vTPM, figure out functions for extending vTPM 
 	 * https://elixir.bootlin.com/linux/latest/source/drivers/char/tpm/tpm-interface.c#L314 
 	 */
-	res = vtpm_pcr_extend(digest_args, entry->pcr, container_id);
+	//res = vtpm_pcr_extend(digest_args, entry->pcr, container_id);
+	res = ima_pcr_extend(digest_arg, entry->pcr);
 	if (res != 0) {
 		pr_err("vTPM failed\n");
 		audit_info = 0;
 	}
 out:
 	// unlock ml mutex here
+	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
+			    op, cause, result, 0, container_id);
 	return res;
 
 }
@@ -524,10 +527,9 @@ int container_ima_store_measurement(struct mmap_args_t *arg , int container_id, 
   *     Retiever container_data struct using id
   *     For later, when adding multiple containers
   */
- struct container_data *get_data_from_container_id(int container_id)
+ struct container_ima_data *get_data_from_container_id(int container_id)
 {
-	struct container_data *cur;
-	return head;
+	
 }
 /*
  * container_ima_lookup_digest_entry
