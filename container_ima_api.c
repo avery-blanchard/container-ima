@@ -4,7 +4,7 @@
  */
 #include <linux/slab.h>
 #include <linux/file.h>
-
+#include <linux/ima.h>
 #include "container_ima.h"
 
 static struct kmem_cache *c_ima_iint_cache;
@@ -56,7 +56,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
   * container_ima_collect_measurement
   *     Get file from mmap args and measure
   */
- int container_ima_collect_measurement(struct container_data *data, struct mmap_args_t *args, int container_id, struct modsid *modsig, struct integrity_iinit_cache *iint) 
+ int container_ima_collect_measurement(struct container_data *data, struct mmap_args_t *args, int container_id, struct modsid *modsig, struct integrity_iint_cache *iint) 
  {
 	int ret;
 	struct file *file, *f;
@@ -99,7 +99,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
   * container_integrity_inode_find
   *     Traverse rb_tree to see if the inode exists. If exits, return. Else, NULL.
   */
- struct integrity_iinit_cache *container_integrity_inode_find(struct container_data *data, struct inode *inode, int container_id)
+ struct integrity_iint_cache *container_integrity_inode_find(struct container_data *data, struct inode *inode, int container_id)
  {
 	struct integrity_iint_cache *iint;
 	struct rb_node *node = data->container_integrity_iint_tree.rb_node; // root inode for per container tree, start one 
@@ -127,13 +127,13 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
   * https://elixir.bootlin.com/linux/latest/source/security/integrity/iint.c#L95 
   *     
   */
- struct integrity_iinit_cache *container_integrity_inode_get(struct container_data *data, struct inode *inode, int container_id)
+ struct integrity_iint_cache *container_integrity_inode_get(struct container_data *data, struct inode *inode, int container_id)
  {
-	 struct integrity_iint_cache *iint, tmp;
+	 struct integrity_iint_cache *iint, *tmp;
 	 struct rb_node **ptr;
 	 struct rb_node *node, *parent;
 	
-	iinit = container_integrity_inode_find(data, inode, container_id);
+	iint = container_integrity_inode_find(data, inode, container_id);
 		if (iint)
 		return iint;
 
@@ -146,17 +146,17 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	ptr = &data->container_integrity_iint_tree.rb_node;
 	while (*ptr) {
 		parent = *ptr;
-		tmp = rb_entry(parent, struct integrity_iinit_cache, rb_node);
+		tmp = rb_entry(parent, struct integrity_iint_cache, rb_node);
 		if (inode < tmp->inode)
 			ptr = &(*ptr)->rb_left;
 		else
 			ptr = &(*ptr)->rb_right;
 	}
-	iinit->inode = inode;
-	node = &iinit->rb_node;
+	iint->inode = inode;
+	node = &iint->rb_node;
 	inode->i_flags |= S_IMA;
 	rb_link_node(node, parent, ptr);
-	rb_insert_color(node, &data->container_iinit_tree);
+	rb_insert_color(node, &data->container_iint_tree);
 
 	write_unlock(&data->integrity_iint_lock);
 	return iint;
@@ -300,7 +300,7 @@ int container_ima_process_measurement(struct container_data *data, struct file *
 			       u32 secid, char *buf, loff_t size, int mask, int container_id, struct mmap_args_t *args) 
 {
 	struct inode *inode;
-	struct integrity_iinit_cache *iint = NULL;
+	struct integrity_iint_cache *iint = NULL;
 	struct ima_template_desc *template_desc = NULL;
 	char filename[NAME_MAX];
 	const char *pathname = NULL;
@@ -408,7 +408,7 @@ int container_ima_process_measurement(struct container_data *data, struct file *
 		goto out;
 	}
 	if (action & IMA_MEASURE)
-		container_ima_store_measurement(data, args, container_id, iinit, file, modsig,template_desc);
+		container_ima_store_measurement(data, args, container_id, iint, file, modsig,template_desc);
 	
 	// appraisal would go here
 
@@ -525,7 +525,7 @@ int container_ima_store_template(struct container_data *data, struct ima_templat
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_api.c#L339
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L159
  */
-int container_ima_store_measurement(struct container_data *data, struct mmap_args_t *arg , int container_id, struct integrity_iinit_cache *iint, struct file *file, struct modsig modsig, struct ima_template_desc *template_desc) 
+int container_ima_store_measurement(struct container_data *data, struct mmap_args_t *arg , int container_id, struct integrity_iint_cache *iint, struct file *file, struct modsig modsig, struct ima_template_desc *template_desc) 
 {
 	struct inode *inode;
 	struct ima_template_entry *entry;
@@ -624,4 +624,4 @@ static inline struct container_ima *ima_data_from_file(const struct file *filp)
 	}
 	
 	return &entry.data;
-}
+} 

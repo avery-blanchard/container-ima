@@ -3,6 +3,8 @@
  * 		- define structs and functions for container IMA
  * 
  */
+#ifndef __CONTAINER_IMA_H__
+#define __CONTAINER_IMA_H__
 #include <linux/types.h>
 #include <linux/crypto.h>
 #include <linux/fs.h>
@@ -20,6 +22,10 @@
 #include <linux/ima.h>
 #include <linux/file.h>
 
+#include "container_ima_api.c"
+#include "container_ima_init.c"
+#include "container_ima_fs.c"
+#include "container_ima_main.c"
 /* define digest sizes */
 #define CONTAINER_IMA_DIGEST_SIZE       SHA1_DIGEST_SIZE
 #define IMA_TEMPLATE_IMA_NAME "container-ima"
@@ -129,13 +135,13 @@ struct container_ima_data {
 
 /* Internal container IMA function definitions */
 int container_keyring_init();
-int container_ima_fs_init();
+int container_ima_fs_init(struct container_ima_data *data, static struct dentry c_ima_dir, static struct dentry c_ima_symlink);
 long container_ima_vtpm_setup(struct container_ima_data *, int, struct tpm_chip *, struct container_data *);
 struct file *container_ima_retrieve_file(struct mmap_args_t *);
 struct container_ima_inode_data *container_ima_retrieve_inode_data(struct container_ima_data *, int, struct file *);
-int container_ima_collect_measurement(struct container_ima_data *, struct mmap_args_t *, int, struct modsid *, struct integrity_iinit_cache *);
-struct integrity_iinit_cache *container_integrity_inode_find(struct container_ima_data *, struct inode *, int);
-struct integrity_iinit_cache *container_integrity_inode_get(struct container_ima_data *, struct inode *, int);
+int container_ima_collect_measurement(struct container_ima_data *, struct mmap_args_t *, int, struct modsid *, struct integrity_iint_cache *);
+struct integrity_iint_cache *container_integrity_inode_find(struct container_ima_data *, struct inode *, int);
+struct integrity_iint_cache *container_integrity_inode_get(struct container_ima_data *, struct inode *, int);
 void container_ima_add_violation(struct container_ima_data *, struct file *, const unsigned char *,
 		       struct integrity_iint_cache *,
 		       const char *, const char *, int);
@@ -149,7 +155,7 @@ int container_ima_add_template_entry(struct container_ima_data *, struct ima_tem
 int container_ima_store_template(struct container_ima_data *, struct ima_template_entry *,
 		       int, struct inode *,
 		       const unsigned char *, int);
-int container_ima_store_measurement(struct container_ima_data *, struct mmap_args_t *, int, struct integrity_iinit_cache *, 
+int container_ima_store_measurement(struct container_ima_data *, struct mmap_args_t *, int, struct integrity_iint_cache *, 
                 struct file *, struct modsig, struct ima_template_desc *); 
 struct container_ima_data *container_ima_init(int);
 int syscall__probe_entry_mmap(struct pt_regs *, void *, size_t, int, int, int, off_t);
@@ -169,3 +175,13 @@ int container_ima_match_policy(struct container_data * struct user_namespace *, 
 		     int, int, int *,
 		     struct ima_template_desc **,
 		     const char *, unsigned int *);
+static int c_ima_seq_open(struct inode *, struct file *);
+static inline struct container_ima *ima_data_from_file(const struct file *filp);
+static struct c_ima_queue_entry *container_ima_lookup_data_entry(unsigned int id);
+static struct ima_queue_entry *container_ima_lookup_digest_entry(struct container_data *data, u8 *digest_value,
+						       int pcr, int container_id);
+static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos);
+static ssize_t c_ima_show_htable_violations(struct file *filp,
+					  char __user *buf,
+					  size_t count, loff_t *ppos);
+#endif

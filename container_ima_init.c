@@ -166,18 +166,6 @@ int container_ima_cleanup() {
 	
 	return 0;
 }
-
-/*
- * container_ima_setup
- *
- * Set up environment to initalize container IMA
- * Malloc structure to hold container ids and other data to preserve state
- */
-void container_ima_setup()
-{
-	ima_hash_setup();
-
-}
 /*
  * container_ima_crypto_init
  * 

@@ -1,8 +1,8 @@
 #
 # Makefile for Container IMA kernel module
 #
+obj-m += container_ima_main.o 
 all: kmod container_ima
-
 
 PHONY += kmod
 kmod:

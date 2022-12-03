@@ -4,7 +4,6 @@
  *
  */
 #include <linux/fcntl.h>
-#include <linux/kernel_read_file.h>
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/seq_file.h>
@@ -13,8 +12,8 @@
 #include <linux/parser.h>
 #include <linux/vmalloc.h>
 #include <linux/ima.h>
-
 #include "container_ima.h"
+
 
 static int c_ima_seq_open(struct inode *inode, struct file *file)
 {
@@ -49,6 +48,7 @@ static ssize_t c_ima_show_htable_violations(struct file *filp,
 
     return  simple_read_from_buffer(buf, count, ppos, tmp, len);
 }
+
 /* use default, adjust later if needed (probably needed) */
 static const struct file_operations c_ima_measurements_ops = {
 	.open = c_ima_seq_open,
@@ -66,7 +66,7 @@ static const struct seq_operations c_ima_ascii_measurements_seqops = {
 };
 
 
-static const struct file_operations ima_htable_violations_ops = {
+static const struct file_operations c_ima_htable_violations_ops = {
 	.read = c_ima_show_htable_violations,
 	.llseek = generic_file_llseek,
 };
@@ -121,7 +121,7 @@ int container_ima_fs_init(struct container_ima_data *data, static struct dentry 
 
 	data->violations =
 	    securityfs_create_file("violations", S_IRUSR | S_IRGRP,
-				   data->container_dir, NULL, &ima_htable_violations_ops);
+				   data->container_dir, NULL, &c_ima_htable_violations_ops);
 	if (IS_ERR(data->violations)) {
 		ret = PTR_ERR(data->violations);
 		goto out;

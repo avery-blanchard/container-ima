@@ -14,9 +14,10 @@
 #include <linux/ima.h>
 #include <linux/file.h>
 #include <linux/fs.h>
-#include <keyutils.h>
+
 #include <keys/system_keyring.h>
-#include "ima.h"
+#include "container_ima.h"
+
 
 #define MODULE_NAME "ContainerIMA"
 #define INTEGRITY_KEYRING_IMA 1
@@ -113,7 +114,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	/* Check if container already has an active ML, create hash of page and add to ML */
 	/* If not, init then process measurment */
 	data = init_container_ima(inum, c_ima_dir, c_ima_symlink);
-	
+
 	file = retrieve_file(args);
 	if (!file) {
 		pr_err("error retrieving file\n");
@@ -160,7 +161,7 @@ static void container_ima_exit(void)
 	 * Free keyring and vTPMs
 	 */
 	int ret;
-	ret = container_ima_cleanup();
+	//ret = container_ima_cleanup();
 	return ret;
 }
 
