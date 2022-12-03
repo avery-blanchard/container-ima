@@ -6,7 +6,7 @@
 #include <linux/file.h>
 
 #include "container_ima.h"
-
+static struct kmem_cache *c_ima_iint_cache;
 /*
  * container_ima_retrieve_file
  *      Retrieve the file from mmap arguments
@@ -137,13 +137,13 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 		if (iint)
 		return iint;
 
-	iint = kmem_cache_alloc(iint_cache, GFP_NOFS);
+	iint = kmem_cache_alloc(c_ima_iint_cache, GFP_NOFS);
 	if (!iint)
 		return NULL;
 
-	write_lock(&container_integrity_iint_lock);
+	write_lock(&data->container_integrity_iint_lock);
 
-	ptr = &container_integrity_iint_tree.rb_node;
+	ptr = &data->container_integrity_iint_tree.rb_node;
 	while (*ptr) {
 		parent = *ptr;
 		tmp = rb_entry(parent, struct integrity_iinit_cache, rb_node);
@@ -158,7 +158,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	rb_link_node(node, parent, ptr);
 	rb_insert_color(node, &container_iinit_tree);
 
-	write_unlock(&integrity_iint_lock);
+	write_unlock(&data->integrity_iint_lock);
 	return iint;
 
 }
@@ -194,7 +194,7 @@ void container_ima_add_violation(struct container_data *data, struct file *file,
 	if (result < 0)
 		ima_free_template_entry(entry);
 err_out:
-    // try to use IMA's audit messages? may be fine, no rewrite 
+    // try to use IMA's audit messages? may be fine 
 	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
 			    op, cause, result, 0, container_id);
 
@@ -482,7 +482,7 @@ int container_ima_add_template_entry(struct container_data *data, struct ima_tem
 	}
 out:
 	// unlock ml mutex here
-	// make this container specific 
+	// make this container specific? 
 	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
 			    op, cause, result, 0, container_id);
 	return res;
@@ -541,7 +541,7 @@ int container_ima_store_measurement(struct container_data *data, struct mmap_arg
 		return 0;
 
 	// write own func to allocate template 
-	//res = init_template(&event_data, entry, template_desc, container_id);
+	// res = init_template(&event_data, entry, template_desc, container_id);
 	// going to need to rewrite store template due to host specific stuff
 	res = container_ima_store_template(data, entry, violation, inode, filename, container_id);
 	if ((!res || res == -EEXIST) && !(file->f_flags & O_DIRECT)) {
