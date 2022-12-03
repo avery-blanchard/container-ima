@@ -6,7 +6,9 @@
 #include <linux/file.h>
 
 #include "container_ima.h"
+
 static struct kmem_cache *c_ima_iint_cache;
+
 /*
  * container_ima_retrieve_file
  *      Retrieve the file from mmap arguments
@@ -79,7 +81,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 
 	hash_data = data->hash_tbl;
 	hash.hdr.algo = hash_data->algo;
-	hash.hdr.lenght = hash_data->length;
+	hash.hdr.length = hash_data->length;
 
 	/* zero out, in case of failue */
 	memset(&hash.digest, 0, sizeof(hash.digest));
@@ -122,9 +124,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
   * find or allocate iint asscoiated with an inode 
   * lock i_mutex
   * 
-  * container specifics:
-  * 	1. original function traverses rb tree, so use container id to access to correct rb tree?
-  * 		figure out how to handle this, mantaining the seperate trees is going to be $
+  * https://elixir.bootlin.com/linux/latest/source/security/integrity/iint.c#L95 
   *     
   */
  struct integrity_iinit_cache *container_integrity_inode_get(struct container_data *data, struct inode *inode, int container_id)
@@ -156,7 +156,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	node = &iinit->rb_node;
 	inode->i_flags |= S_IMA;
 	rb_link_node(node, parent, ptr);
-	rb_insert_color(node, &container_iinit_tree);
+	rb_insert_color(node, &data->container_iinit_tree);
 
 	write_unlock(&data->integrity_iint_lock);
 	return iint;
@@ -580,4 +580,48 @@ static struct ima_queue_entry *container_ima_lookup_digest_entry(struct containe
 	rcu_read_unlock();
 	return ret;
 
+}
+/*
+ * container_ima_lookup_data_entry
+ *      Lookup digest in the per container hashtable and return entry
+ * Notes: per container hash table or would it be better to keep track of shared files with a shared table? 
+ * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L55
+ */
+static struct c_ima_queue_entry *container_ima_lookup_data_entry(unsigned int id)
+{
+    struct c_ima_queue_entry *entry, *ret = NULL;
+    int key, tmp;
+
+    key = ima_hash_key(id);
+    rcu_read_lock();
+
+    hlist_for_each_entry_rcu(qe, &container_hash_table.queue[key], hnext) {
+		if (qe.id == id){		
+			ret = qe;
+			break;
+		}
+	}
+	rcu_read_unlock();
+	return ret;
+
+}
+/* 
+ * ima_data_from_file
+ *		Need a way to get the container IMA details from a file pointer 
+ */
+static inline struct container_ima *ima_data_from_file(const struct file *filp) 
+{
+	unsigned int inum;
+	struct c_ima_queue_entry *entry;
+	struct inode *inode = file_inode(filp);
+	struct user_namespace *ns =  inode->i_sb->s_user_ns;
+
+	inum = ns->ns_common->inum;
+
+	entry = c_ima_queue_entry(id);
+	if (!entry) {
+		pr_err("Container data from ID is NULL\n");
+	}
+	
+	return &entry.data;
 }

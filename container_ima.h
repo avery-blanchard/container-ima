@@ -30,6 +30,7 @@
 
 extern struct tpm_chip *ima_tpm_chip;
 extern int host_inum;
+extern struct container_hash_table;
 
 /* struct for BPF argument mappings */
 struct mmap_args_t {
@@ -44,6 +45,16 @@ struct mmap_args_t {
 struct c_ima_hash_table {
     atomic_long_t size;
     atomic_long_t violations;
+    struct hlist_head queue[CONTAINER_IMA_MEASURE_HTABLE_SIZE];
+};
+
+struct c_ima_queue_entry {
+	struct hlist_node hnext;
+	unsigned int id;
+	struct container_data *data;
+};
+
+struct c_ima_data_hash_table {
     struct hlist_head queue[CONTAINER_IMA_MEASURE_HTABLE_SIZE];
 };
 extern struct container_ima_hash_table ima_hash_table;
