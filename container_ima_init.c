@@ -56,9 +56,14 @@ long container_ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip, s
 	return ret;
 	
 }
+/*
+ * init_container_ima_data
+ * 		Note: figure out how to check if it exists already
+ */
 struct container_ima_data *init_container_ima_data(int container_id) 
 {
 	struct container_ima_data *data;
+	/* check if container data exists, return that then */
 
 	/* init policy lists */
 	INIT_LIST_HEAD(&data->c_ima_default_rules);
@@ -88,13 +93,13 @@ struct container_ima_data *init_container_ima_data(int container_id)
  * 		Initalize container IMA
  * 		Create vTPM proxy using container_id as its number
  *		Create measurment log 
- * 		Default policy 
+ * 		Default policy
  */
-int init_container_ima(int container_id, static struct dentry c_ima_dir, static struct dentry c_ima_symlink) 
+struct container_data *init_container_ima(int container_id, static struct dentry c_ima_dir, static struct dentry c_ima_symlink) 
 {
 	int ret;
 	struct container_ima_data *data;
-
+	/* check if container exist, then return container_data here */
 	data = kmalloc(size_of(struct container_data), GFP_KERNEL);
 	if (!data) {
 		pr_error("kmalloc failed\n");
@@ -128,7 +133,7 @@ int init_container_ima(int container_id, static struct dentry c_ima_dir, static 
 
 	container_ima_policy_init(data); // start with default policy for all containers
 
-	return ret;
+	return data;
 }
 
 /*

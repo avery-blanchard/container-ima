@@ -127,29 +127,28 @@ struct container_ima_data {
 /* Internal container IMA function definitions */
 int container_keyring_init();
 int container_ima_fs_init();
-long container_ima_vtpm_setup(int, struct tpm_chip *, struct container_data *);
+long container_ima_vtpm_setup(struct container_ima_data *, int, struct tpm_chip *, struct container_data *);
 struct file *container_ima_retrieve_file(struct mmap_args_t *);
-struct container_ima_data *get_data_from_container_id(int);
-struct container_ima_inode_data *container_ima_retrieve_inode_data(int, struct file *);
-int container_ima_collect_measurement(struct mmap_args_t *, int, struct modsid *, struct integrity_iinit_cache *);
-struct integrity_iinit_cache *container_integrity_inode_find(struct inode *, int);
-struct integrity_iinit_cache *container_integrity_inode_get(struct inode *, int);
-void container_ima_add_violation(struct file *, const unsigned char *,
+struct container_ima_inode_data *container_ima_retrieve_inode_data(struct container_ima_data *, int, struct file *);
+int container_ima_collect_measurement(struct container_ima_data *, struct mmap_args_t *, int, struct modsid *, struct integrity_iinit_cache *);
+struct integrity_iinit_cache *container_integrity_inode_find(struct container_ima_data *, struct inode *, int);
+struct integrity_iinit_cache *container_integrity_inode_get(struct container_ima_data *, struct inode *, int);
+void container_ima_add_violation(struct container_ima_data *, struct file *, const unsigned char *,
 		       struct integrity_iint_cache *,
 		       const char *, const char *, int);
-static void container_ima_rdwr_violation_check(struct file *, struct integrity_iint_cache *,
+static void container_ima_rdwr_violation_check(struct container_ima_data *, struct file *, struct integrity_iint_cache *,
 				     int, char **, const char **, char *, int);
-int container_ima_process_measurement(struct file *, const struct cred *,
+int container_ima_process_measurement(struct container_ima_data *, struct file *, const struct cred *,
 			       u32, char *, loff_t, int, int, struct mmap_args_t *);
-int container_ima_add_template_entry(struct ima_template_entry *, int,
+int container_ima_add_template_entry(struct container_ima_data *, struct ima_template_entry *, int,
 			   const char *, struct inode *,
 			   const unsigned char *, int);
-int container_ima_store_template(struct ima_template_entry *,
+int container_ima_store_template(struct container_ima_data *, struct ima_template_entry *,
 		       int, struct inode *,
 		       const unsigned char *, int);
-int container_ima_store_measurement(struct mmap_args_t *, int, struct integrity_iinit_cache *, 
+int container_ima_store_measurement(struct container_ima_data *, struct mmap_args_t *, int, struct integrity_iinit_cache *, 
                 struct file *, struct modsig, struct ima_template_desc *); 
-int container_ima_init(int);
+struct container_ima_data *container_ima_init(int);
 int syscall__probe_entry_mmap(struct pt_regs *, void *, size_t, int, int, int, off_t);
 int syscall__probe_ret_mmap(struct pt_regs *);
 int container_ima_cleanup();

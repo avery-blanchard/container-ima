@@ -91,6 +91,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	int ret;
 	struct task_struct *task;
 	struct file *file;
+	struct container_data *data;
 	unsigned int inum;
 	u32 sec_id;
 	struct mmap_args_t *args = {};
@@ -111,6 +112,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 
 	/* Check if container already has an active ML, create hash of page and add to ML */
 	/* If not, init then process measurment */
+	data = init_container_ima(inum, c_ima_dir, c_ima_symlink);
 	
 	file = retrieve_file(args);
 	if (!file) {
@@ -120,7 +122,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 
 	security_current_getsecid_subj(&secid);
 
-	ret = ima_process_measurement(file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
+	ret = container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
 	if (ret != 0) {
 		pr_err("measurement fails\n");
 		return ret;
