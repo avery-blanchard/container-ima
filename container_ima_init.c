@@ -7,8 +7,6 @@
 #include "container_ima.h"
 
 struct tpm_chip *ima_tpm_chip;
-static struct rb_root container_integrity_iint_tree = RB_ROOT;
-static DEFINE_RWLOCK(container_integrity_iint_lock);
 
 /*
  * container_ima_vtpm_setup 
@@ -80,6 +78,9 @@ struct container_ima_data *init_container_ima_data(int container_id)
 	data->valid_policy = 1;
 	data->c_ima_fs_flags = 0;
 
+	data->container_integrity_iint_tree = RB_ROOT;
+	DEFINE_RWLOCK(data->container_integrity_iint_lock);
+
 	return data;
 }
 /*
@@ -149,7 +150,7 @@ int container_ima_fs_init(struct container_ima_data *data, static struct dentry 
 	data->container_dir = securityfs_create_dir("container_ima", dir_name);
 	if (IS_ERR(data->container_dir))
 		return -1;
-		
+
 	data->binary_runtime_measurements =
 	securityfs_create_file("binary_runtime_measurements",
 				   S_IRUSR | S_IRGRP, data->container_dir, NULL,

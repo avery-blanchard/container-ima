@@ -110,7 +110,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	}
 
 	/* Check if container already has an active ML, create hash of page and add to ML */
-	/* If not, create vTPM and key ring, create hash of page and add to ML */
+	/* If not, init then process measurment */
 	
 	file = retrieve_file(args);
 	if (!file) {

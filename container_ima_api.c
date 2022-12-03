@@ -86,7 +86,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 		return -1;
 	}
 
-	hash_data = data->hash;
+	hash_data = data->hash_tbl;
 	hash.hdr.algo = hash_data->algo;
 	hash.hdr.lenght = hash_data->length;
 
@@ -529,7 +529,7 @@ int container_ima_store_measurement(struct mmap_args_t *arg , int container_id, 
   */
  struct container_ima_data *get_data_from_container_id(int container_id)
 {
-	
+
 }
 /*
  * container_ima_lookup_digest_entry

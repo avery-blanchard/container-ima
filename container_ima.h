@@ -119,6 +119,8 @@ struct container_ima_data {
 	struct dentry *runtime_measurements_count;
 	struct dentry *violations;
 	struct dentry *active;
+	static struct rb_root container_integrity_iint_tree;
+	rwlock_t container_integrity_iint_lock;
 
 };
 

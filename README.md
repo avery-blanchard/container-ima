@@ -9,3 +9,8 @@ To do:
     - ml signing 
     - policy configurations 
     - clean up upon exit, figure out how to check if containers still exist?
+
+Notes:
+    - Can use regular IMA seq_operations
+    https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_fs.c#L256 
+    
