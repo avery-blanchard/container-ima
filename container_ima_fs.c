@@ -16,11 +16,39 @@
 
 #include "container_ima.h"
 
-static const struct file_operations ima_measurements_ops = {
-	.open = ima_measurements_open,
+static int c_ima_seq_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &c_ima_measurments_seqops);
+}
+static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos)
+{
+    struct container_data *data;
+    struct ima_queue_entry *qe = v;
+
+    data = ima_data_from_file(m->file);
+
+    rcu_read_lock();
+    qe = list_entry_rcu(qe->later.next, struct ima_queue_entry, later);
+    rcu_read_unlock();
+    (*pos)++;
+
+    return (?qe->later == &data->c_ima_measurements) ? NULL : qe;
+}
+
+/* use default, adjust later if needed (probably needed) */
+static const struct file_operations c_ima_measurements_ops = {
+	.open = c_ima_seq_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = seq_release,
+};
+
+/* operations for ascii file, try to use IMA's seq_ops*/
+static const struct seq_operations c_ima_ascii_measurements_seqops = {
+	.start = ima_measurements_start,
+	.next = c_ima_measurements_next,
+	.stop = ima_measurements_stop,
+	.show = ma_ascii_measurements_show
 };
 
 /*
@@ -46,7 +74,7 @@ int container_ima_fs_init(struct container_ima_data *data, static struct dentry 
 	data->binary_runtime_measurements =
 	securityfs_create_file("binary_runtime_measurements",
 				   S_IRUSR | S_IRGRP, data->container_dir, NULL,
-				   &ima_measurements_ops);
+				   &c_ima_measurements_ops);
 
 	if (IS_ERR(data->binary_runtime_measurements)) {
 		ret = PTR_ERR(data->binary_runtime_measurements);
@@ -56,7 +84,7 @@ int container_ima_fs_init(struct container_ima_data *data, static struct dentry 
 	data->ascii_runtime_measurements =
 	    securityfs_create_file("ascii_runtime_measurements",
 				   S_IRUSR | S_IRGRP, data->container_dir, NULL,
-				   &ima_ascii_measurements_ops);
+				   &c_ima_ascii_measurements_ops);
 	if (IS_ERR(data->ascii_runtime_measurements)) {
 		ret = PTR_ERR(data->ascii_runtime_measurements);
 		goto out;
