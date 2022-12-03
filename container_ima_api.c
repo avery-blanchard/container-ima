@@ -241,8 +241,56 @@ static void container_ima_rdwr_violation_check(struct container_data *data, stru
 		container_ima_add_violation(data, file, *pathname, iint,
 				  "invalid_pcr", "ToMToU", container_id);
 	if (send_w)
-		container_ima_add_violation(file, *pathname, iint,
+		container_ima_add_violation(data, file, *pathname, iint,
 				  "invalid_pcr", "open_wdata, riters", container_id);
+}
+/* 
+ * container_ima_match_policy
+ *		
+ * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_policy.c#L690
+ */
+int container_ima_match_policy(struct container_data *data, struct user_namespace *mnt_userns, struct inode *inode,
+		     const struct cred *cred, u32 secid, enum ima_hooks func,
+		     int mask, int flags, int *pcr,
+		     struct ima_template_desc **template_desc,
+		     const char *func_data, unsigned int *allowed_algos)
+{
+	int action;
+	int action_mask;
+
+	action_mask = flags | (flags << 1);
+	/* TODO edit this for future use with different policies per container */
+
+
+	return IMA_DEFAULT_POLICY;
+
+}
+/*
+ * container_ima_get_action
+ *
+ * Determine IMA policy for container 
+ * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_policy.c#L690 
+ */
+int container_ima_get_action(struct container_data *data, struct user_namespace *mnt_userns, struct inode *inode,
+		   const struct cred *cred, u32 secid, int mask,
+		   enum ima_hooks func, int *pcr,
+		   struct ima_template_desc **template_desc,
+		   const char *func_data, unsigned int *allowed_algos) 
+{
+	int action;
+	int flag;
+	
+	flag = IMA_MEASURE | IMA_AUDIT | IMA_APPRAISE | IMA_HASH; // not implementing appraisal currently, maybe exclude
+	flag &= data->c_ima_policy_flag;
+
+	/* ima_match policy reads IMA tmp rules list, which for container IMA is per
+	 * container and in struct container_data, re-write for different policies (later on)
+	 */ 
+	action = container_ima_match_policy(data, mnt_userns, inode, cred, secid, func, mask,
+				flags, pcr, template_desc, func_data,
+				allowed_algos);
+
+	return action;
 }
 /*
  * container_ima_process_measurement
@@ -271,7 +319,8 @@ int container_ima_process_measurement(struct container_data *data, struct file *
 	if (!ima_policy_flag || !S_ISREG(inode->i_mode))
 		return 0;
 
-	action  = ima_get_action(file_mnt_user_ns(file), inode, cred, secid,
+	/* re-write for future use of different IMA polcies per container */
+	action  = container_ima_get_action(data, file_mnt_user_ns(file), inode, cred, secid,
 				mask, func, &pcr, &template_desc, NULL,
 				&allowed_algos);
 	

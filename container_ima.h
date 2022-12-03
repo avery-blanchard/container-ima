@@ -97,6 +97,7 @@ struct container_ima_data {
 	struct c_ima_hash *hash_tbl; 
 	struct mutex c_ima_write_mutex;
 	unsigned long c_ima_fs_flags;
+	int c_ima_policy_flags;
 	int valid_policy;
 	extern spinlock_t c_ima_queue_lock;
 	struct dentry *c_ima_policy;
@@ -143,3 +144,13 @@ static int container_ima_init(void);
 static void container_ima_exit(void);
 struct container_ima_data *create_container_ima_data(void);
 void container_ima_free_data(struct container_data *);
+int container_ima_get_action(struct container_data *, struct user_namespace *, struct inode *,
+		   const struct cred *, u32, int,
+		   enum ima_hooks, int *,
+		   struct ima_template_desc **,
+		   const char *, unsigned int *);
+int container_ima_match_policy(struct container_data * struct user_namespace *, struct inode *,
+		     const struct cred *, u32, enum ima_hooks,
+		     int, int, int *,
+		     struct ima_template_desc **,
+		     const char *, unsigned int *);
