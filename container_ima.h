@@ -79,20 +79,7 @@ struct inode_ima_data {
 	unsigned long flags;
 	int container_id
 	struct container_ima_hash_data *hash;
-};/*
-struct container_ima_inode_data {
-	struct inode_ima_data iiam;
-	struct inode *inode;
-	struct vtpm_proxy_new_dev vtpm;
-	int container_id;
-	struct file *file;
-	const char *filename;
-	const void *buf;
-	int len;
-	struct container_ima_inode_data *next;
-	// add mutex
-	// add 'dirty' bit for remeasuring
-};*/
+};
 
 struct container_ima_data {
 	atomic_long_t len;
@@ -154,3 +141,5 @@ int syscall__probe_ret_mmap(struct pt_regs *);
 int container_ima_cleanup();
 static int container_ima_init(void);
 static void container_ima_exit(void);
+struct container_ima_data *create_container_ima_data(void);
+void container_ima_free_data(struct container_data *);

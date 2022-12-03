@@ -7,7 +7,7 @@
 #include "container_ima.h"
 
 struct tpm_chip *ima_tpm_chip;
-
+static struct kmem_cache *c_ima_cache;
 /*
  * container_ima_vtpm_setup 
  *      Set up per container vTPM, PCR 10 for IMA
@@ -16,7 +16,7 @@ struct tpm_chip *ima_tpm_chip;
  * https://www.kernel.org/doc/html/v4.13/security/tpm/tpm_vtpm_proxy.html
  * https://elixir.bootlin.com/linux/v6.0.5/source/drivers/char/tpm/tpm_vtpm_proxy.c#L624 
  */
-long container_ima_vtpm_setup(int container_id, struct tpm_chip *ima_tpm_chip, struct container_data *data) 
+long container_ima_vtpm_setup(struct container_ima_data *data,int container_id, struct tpm_chip *ima_tpm_chip, struct container_data *data) 
 {
 	struct vtpm_proxy_new_dev *new_vtpm;
 	long ret;
@@ -88,6 +88,23 @@ struct container_ima_data *init_container_ima_data(int container_id)
 
 	return data;
 }
+struct container_ima_data *create_container_ima_data(void) 
+{
+	struct container_data *data;
+
+	data = kmem_cache_zalloc(c_ima_cache, GFP_KERNEL);
+	if (!data) {
+		retrun ERR_PTR(-ENOMEM);
+		pr_err("Allocation failed in cache\n");
+	}
+	return data;
+}
+void container_ima_free_data(struct container_data *data)
+{
+	/* Free policy, tree, hash table, vtpm, etc.... here */
+	kmem_cache_free(c_ima_cache, data);
+
+}
 /*
  * container_ima_init
  * 		Initalize container IMA
@@ -100,11 +117,7 @@ struct container_data *init_container_ima(int container_id, static struct dentry
 	int ret;
 	struct container_ima_data *data;
 	/* check if container exist, then return container_data here */
-	data = kmalloc(size_of(struct container_data), GFP_KERNEL);
-	if (!data) {
-		pr_error("kmalloc failed\n");
-		return -1;
-	}
+	data = 
 	ima_tpm_chip = tpm_default_chip();
 	if (!ima_tpm_chip)
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
