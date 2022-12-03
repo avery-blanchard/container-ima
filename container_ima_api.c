@@ -7,9 +7,6 @@
 
 #include "container_ima.h"
 
-static struct rb_root container_integrity_iint_tree = RB_ROOT;
-static DEFINE_RWLOCK(container_integrity_iint_lock);
-
 /*
  * container_ima_retrieve_file
  *      Retrieve the file from mmap arguments
@@ -57,7 +54,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
   * container_ima_collect_measurement
   *     Get file from mmap args and measure
   */
- int container_ima_collect_measurement(struct mmap_args_t *args, int container_id, struct modsid *modsig, struct integrity_iinit_cache *iint) 
+ int container_ima_collect_measurement(struct container_data *data, struct mmap_args_t *args, int container_id, struct modsid *modsig, struct integrity_iinit_cache *iint) 
  {
 	int ret;
 	struct file *file, *f;
@@ -80,12 +77,6 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	inode = file_inode(file);
 	filename = file->f_path.dentry->d_name.name;
 
-	data = get_data_from_container_id(container_id);
-	if (!data) {
-		pr_err("unable to get container data from id\n");
-		return -1;
-	}
-
 	hash_data = data->hash_tbl;
 	hash.hdr.algo = hash_data->algo;
 	hash.hdr.lenght = hash_data->length;
@@ -106,10 +97,10 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
   * container_integrity_inode_find
   *     Traverse rb_tree to see if the inode exists. If exits, return. Else, NULL.
   */
- struct integrity_iinit_cache *container_integrity_inode_find(struct inode *inode, int container_id)
+ struct integrity_iinit_cache *container_integrity_inode_find(struct container_data *data, struct inode *inode, int container_id)
  {
 	struct integrity_iint_cache *iint;
-	struct rb_node *node = container_integrity_iint_tree.rb_node; // root inode for per container tree, start one 
+	struct rb_node *node = data->container_integrity_iint_tree.rb_node; // root inode for per container tree, start one 
 	
 	while (node) {
 		iint = rb_entry(node, struct integrity_iint_cache, rb_node);
@@ -136,13 +127,13 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
   * 		figure out how to handle this, mantaining the seperate trees is going to be $
   *     
   */
- struct integrity_iinit_cache *container_integrity_inode_get(struct inode *inode, int container_id)
+ struct integrity_iinit_cache *container_integrity_inode_get(struct container_data *data, struct inode *inode, int container_id)
  {
 	 struct integrity_iint_cache *iint, tmp;
 	 struct rb_node **ptr;
 	 struct rb_node *node, *parent;
 	
-	iinit = container_integrity_inode_find(inode, container_id);
+	iinit = container_integrity_inode_find(data, inode, container_id);
 		if (iint)
 		return iint;
 
@@ -176,7 +167,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
  *      Write violation to the measurement list
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_api.c#L134
  */
-void container_ima_add_violation(struct file *file, const unsigned char *filename,
+void container_ima_add_violation(struct container_data *data, struct file *file, const unsigned char *filename,
 		       struct integrity_iint_cache *iint,
 		       const char *op, const char *cause, int container) 
 {
@@ -192,17 +183,18 @@ void container_ima_add_violation(struct file *file, const unsigned char *filenam
 	/* can overflow, only indicator */
 	atomic_long_inc(&ima_htable.violations);
 
+	/* try to use IMA's allocation function */
 	result = ima_alloc_init_template(&event_data, &entry, NULL);
 	if (result < 0) {
 		result = -ENOMEM;
 		goto err_out;
 	}
-	result = container_ima_store_template(entry, violation, inode,
+	result = container_ima_store_template(data, entry, violation, inode,
 				    filename, CONFIG_IMA_MEASURE_PCR_IDX);
 	if (result < 0)
 		ima_free_template_entry(entry);
 err_out:
-    // try to use IMA's audit messages? may be fine
+    // try to use IMA's audit messages? may be fine, no rewrite 
 	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
 			    op, cause, result, 0, container_id);
 
@@ -212,7 +204,7 @@ err_out:
  *      Conditionally invalidate PCR for measured files
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_main.c#L115 
  */
-static void container_ima_rdwr_violation_check(struct file *file,
+static void container_ima_rdwr_violation_check(struct container_data *data, struct file *file,
 				     struct integrity_iint_cache *iint,
 				     int must_measure,
 				     char **pathbuf,
@@ -227,7 +219,7 @@ static void container_ima_rdwr_violation_check(struct file *file,
 	if (mode & FMODE_WRITE) {
 		if (atomic_read(&inode->i_readcount) && IS_IMA(inode)) {
 			if (!iint)
-				iint = container_integrity_iint_find(inode, container_id);
+				iint = container_integrity_iint_find(data, inode, container_id);
 			if (iint && test_bit(IMA_MUST_MEASURE,
 						&iint->atomic_flags))
 				send_t = true;
@@ -244,19 +236,19 @@ static void container_ima_rdwr_violation_check(struct file *file,
 
 	*pathname = ima_d_path(&file->f_path, pathbuf, filename); // try to use IMA's ima_d_path, don't see any issues so far
 
-    // are violations needed?
+    // are violations needed? yes
 	if (send_t)
-		container_ima_add_violation(file, *pathname, iint,
+		container_ima_add_violation(data, file, *pathname, iint,
 				  "invalid_pcr", "ToMToU", container_id);
 	if (send_w)
 		container_ima_add_violation(file, *pathname, iint,
-				  "invalid_pcr", "open_writers", container_id);
+				  "invalid_pcr", "open_wdata, riters", container_id);
 }
 /*
  * container_ima_process_measurement
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_main.c#L201
  */
-int container_ima_process_measurement(struct file *file, const struct cred *cred,
+int container_ima_process_measurement(struct container_data *data, struct file *file, const struct cred *cred,
 			       u32 secid, char *buf, loff_t size, int mask, int container_id, struct mmap_args_t *args) 
 {
 	struct inode *inode;
@@ -297,14 +289,14 @@ int container_ima_process_measurement(struct file *file, const struct cred *cred
 	inode_lock(inode);
 
 	if (action) {
-		iint = container_integrity_inode_get(inode, container_id);
+		iint = container_integrity_inode_get(data, inode);
 		if (!iint)
 			ret = -ENOMEM;
 	}
 
 	// handle violations 
 	if (!ret && violation_check)
-		container_ima_rdwr_violation_check(file, iint, action & IMA_MEASURE,
+		container_ima_rdwr_violation_check(data, file, iint, action & IMA_MEASURE,
 					 &pathbuf, &pathname, filename, container_id);
 
 	inode_unlock(inode);
@@ -356,23 +348,18 @@ int container_ima_process_measurement(struct file *file, const struct cred *cred
 				action |= IMA_MEASURE;
 		}
 	}
-	data = get_data_from_container_id(container_id);
-	if (!data) {
-		pr_err("unable to get container data from id\n");
-		return -1;
-	}
 
 	hash_data = data->hash;
 	hash.hdr.algo = hash_data->algo;
 	hash.hdr.lenght = hash_data->length;
 	
-	ret = container_ima_collect_measurement(args, container_id, modsig, iint);
+	ret = container_ima_collect_measurement(data, args, container_id, modsig, iint);
 	if (ret != 0) {
 		pr_err("collecting measurement failed\n");
 		goto out;
 	}
 	if (action & IMA_MEASURE)
-		container_ima_store_measurement(args, container_id, iinit, file, modsig,template_desc);
+		container_ima_store_measurement(data, args, container_id, iinit, file, modsig,template_desc);
 	
 	// appraisal would go here
 
@@ -394,7 +381,7 @@ out:
  * container_ima_add_template_entry
  *      Add digest to the hashtable and extend PCR
  */
-int container_ima_add_template_entry(struct ima_template_entry *entry, int violation,
+int container_ima_add_template_entry(struct container_data *data, struct ima_template_entry *entry, int violation,
 			   const char *op, struct inode *inode,
 			   const unsigned char *filename, int container_id)
 {
@@ -422,7 +409,7 @@ int container_ima_add_template_entry(struct ima_template_entry *entry, int viola
 	 * add digest to the hashtable, need to reimplement for container specific hash tables 
 	 * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L93 
 	 */
-	res = container_ima_add_digest_entry(entry, container_id);
+	res = container_ima_add_digest_entry(data, entry, container_id);
 
 	if (res < 0) {
 		audit_cause = "ENOMEM";
@@ -446,6 +433,7 @@ int container_ima_add_template_entry(struct ima_template_entry *entry, int viola
 	}
 out:
 	// unlock ml mutex here
+	// make this container specific 
 	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
 			    op, cause, result, 0, container_id);
 	return res;
@@ -455,7 +443,7 @@ out:
  * container_ima_store_template
  *     Calculate hash, add to ML and extend to PCR
  */
-int container_ima_store_template(struct ima_template_entry *entry,
+int container_ima_store_template(struct container_data *data, struct ima_template_entry *entry,
 		       int violation, struct inode *inode,
 		       const unsigned char *filename, int container_id)
 {
@@ -477,7 +465,7 @@ int container_ima_store_template(struct ima_template_entry *entry,
 	}
 	entry->pcr = PCR;
 	// Add template list to ML and hash table, and extend the PCR
-	res = container_ima_add_template_entry(entry, violation, op, inode, filename, container_id);
+	res = container_ima_add_template_entry(data, entry, violation, op, inode, filename, container_id);
 
 	return res;
 
@@ -488,7 +476,7 @@ int container_ima_store_template(struct ima_template_entry *entry,
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_api.c#L339
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L159
  */
-int container_ima_store_measurement(struct mmap_args_t *arg , int container_id, struct integrity_iinit_cache *iint, struct file *file, struct modsig modsig, struct ima_template_desc *template_desc) 
+int container_ima_store_measurement(struct container_data *data, struct mmap_args_t *arg , int container_id, struct integrity_iinit_cache *iint, struct file *file, struct modsig modsig, struct ima_template_desc *template_desc) 
 {
 	struct inode *inode;
 	struct ima_template_entry *entry;
@@ -500,18 +488,13 @@ int container_ima_store_measurement(struct mmap_args_t *arg , int container_id, 
 
 	inode = file_inode(file);
 
-	data = get_data_from_container_id(container_id);
-	if (!data) {
-		pr_err("unable to get container data from id\n");
-		return -1;
-	}
 	if (iint->measured_pcrs & (0x1 << PCR) && !modsig)
 		return 0;
 
 	// write own func to allocate template 
 	//res = init_template(&event_data, entry, template_desc, container_id);
 	// going to need to rewrite store template due to host specific stuff
-	res = container_ima_store_template(entry, violation, inode, filename, container_id);
+	res = container_ima_store_template(data, entry, violation, inode, filename, container_id);
 	if ((!res || res == -EEXIST) && !(file->f_flags & O_DIRECT)) {
 		iint->flags |= IMA_MEASURED;
 		iint->measured_pcrs |= (0x1 << PCR);
@@ -537,7 +520,7 @@ int container_ima_store_measurement(struct mmap_args_t *arg , int container_id, 
  * Notes: per container hash table or would it be better to keep track of shared files with a shared table? 
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L55
  */
-static struct ima_queue_entry *container_ima_lookup_digest_entry(u8 *digest_value,
+static struct ima_queue_entry *container_ima_lookup_digest_entry(struct container_data *data, u8 *digest_value,
 						       int pcr, int container_id)
 {
     struct ima_queue_entry *entry, *ret = NULL;

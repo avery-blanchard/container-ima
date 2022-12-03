@@ -1,3 +1,6 @@
+#
+# Makefile for Container IMA kernel module
+#
 all: kmod container_ima
 
 
