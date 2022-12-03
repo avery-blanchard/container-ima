@@ -109,7 +109,7 @@ struct container_ima_data {
 	struct list_head c_ima_measurements;
 	unsigned long binary_runtime_size;
 	struct file *ml;
-	struct c_ima_hash *hash_tbl; 
+	struct ima_hash_table *hash_tbl; 
 	struct mutex c_ima_write_mutex;
 	unsigned long c_ima_fs_flags;
 	int c_ima_policy_flags;

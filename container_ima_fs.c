@@ -34,7 +34,21 @@ static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos)
 
     return (?qe->later == &data->c_ima_measurements) ? NULL : qe;
 }
+static ssize_t c_ima_show_htable_violations(struct file *filp,
+					  char __user *buf,
+					  size_t count, loff_t *ppos) 
+{
+    struct container_data *data;
+    char tmp[32];
+    ssize_t len;
+    atomic_long_t *val;
 
+    data = ima_data_from_file(file);
+    val = &  &data->hash_tbl.violations;
+    len = scnprintf(tmp, sizeof(tmp), "%li\n", atomic_long_read(val));
+
+    return  simple_read_from_buffer(buf, count, ppos, tmp, len);
+}
 /* use default, adjust later if needed (probably needed) */
 static const struct file_operations c_ima_measurements_ops = {
 	.open = c_ima_seq_open,
@@ -48,7 +62,13 @@ static const struct seq_operations c_ima_ascii_measurements_seqops = {
 	.start = ima_measurements_start,
 	.next = c_ima_measurements_next,
 	.stop = ima_measurements_stop,
-	.show = ma_ascii_measurements_show
+	.show = ima_ascii_measurements_show
+};
+
+
+static const struct file_operations ima_htable_violations_ops = {
+	.read = c_ima_show_htable_violations,
+	.llseek = generic_file_llseek,
 };
 
 /*
@@ -105,8 +125,8 @@ int container_ima_fs_init(struct container_ima_data *data, static struct dentry 
 	if (IS_ERR(data->violations)) {
 		ret = PTR_ERR(data->violations);
 		goto out;
-	}
-
+    }
+    
 	data->c_ima_policy = securityfs_create_file("policy", POLICY_FILE_FLAGS,
 					    data->container_dir, NULL,
 					    &ima_measure_policy_ops);
@@ -114,7 +134,7 @@ int container_ima_fs_init(struct container_ima_data *data, static struct dentry 
 		ret = PTR_ERR(data->c_ima_policy);
 		goto out;
 	}
-
+    
 	return 0;
 out:
 	securityfs_remove(data->c_ima_policy);
