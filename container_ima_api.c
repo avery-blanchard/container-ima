@@ -554,18 +554,9 @@ int container_ima_store_measurement(struct container_data *data, struct mmap_arg
 	return 0;
 
 }
- /*
-  * get_data_from_container_id
-  *     Retiever container_data struct using id
-  *     For later, when adding multiple containers
-  */
- struct container_ima_data *get_data_from_container_id(int container_id)
-{
-
-}
 /*
  * container_ima_lookup_digest_entry
- *      Lookup digest in hashtable and return entry
+ *      Lookup digest in the per container hashtable and return entry
  * Notes: per container hash table or would it be better to keep track of shared files with a shared table? 
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L55
  */
@@ -578,7 +569,7 @@ static struct ima_queue_entry *container_ima_lookup_digest_entry(struct containe
     key = ima_hash_key(digest_value);
     rcu_read_lock();
 
-    hlist_for_each_entry_rcu(qe, &ima_hash_table.queue[key], hnext) {
+    hlist_for_each_entry_rcu(qe, &data->hash_tbl.queue[key], hnext) {
 		tmp = memcmp(qe->entry->digests[ima_hash_algo_idx].digest,
 			    digest_value, hash_digest_size[ima_hash_algo]);
 		if ((tmp == 0) && (qe->entry->pcr == pcr)) {

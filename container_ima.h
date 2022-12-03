@@ -1,4 +1,8 @@
-
+/*
+ * container_ima.h
+ * 		- define structs and functions for container IMA
+ * 
+ */
 #include <linux/types.h>
 #include <linux/crypto.h>
 #include <linux/fs.h>
