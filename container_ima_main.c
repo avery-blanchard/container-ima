@@ -14,18 +14,18 @@
 #include <linux/ima.h>
 #include <linux/file.h>
 #include <linux/fs.h>
-
+#include <linux/integrity.h>
+#include <uapi/linux/bpf.h>
 #include <keys/system_keyring.h>
+#include <linux/bpf.h>
 #include "container_ima.h"
 
+#define PROT_EXEC 0x04
 
 #define MODULE_NAME "ContainerIMA"
 #define INTEGRITY_KEYRING_IMA 1
-#define PCR 10
-const char *measure_log_dir = "/secure/container_ima/"; // in this dir, per container measurement logs 
-struct vtpm_proxy_new_dev *container_vtpms;
-struct container_data *head;
-struct container_data *cur;
+
+struct dentry *integrity_dir;
 struct tpm_chip *ima_tpm_chip;
 int host_inum;
 static struct dentry *c_ima_dir;
@@ -34,14 +34,6 @@ static struct dentry *c_ima_symlink;
 /* mapping of id to system call arguments */
 BPF_HASH(active_mmap_args_map, uint64, struct mmap_args_t);
 
-/*
- * container_keyring_add_key
- * create key from loading the vTPM x.509 cert
- */
-int container_keyring_add_key() 
-{
-	return 0;
-}
 /*
  * syscall__probe_entry_mmap
  * 
@@ -87,13 +79,14 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	 * 	2. call functions to create hash digest, extend,
 	 * 		and send to TPM for IMA per container.
 	 */
-	pr_into("In mmap probe return\n");
+	pr_info("In mmap probe return\n");
 
 	int ret;
 	struct task_struct *task;
 	struct file *file;
-	struct container_data *data;
+	struct container_ima_data *data;
 	unsigned int inum;
+	const struct cred *cred;
 	u32 sec_id;
 	struct mmap_args_t *args = {};
 	
@@ -106,8 +99,8 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	if (inum == host_inum) {
 		return ret;
 	}
-
-	if (args->prot != PROT_READ && args->prot != PROR_EXEC) {
+	/* PROT_EXEC 0x04 */
+	if (args->prot != PROT_EXEC) {
 		return ret;
 	}
 
@@ -120,8 +113,8 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 		pr_err("error retrieving file\n");
 		return -1;
 	}
-
-	security_current_getsecid_subj(&secid);
+	cred = get_task_cred(task);
+	security_cred_getsecid(cred, &sec_id);
 
 	ret = container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
 	if (ret != 0) {
@@ -141,14 +134,14 @@ static int container_ima_init(void)
 	task = current;
 	host_inum = task->nsproxy->cgroup_ns->ns_common->inum;
 
-	c_ima_dir = securityfs_create_dir("container_ima", "integrity/container_ima");
+	c_ima_dir = securityfs_create_dir("container_ima", NULL);
 	if (IS_ERR(c_ima_dir))
 		return -1;
 	
-	c_ima_symlink = securityfs_create_symlink("container_ima", NULL, "integrity/container_ima",
+	c_ima_symlink = securityfs_create_symlink("container_ima", NULL, "container_ima",
 						NULL);
 	if (IS_ERR(c_ima_symlink)) {
-		ret = PTR_ERR(c_ima_symlink);
+		//ret = PTR_ERR(c_ima_symlink);
 		return -1;
 	}
 
@@ -162,7 +155,7 @@ static void container_ima_exit(void)
 	 */
 	int ret;
 	//ret = container_ima_cleanup();
-	return ret;
+	return;
 }
 
 
