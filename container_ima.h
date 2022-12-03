@@ -112,7 +112,14 @@ struct container_ima_data {
 	unsigned long c_ima_fs_flags;
 	int valid_policy;
 	extern spinlock_t c_ima_queue_lock;
-	struct dentry *c_ima_policy
+	struct dentry *c_ima_policy;
+	struct dentry *container_dir;
+	struct dentry *binary_runtime_measurements;
+	struct dentry *ascii_runtime_measurements;
+	struct dentry *runtime_measurements_count;
+	struct dentry *violations;
+	struct dentry *active;
+
 };
 
 /* Internal container IMA function definitions */
