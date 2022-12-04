@@ -37,7 +37,6 @@
 
 extern struct tpm_chip *ima_tpm_chip;
 extern int host_inum;
-//extern struct *container_hash_table;
 
 /* struct for BPF argument mappings */
 struct mmap_args_t {
@@ -184,4 +183,7 @@ static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos);
 static ssize_t c_ima_show_htable_violations(struct file *filp,
 					  char __user *buf,
 					  size_t count, loff_t *ppos);
+int mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd);
+int mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd);
+int create_mmap_bpf_map(void);
 #endif

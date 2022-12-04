@@ -20,8 +20,9 @@
 #include <linux/bpf.h>
 
 #include "container_ima.h"
+
 #include "ebpf/bpf_helpers.h"
-#include "ebpf/libbpf.h"
+
 #define PROT_EXEC 0x04
 
 #define MODULE_NAME "ContainerIMA"
@@ -32,9 +33,9 @@ struct tpm_chip *ima_tpm_chip;
 int host_inum;
 struct dentry *c_ima_dir;
 struct dentry *c_ima_symlink;
-
+int map_fd;
 /* mapping of id to system call arguments */
-BPF_HASH(active_mmap_args_map, u64);
+//BPF_HASH(active_mmap_args_map, u64);
 //struct ebpf_args *active_mmap_args_map;
 /*
  * syscall__probe_entry_mmap
@@ -51,17 +52,17 @@ int syscall__probe_entry_mmap(struct pt_regs *ctx, void *addr, size_t length, in
 	pr_info("In mmap probe entry\n");
 	uint64_t id = bpf_get_current_pid_tgid();
 	
-	struct mmap_args_t args = {};
+	struct mmap_args_t *args;
 
-	args.addr = addr;
-	args.length = length;
-	args.prot = prot;
-	args.flags = flags;
-	args.fd = fd;
-	args.offset = offset;
+	args->addr = addr;
+	args->length = length;
+	args->prot = prot;
+	args->flags = flags;
+	args->fd = fd;
+	args->offset = offset;
 
-	active_mmap_args_map.update(&id, &args);
-
+	//active_mmap_args_map.update(&id, &args);
+	mmap_bpf_map_add(id, args, map_fd);
 	return 0;
 
 }
@@ -89,14 +90,21 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	struct container_ima_data *data;
 	unsigned int inum;
 	const struct cred *cred;
+	struct nsproxy *ns;
 	u32 sec_id;
-	struct mmap_args_t *args = {};
+	struct mmap_args_t *args;
+	uint64_t id = bpf_get_current_pid_tgid();
 	
 	ret = 0;
 	task =  bpf_get_current_task();
-    inum = task->nsproxy->cgroup_ns->ns_common->inum;
-
-	active_mmap_args_map.pop(&args);
+    ns = task->nsproxy;
+	if (!ns->cgroup_ns)
+		return -1;
+	
+	//inum = ns->cgroup_ns->ns_common->inum;
+	inum = 0;
+	//active_mmap_args_map.pop(&args);
+	ret = mmap_bpf_map_lookup(id, args, map_fd);
 
 	if (inum == host_inum) {
 		return ret;
@@ -130,12 +138,21 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 }
 static int container_ima_init(void)
 {
+	pr_info("Starting container IMA\n");
+
 	/* Start container IMA */
 	struct task_struct *task;
+	struct nsproxy *ns;
 
 	task = current;
-	host_inum = task->nsproxy->cgroup_ns->ns_common->inum;
-
+	ns = task->nsproxy;
+	if (!ns->uts_ns) 
+		return -1;
+	
+	//host_inum = ns->uts_ns->ns_common->inum;
+	host_inum = 0;
+	map_fd = create_mmap_bpf_map();
+	pr_err("map_fd %d\n", map_fd);
 	c_ima_dir = securityfs_create_dir("container_ima", NULL);
 	if (IS_ERR(c_ima_dir))
 		return -1;
