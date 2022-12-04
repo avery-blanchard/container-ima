@@ -30,6 +30,7 @@ long container_ima_vtpm_setup(struct container_ima_data *data, unsigned int cont
 	struct file *vtpm_file;
 	const char *vtpm_fd_name;
 	char id[10];
+	int fd;
 	int check;
 	
 	new_vtpm = kmalloc(sizeof(struct vtpm_proxy_new_dev), GFP_KERNEL);
@@ -41,24 +42,33 @@ long container_ima_vtpm_setup(struct container_ima_data *data, unsigned int cont
 	if (check < 0)
 		pr_err("sprintf fails in vtpm setup \n");
 	
-	check = strcat("/dev/vtpm", id);
+	check = strcat(vtpm_fd_name, "/dev/vtpm");
 	if (check == -1)
-		pr_err("strcat_s fails in vtpm setup\n");
+		pr_err("strcat fails\n");
+	
+	check = strcat(vtpm_fd_name, id);
+	if (check == -1)
+		pr_err("strcat fails\n");
 
 	new_vtpm->flags = VTPM_PROXY_FLAG_TPM2;
 	new_vtpm->tpm_num = container_id;
-	new_vtpm->fd = "/dev/vtpm";
+	new_vtpm->fd = vtpm_fd_name;
 	new_vtpm->major = MAJOR(ima_tpm_chip->device->devt); // MAJOR(dev_t dev); major number of the TPM device
 	new_vtpm->minor = MINOR(ima_tpm_chip->device->devt); // MINOR(dev_t dev); minor number of the TPM device
 
 
-	ret = vtpmx_ioc_new_dev(vtpm_file, ioctl, (unsigned long)&new_vtpm);
+	ret = ioctl(fd, VTPM_PROXY_IOC_NEW_DEV, vtpm_new_dev);
 	
 	if (ret != 0) {
 		pr_err("Failed to create a new vTPM device\n");
 	}
 
+	pr_info("Created TPM device %s; vTPM device has fd %d, "
+	       "major/minor = %u/%u.\n",
+	       vtpm_fd_name;, fd, new_vtpm.major, vtpm_new_dev.minor);
+
 	data->vtpm = new_vtpm;
+	data->vtpmdev = vtpm_fd_name;
 	return ret;
 	
 }

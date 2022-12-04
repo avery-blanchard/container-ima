@@ -82,6 +82,7 @@ struct container_ima_data {
 	atomic_long_t violations;
 	struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
 	struct vtpm_proxy_new_dev vtpm;
+	char vtpmdev[16];
 	/* policy configurations */
 	struct list_head c_ima_default_rules;
 	struct list_head c_ima_policy_rules;
@@ -161,4 +162,5 @@ static ssize_t c_ima_show_htable_violations(struct file *filp,
 int mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd);
 int mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd);
 int create_mmap_bpf_map(void);
+static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 #endif

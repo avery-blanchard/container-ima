@@ -477,8 +477,7 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 	 * extend PCR of container's vTPM, figure out functions for extending vTPM 
 	 * https://elixir.bootlin.com/linux/latest/source/drivers/char/tpm/tpm-interface.c#L314 
 	 */
-	//res = vtpm_pcr_extend(digest_args, entry->pcr, container_id);
-	res = ima_pcr_extend(digest_args, entry->pcr);
+	res = vtpm_pcr_extend(data, digest_args, entry->pcr);
 	if (res != 0) {
 		pr_err("vTPM failed\n");
 		audit_info = 0;
@@ -638,6 +637,22 @@ struct container_ima_data *ima_data_exists(unsigned int id)
 		return NULL;
 	
 	return &entry->data;
+
+}
+/*
+ * vtpm_pcr_extend 
+ * 		vtpm proxy device driver spawns TPM device pair 
+ * 			Front end: /dev/tpm<device number>
+ *			Back end:  file descriptor returned from ioctl on /dev/vtpmx
+ * 		current issue: We spawn the device driver and must interact with front end
+ *		while facilitating the backend. idea: spawn a thread to handle to backend?
+ * 		each container should see this device as /dev/tpm0 and will have the same interactions
+ *
+ */
+static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
+{
+	int res;
+	
 
 }
 #endif
