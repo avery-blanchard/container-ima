@@ -20,6 +20,7 @@
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/printk.h>
+#include <uapi/linux/bpf.h>
 #include <linux/ima.h>
 #include <linux/file.h>
 #include <linux/vtpm_proxy.h>
@@ -31,6 +32,7 @@
 /* define sizes for hash tables */
 #define CONTAINER_IMA_HASH_BITS 10
 #define CONTAINER_IMA_HTABLE_SIZE (1 << CONTAINER_IMA_HASH_BITS)
+#define IMA_DIGEST_SIZE		SHA1_DIGEST_SIZE
 #define PCR 10
 
 extern struct tpm_chip *ima_tpm_chip;
@@ -85,7 +87,7 @@ struct container_ima_hash {
 struct container_ima_hash_data {
 	u8 algo;
 	u8 length;
-	u8 digest[HASH_MAX_DIGESTSIZE];
+	u8 digest[IMA_DIGEST_SIZE];
 };
 struct container_ima_entry {
 	int pcr;

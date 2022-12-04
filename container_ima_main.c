@@ -18,9 +18,10 @@
 #include <uapi/linux/bpf.h>
 #include <keys/system_keyring.h>
 #include <linux/bpf.h>
-#include <bpf/bpf_helpers.h>
-#include "container_ima.h"
 
+#include "container_ima.h"
+#include "ebpf/bpf_helpers.h"
+#include "ebpf/libbpf.h"
 #define PROT_EXEC 0x04
 
 #define MODULE_NAME "ContainerIMA"
@@ -33,8 +34,8 @@ struct dentry *c_ima_dir;
 struct dentry *c_ima_symlink;
 
 /* mapping of id to system call arguments */
-BPF_HASH(active_mmap_args_map, uint64, struct mmap_args_t);
-
+BPF_HASH(active_mmap_args_map, u64);
+//struct ebpf_args *active_mmap_args_map;
 /*
  * syscall__probe_entry_mmap
  * 
