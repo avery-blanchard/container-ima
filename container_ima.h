@@ -64,20 +64,8 @@ struct c_ima_data_hash_table {
     struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
 };
 
+/* Hash table for container data structs with the key id */
 extern struct container_ima_hash_table ima_hash_table;
-
-/* container IMA event related data */
-struct container_ima_event_data {
-	struct integrity_iint_cache *iint;
-	struct file *file;
-	const unsigned char *filename;
-	struct evm_ima_xattr_data *xattr_value;
-	int xattr_len;
-	const struct modsig *modsig;
-	const char *violation;
-	const void *buf;
-	int buf_len;
-};
 
 struct container_ima_hash {
 	u8 algo;
@@ -87,19 +75,6 @@ struct container_ima_hash_data {
 	u8 algo;
 	u8 length;
 	u8 digest[IMA_DIGEST_SIZE];
-};
-struct container_ima_entry {
-	int pcr;
-	struct tpm_digest *digests;
-	unsigned int id;
-	u32 data_len;
-};
-struct inode_ima_data {
-	struct mutex mut;
-	struct inode *inode;
-	unsigned long flags;
-	unsigned int id;
-	struct container_ima_hash_data *hash;
 };
 
 struct container_ima_data {
@@ -128,7 +103,7 @@ struct container_ima_data {
 	struct dentry *runtime_measurements_count;
 	struct dentry *violations_log;
 	struct dentry *active;
-struct rb_root container_integrity_iint_tree;
+	struct rb_root container_integrity_iint_tree;
 	rwlock_t container_integrity_iint_lock;
 
 };

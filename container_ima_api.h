@@ -532,7 +532,7 @@ int container_ima_store_measurement(struct container_ima_data *data, struct mmap
 {
 	struct inode *inode;
 	struct ima_template_entry *entry;
-	struct container_ima_event_data *event;
+	struct ima_event_data *event_data;
 	struct container_ima_data *data;
 	static contst char op[] = "add_template_measure";
 	static const char audit_cause[] = "ENOMEM";
@@ -543,8 +543,8 @@ int container_ima_store_measurement(struct container_ima_data *data, struct mmap
 	if (iint->measured_pcrs & (0x1 << IMA_PCR) && !modsig)
 		return 0;
 
-	// write own func to allocate template 
-	// res = init_template(&event_data, entry, template_desc, container_id);
+	/* using IMA's function to allocate should be define, not keeping memory separate yet */
+	res = ima_alloc_init_template(&event_data, &entry, template_desc);
 	// going to need to rewrite store template due to host specific stuff
 	res = container_ima_store_template(data, entry, 1, inode, filename, container_id);
 	if ((!res || res == -EEXIST) && !(file->f_flags & O_DIRECT)) {
