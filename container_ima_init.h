@@ -2,6 +2,9 @@
  * File: container_ima_init.c
  *      Functions for initialization and cleanup
  */
+#ifndef __CONTAINER_IMA_INIT_H__
+#define __CONTAINER_IMA_INIT_H__
+
 #include <linux/ima.h>
 #include <linux/vtpm_proxy.h>
 #include <linux/bpf.h>
@@ -218,3 +221,4 @@ int mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd)
 	bpf_map_lookup_elem(map_fd, &id, (void *)args, 0);
 	return bpf_map_delete_elem(map_fd, &id);
 }
+#endif

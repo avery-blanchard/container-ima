@@ -3,6 +3,9 @@
  *      Security file system for container measurment lists       
  *
  */
+#ifndef __CONTAINER_IMA_FS_H__
+#define __CONTAINER_IMA_FS_H__
+
 #include <linux/fcntl.h>
 #include <linux/slab.h>
 #include <linux/init.h>
@@ -152,3 +155,4 @@ out:
 
 	return res;
 }
+#endif

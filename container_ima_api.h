@@ -2,6 +2,9 @@
  * File: container_ima_api.c
  *      Functions for collectins and storing file measurments
  */
+#ifndef __CONTAINER_IMA_API_H__
+#define __CONTAINER_IMA_API_H__
+
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/ima.h>
@@ -637,3 +640,4 @@ struct container_ima_data *ima_data_exists(unsigned int id)
 	return &entry->data;
 
 }
+#endif
