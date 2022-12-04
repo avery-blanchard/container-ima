@@ -497,7 +497,7 @@ int container_ima_store_template(struct container_ima_data *data, struct ima_tem
 		       const unsigned char *filename, unsigned int container_id)
 {
 	int res;
-	static contst char op[] = "add_template_measure";
+	static const char op[] = "add_template_measure";
 	static const char audit_cause[] = "ENOMEM";
 	char *template_name = entry->template_desc->name;
 

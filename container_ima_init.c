@@ -3,9 +3,9 @@
  *      Functions for initialization and cleanup
  */
 #include <linux/ima.h>
+#include <linux/vtpm_proxy.h>
 
 #include "container_ima.h"
-
 struct tpm_chip *ima_tpm_chip;
 static struct kmem_cache *c_ima_cache;
 /*
@@ -16,7 +16,7 @@ static struct kmem_cache *c_ima_cache;
  * https://www.kernel.org/doc/html/v4.13/security/tpm/tpm_vtpm_proxy.html
  * https://elixir.bootlin.com/linux/v6.0.5/source/drivers/char/tpm/tpm_vtpm_proxy.c#L624 
  */
-long container_ima_vtpm_setup(struct container_ima_data *data,int container_id, struct tpm_chip *ima_tpm_chip, struct container_data *data) 
+long container_ima_vtpm_setup(struct container_ima_data *data, unsigned int container_id, struct tpm_chip *ima_tpm_chip) 
 {
 	struct vtpm_proxy_new_dev *new_vtpm;
 	long ret;
@@ -35,15 +35,15 @@ long container_ima_vtpm_setup(struct container_ima_data *data,int container_id, 
 	if (check < 0)
 		pr_err("sprintf fails in vtpm setup \n");
 	
-	check = strcat_s("/dev/vtpm", id);
+	check = strcat("/dev/vtpm", id);
 	if (check == -1)
 		pr_err("strcat_s fails in vtpm setup\n");
 
-	new_vtpm.flags = VTPM_PROXY_FLAG_TPM2;
-	new_vtpm.tpm_num = container_id;
-	new_vtpm.fd = "/dev/vtpm";
-	new_vtpm.major = MAJOR(ima_tpm_chip->device->devt); // MAJOR(dev_t dev); major number of the TPM device
-	new_vtp.minor = MINOR(ima_tpm_chip->device->devt); // MINOR(dev_t dev); minor number of the TPM device
+	new_vtpm->flags = VTPM_PROXY_FLAG_TPM2;
+	new_vtpm->tpm_num = container_id;
+	new_vtpm->fd = "/dev/vtpm";
+	new_vtpm->major = MAJOR(ima_tpm_chip->device->devt); // MAJOR(dev_t dev); major number of the TPM device
+	new_vtpm->minor = MINOR(ima_tpm_chip->device->devt); // MINOR(dev_t dev); minor number of the TPM device
 
 
 	ret = vtpmx_ioc_new_dev(vtpm_file, ioctl, (unsigned long)&new_vtpm);
@@ -58,12 +58,11 @@ long container_ima_vtpm_setup(struct container_ima_data *data,int container_id, 
 }
 /*
  * init_container_ima_data
- * 		Note: figure out how to check if it exists already
+ * 	
  */
-struct container_ima_data *init_container_ima_data(int container_id) 
+struct container_ima_data *init_container_ima_data(unsigned int container_id) 
 {
 	struct container_ima_data *data;
-	/* check if container data exists, return that then */
 
 	/* init policy lists */
 	INIT_LIST_HEAD(&data->c_ima_default_rules);
@@ -77,7 +76,7 @@ struct container_ima_data *init_container_ima_data(int container_id)
 	memset(&data->hash_tbl.queue, 0, sizeof(data->hash_tbl));
 
 	/* init ML */
-	INIT_LIST_HEAD(&data->c_ima_measurements);
+	INIT_LIST_HEAD(&data->c_ima_measuremenstorage class specified for parameter ts);
 	mutex_init(&data->c_ima_write_mutex);
 	
 	data->valid_policy = 1;
@@ -90,7 +89,7 @@ struct container_ima_data *init_container_ima_data(int container_id)
 }
 struct container_ima_data *create_container_ima_data(void) 
 {
-	struct container_data *data;
+	struct container_ima_data *data;
 
 	data = kmem_cache_zalloc(c_ima_cache, GFP_KERNEL);
 	if (!data) {
@@ -99,7 +98,7 @@ struct container_ima_data *create_container_ima_data(void)
 	}
 	return data;
 }
-void container_ima_free_data(struct container_data *data)
+void container_ima_free_data(struct container_ima_data *data)
 {
 	/* Free policy, tree, hash table, vtpm, etc.... here */
 	kmem_cache_free(c_ima_cache, data);
@@ -112,20 +111,23 @@ void container_ima_free_data(struct container_data *data)
  *		Create measurment log 
  * 		Default policy
  */
-struct container_data *init_container_ima(int container_id, static struct dentry c_ima_dir, static struct dentry c_ima_symlink) 
+struct container_ima_data *init_container_ima(unsigned int container_id, static struct dentry *c_ima_dir, static struct dentry *c_ima_symlink) 
 {
 	int ret;
 	struct container_ima_data *data;
 	/* check if container exist, then return container_data here */
-	data = 
+	data = ima_data_exists(container_id);
+	if (data)
+		return data;
+
+	data = init_container_ima_data(container_id);
+
 	ima_tpm_chip = tpm_default_chip();
 	if (!ima_tpm_chip)
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
 
-	container_ima_vtpm = container_ima_vtpm_setup(container_id, ima_tpm_chip, data); // per container vTPM
- 
-	data = init_container_ima_data(container_id);
+	container_ima_vtpm = container_ima_vtpm_setup(data, container_id, ima_tpm_chip); // per container vTPM
 
 	ret = container_ima_fs_init(container_id, c_ima_dir, c_ima_symlink);
 	//ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
@@ -134,17 +136,16 @@ struct container_data *init_container_ima(int container_id, static struct dentry
 
 	if (ret)
 		return ret;
-	ret = container_ima_crypto_init(data); // iterate over PCR banks and init the algorithms per bank  
+	//ret = container_ima_crypto_init(data); // iterate over PCR banks and init the algorithms per bank  
 
 	if (ret)
 		return ret;
 
-	ret = container_ima_ml_init(data); // set up directory for per container Measurment Log
 
 	if (ret) 
 		return ret;
 
-	container_ima_policy_init(data); // start with default policy for all containers
+	//container_ima_policy_init(data); // start with default policy for all containers
 
 	return data;
 }
@@ -171,7 +172,7 @@ int container_ima_cleanup() {
  * 
  * Iterate over PCRs, check algorithm for PCR10 and record
  */
-int container_ima_crypto_init(struct container_data *data)
+int container_ima_crypto_init(struct container_ima_data *data)
 {
 	int ret;
 	int i;

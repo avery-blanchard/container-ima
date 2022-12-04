@@ -64,7 +64,7 @@ static const struct seq_operations c_ima_ascii_measurements_seqops = {
 	.stop = ima_measurements_stop,
 	.show = ima_ascii_measurements_show
 };
-\static const struct seq_operations c_ima_measurments_seqops = {
+static const struct seq_operations c_ima_measurments_seqops = {
 	.start = ima_measurements_start,
 	.next = ima_measurements_next,
 	.stop = ima_measurements_stop,
@@ -84,7 +84,7 @@ static const struct file_operations c_ima_htable_violations_ops = {
  * 		Idea: under /integrity/ima/containers/ have a directory per container named with container id
  *      	
  */
-int container_ima_fs_init(struct container_ima_data *data, static struct dentry *c_ima_dir, static struct dentry *c_ima_symlink) 
+int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_dir, struct dentry *c_ima_symlink) 
 {
 	int res;
 	char *dir_name = "integrity/ima/container/";
@@ -125,7 +125,7 @@ int container_ima_fs_init(struct container_ima_data *data, static struct dentry 
 		goto out;
 	}
 
-	data->violations =
+	data->violations_log =
 	    securityfs_create_file("violations", S_IRUSR | S_IRGRP,
 				   data->container_dir, NULL, &c_ima_htable_violations_ops);
 	if (IS_ERR(data->violations)) {

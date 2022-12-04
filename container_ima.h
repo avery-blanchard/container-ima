@@ -5,6 +5,7 @@
  */
 #ifndef __CONTAINER_IMA_H__
 #define __CONTAINER_IMA_H__
+
 #include <linux/types.h>
 #include <linux/crypto.h>
 #include <linux/fs.h>
@@ -22,10 +23,7 @@
 #include <linux/ima.h>
 #include <linux/file.h>
 #include <linux/vtpm_proxy.h>
-#include "container_ima_api.c"
-#include "container_ima_init.c"
-#include "container_ima_fs.c"
-#include "container_ima_main.c"
+
 /* define digest sizes */
 #define CONTAINER_IMA_DIGEST_SIZE       SHA1_DIGEST_SIZE
 #define IMA_TEMPLATE_IMA_NAME "container-ima"
@@ -34,9 +32,10 @@
 #define CONTAINER_IMA_HASH_BITS 10
 #define CONTAINER_IMA_HTABLE_SIZE (1 << CONTAINER_IMA_HASH_BITS)
 #define PCR 10
+
 extern struct tpm_chip *ima_tpm_chip;
 extern int host_inum;
-extern struct *container_hash_table;
+//extern struct *container_hash_table;
 
 /* struct for BPF argument mappings */
 struct mmap_args_t {
@@ -45,7 +44,7 @@ struct mmap_args_t {
 	int prot;
 	int flags;
 	int fd;
-	off_t offset
+	off_t offset;
 };
 
 struct c_ima_hash_table {
@@ -63,6 +62,7 @@ struct c_ima_queue_entry {
 struct c_ima_data_hash_table {
     struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
 };
+
 extern struct container_ima_hash_table ima_hash_table;
 
 /* container IMA event related data */
@@ -104,7 +104,7 @@ struct inode_ima_data {
 struct container_ima_data {
 	atomic_long_t len;
 	atomic_long_t violations;
-	struct hlist_head_queue[CONTAINER_IMA_HTABLE_SIZE];
+	struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
 	struct vtpm_proxy_new_dev vtpm;
 	/* policy configurations */
 	struct list_head c_ima_default_rules;
@@ -125,16 +125,16 @@ struct container_ima_data {
 	struct dentry *binary_runtime_measurements;
 	struct dentry *ascii_runtime_measurements;
 	struct dentry *runtime_measurements_count;
-	struct dentry *violations;
+	struct dentry *violations_log;
 	struct dentry *active;
-	static struct rb_root container_integrity_iint_tree;
+struct rb_root container_integrity_iint_tree;
 	rwlock_t container_integrity_iint_lock;
 
 };
 
 /* Internal container IMA function definitions */
 int container_keyring_init(void);
-int container_ima_fs_init(struct container_ima_data *data, static struct dentry c_ima_dir, static struct dentry c_ima_symlink);
+int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_dir, struct dentry *c_ima_symlink);
 long container_ima_vtpm_setup(struct container_ima_data *, unsigned int, struct tpm_chip *);
 struct file *container_ima_retrieve_file(struct mmap_args_t *);
 struct container_ima_inode_data *container_ima_retrieve_inode_data(struct container_ima_data *, int, struct file *);
@@ -156,7 +156,7 @@ int container_ima_store_template(struct container_ima_data *, struct ima_templat
 		       const unsigned char *, int);
 int container_ima_store_measurement(struct container_ima_data *, struct mmap_args_t *, int, struct integrity_iint_cache *, 
                 struct file *, struct modsig, struct ima_template_desc *); 
-struct container_ima_data *init_container_ima(unsigned int container_id, static struct dentry *c_ima_dir, static struct dentry *c_ima_symlink);
+struct container_ima_data *init_container_ima(unsigned int container_id, struct dentry *c_ima_dir, struct dentry *c_ima_symlink);
 int syscall__probe_entry_mmap(struct pt_regs *, void *, size_t, int, int, int, off_t);
 int syscall__probe_ret_mmap(struct pt_regs *);
 int container_ima_cleanup(void);

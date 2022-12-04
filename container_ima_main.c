@@ -18,6 +18,7 @@
 #include <uapi/linux/bpf.h>
 #include <keys/system_keyring.h>
 #include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
 #include "container_ima.h"
 
 #define PROT_EXEC 0x04
@@ -28,8 +29,8 @@
 struct dentry *integrity_dir;
 struct tpm_chip *ima_tpm_chip;
 int host_inum;
-static struct dentry *c_ima_dir;
-static struct dentry *c_ima_symlink;
+struct dentry *c_ima_dir;
+struct dentry *c_ima_symlink;
 
 /* mapping of id to system call arguments */
 BPF_HASH(active_mmap_args_map, uint64, struct mmap_args_t);
@@ -108,7 +109,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	/* If not, init then process measurment */
 	data = init_container_ima(inum, c_ima_dir, c_ima_symlink);
 
-	file = retrieve_file(args);
+	file = container_ima_retrieve_file(args);
 	if (!file) {
 		pr_err("error retrieving file\n");
 		return -1;
