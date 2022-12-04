@@ -163,4 +163,5 @@ int mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd);
 int mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd);
 int create_mmap_bpf_map(void);
 static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
+static int container_ima_add_digest_entry(struct container_ima_data *data, struct ima_template_entry *entry);
 #endif

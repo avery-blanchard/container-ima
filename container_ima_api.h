@@ -13,6 +13,7 @@
 
 #define IMA_PCR 10
 static struct kmem_cache *c_ima_iint_cache;
+static DEFINE_MUTEX(ima_extend_list_mutex);
 
 /*
  * container_ima_retrieve_file
@@ -435,6 +436,34 @@ out:
 
 }
 /*
+ * container_ima_add_digest_entry
+ *		Helper for container_ima_add_template_entry
+ *
+ */
+static int container_ima_add_digest_entry(struct container_ima_data *data, struct ima_template_entry *entry)
+{
+	struct ima_queue_entry *q;
+	unsigned int key;
+
+	qe = kmalloc(sizeof(*q),  GFP_KERNEL);
+
+	qe->entry = entry;
+
+	INIT_LIST_HEAD(&qe->later);
+	list_add_tail_rcu(&qe->later, &data->c_ima_measurements);
+	atomic_long_inc(&data->hash_tbl.len);
+	key = ima_hash_key(entry->digests[ima_hash_algo_idx].digest);
+	hlist_add_head_rcu(&qe->hnext, &hash_tbl.queue[key]);
+	if (&data->binary_runtime_size != ULONG_MAX) {
+		int size;
+		size = get_binary_runtime_size(entry);
+		data->binary_runtime_size = (data->binary_runtime_size < ULONG_MAX - size) ?
+		     data-?binary_runtime_size + size : ULONG_MAX;
+	}
+	return 0;
+
+}
+/*
  * container_ima_add_template_entry
  *      Add digest to the hashtable and extend PCR
  */
@@ -450,7 +479,7 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 	int result = 0, tpmresult = 0;
 
 	// create a mutex per container list 
-
+	mutex_lock(&ima_extend_list_mutex);
 	/* 
 	 * hash table lookup, need to reimplement for container specific hash tables 
 	 * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L48 
@@ -466,7 +495,7 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 	 * add digest to the hashtable, need to reimplement for container specific hash tables 
 	 * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L93 
 	 */
-	res = container_ima_add_digest_entry(data, entry, container_id);
+	res = container_ima_add_digest_entry(data, entry);
 
 	if (res < 0) {
 		audit_cause = "ENOMEM";
@@ -489,6 +518,7 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 	}
 out:
 	// unlock ml mutex here
+	mutex_lock(&ima_extend_list_mutex);
 	// make this container specific? 
 	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
 			    op, audit_cause, result, 0, container_id);
