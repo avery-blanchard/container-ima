@@ -328,7 +328,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 				&allowed_algos);
 	
 	violation_check = ((func == FILE_CHECK || func == MMAP_CHECK) &&
-			   (ima_policy_flag & IMA_MEASURE));
+			   (&data->ima_policy_flag & IMA_MEASURE));
 	
 	if (!action && !violation_check)
 		return 0;
@@ -336,8 +336,6 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	//appraisal = action & IMA_APPRAISE; // implement apprasial in future
 	if (action & IMA_FILE_APPRAISE)
 		func = FILE_CHECK;
-	
-
 	inode_lock(inode);
 
 	if (action) {
@@ -352,6 +350,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 					 &pathbuf, &pathname, filename, container_id);
 
 	inode_unlock(inode);
+
 	if (ret || !action)
 		return 0;
 
@@ -386,9 +385,6 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 		action ^= IMA_HASH;
 		set_bit(IMA_UPDATE_XATTR, &iint->atomic_flags);
 	}
-	// write mmap violation checker in future?
-	// decide where to put ML for containers
-	// here normal ima reads from security.ima
 
 	if ((action & IMA_APPRAISE_SUBMASK) ||
 	    strcmp(template_desc->name, IMA_TEMPLATE_IMA_NAME) != 0) {
@@ -408,7 +404,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	ret = container_ima_collect_measurement(data, args, container_id, modsig, iint);
 	if (ret != 0) {
 		pr_err("collecting measurement failed\n");
-		goto out;
+		goto out_locked;
 	}
 	if (action & IMA_MEASURE)
 		container_ima_store_measurement(data, args, container_id, iint, file, modsig,template_desc);
@@ -420,13 +416,22 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 
 	if ((file->f_flags & O_DIRECT) && (iint->flags & IMA_PERMIT_DIRECTIO))
 		ret = 0;
-
+out_locked:
+	if ((mask & MAY_WRITE) && test_bit(IMA_DIGSIG, &iint->atomic_flags) &&
+	     !(iint->flags & IMA_NEW_FILE))
+			ret = -EACCES;
+	mutex_unlock(&iint->mutex);
+	kfree(xattr_value);
+	ima_free_modsig(modsig);
 out:
 	if ((mask & MAY_WRITE) && test_bit(IMA_DIGSIG, &iint->atomic_flags) &&
 	     !(iint->flags & IMA_NEW_FILE))
 		ret = -EACCES;
 	mutex_unlock(&iint->mutex);
 	ima_free_modsig(modsig);
+
+	return 0;
+
 
 }
 /*
@@ -637,22 +642,6 @@ struct container_ima_data *ima_data_exists(unsigned int id)
 		return NULL;
 	
 	return &entry->data;
-
-}
-/*
- * vtpm_pcr_extend 
- * 		vtpm proxy device driver spawns TPM device pair 
- * 			Front end: /dev/tpm<device number>
- *			Back end:  file descriptor returned from ioctl on /dev/vtpmx
- * 		current issue: We spawn the device driver and must interact with front end
- *		while facilitating the backend. idea: spawn a thread to handle to backend?
- * 		each container should see this device as /dev/tpm0 and will have the same interactions
- *
- */
-static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
-{
-	int res;
-	
 
 }
 #endif

@@ -152,6 +152,7 @@ struct container_ima_data *init_container_ima(unsigned int container_id, static 
 
 	if (ret)
 		return ret;
+	
 	//ret = container_ima_crypto_init(data); // iterate over PCR banks and init the algorithms per bank  
 
 	if (ret)
