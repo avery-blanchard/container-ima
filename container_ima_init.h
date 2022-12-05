@@ -6,72 +6,20 @@
 #define __CONTAINER_IMA_INIT_H__
 
 #include <linux/ima.h>
+#include <linux/hugetlb.h>
 #include <linux/vtpm_proxy.h>
 #include <linux/bpf.h>
-
+#include "ebpf/bpf_helpers.h"
 #include "container_ima.h"
+#include "container_ima.h"
+#include "container_ima.h"
+#include "container_ima_init.h"
+#include "container_ima_fs.h"
+#include "container_ima_api.h"
 
 #define MMAP_MAX_MAPPINGS 100 //adjust as needed
 struct tpm_chip *ima_tpm_chip;
 static struct kmem_cache *c_ima_cache;
-/*
- * container_ima_vtpm_setup 
- *      Set up per container vTPM, PCR 10 for IMA
- * 
- * https://elixir.bootlin.com/linux/latest/source/drivers/char/tpm/tpm_vtpm_proxy.c 
- * https://www.kernel.org/doc/html/v4.13/security/tpm/tpm_vtpm_proxy.html
- * https://elixir.bootlin.com/linux/v6.0.5/source/drivers/char/tpm/tpm_vtpm_proxy.c#L624 
- */
-long container_ima_vtpm_setup(struct container_ima_data *data, unsigned int container_id, struct tpm_chip *ima_tpm_chip) 
-{
-	struct vtpm_proxy_new_dev *new_vtpm;
-	long ret;
-	int ioctl; 
-	struct file *vtpm_file;
-	const char *vtpm_fd_name;
-	char id[10];
-	int fd;
-	int check;
-	
-	new_vtpm = kmalloc(sizeof(struct vtpm_proxy_new_dev), GFP_KERNEL);
-	if (!new_vtpm) {
-		pr_err("kmalloc failed\n");
-	}
-
-	check = sprintf(id, "%d", container_id);
-	if (check < 0)
-		pr_err("sprintf fails in vtpm setup \n");
-	
-	check = strcat(vtpm_fd_name, "/dev/vtpm");
-	if (check == -1)
-		pr_err("strcat fails\n");
-	
-	check = strcat(vtpm_fd_name, id);
-	if (check == -1)
-		pr_err("strcat fails\n");
-
-	new_vtpm->flags = VTPM_PROXY_FLAG_TPM2;
-	new_vtpm->tpm_num = container_id;
-	new_vtpm->fd = vtpm_fd_name;
-	new_vtpm->major = MAJOR(ima_tpm_chip->device->devt); // MAJOR(dev_t dev); major number of the TPM device
-	new_vtpm->minor = MINOR(ima_tpm_chip->device->devt); // MINOR(dev_t dev); minor number of the TPM device
-
-
-	ret = ioctl(fd, VTPM_PROXY_IOC_NEW_DEV, vtpm_new_dev);
-	
-	if (ret != 0) {
-		pr_err("Failed to create a new vTPM device\n");
-	}
-
-	pr_info("Created TPM device %s; vTPM device has fd %d, "
-	       "major/minor = %u/%u.\n",
-	       vtpm_fd_name;, fd, new_vtpm.major, vtpm_new_dev.minor);
-
-	data->vtpm = new_vtpm;
-	data->vtpmdev = vtpm_fd_name;
-	return ret;
-	
-}
 /*
  * init_container_ima_data
  * 	
@@ -87,19 +35,19 @@ struct container_ima_data *init_container_ima_data(unsigned int container_id)
 	data->c_ima_rules = (struct list_head __rcu *)(&data->c_ima_rules);
 	
 	/* init hash table */
-	atomic_long_set(&data->hashc_ima_write_mutex_tbl.len, 0);
+	atomic_long_set(&data->c_ima_write_mutex.len, 0);
 	atomic_long_set(&data->hash_tbl.violations, 0);
 	memset(&data->hash_tbl.queue, 0, sizeof(data->hash_tbl));
 
 	/* init ML */
-	INIT_LIST_HEAD(&data->c_ima_measuremenstorage class specified for parameter ts);
+	INIT_LIST_HEAD(&data->c_ima_measurements);
 	mutex_init(&data->c_ima_write_mutex);
 	
 	data->valid_policy = 1;
 	data->c_ima_fs_flags = 0;
 
 	data->container_integrity_iint_tree = RB_ROOT;
-	DEFINE_RWLOCK(data->container_integrity_iint_lock);
+	DEFINE_RWLOCK(&data->container_integrity_iint_lock);
 
 	return data;
 }
@@ -109,7 +57,7 @@ struct container_ima_data *create_container_ima_data(void)
 
 	data = kmem_cache_zalloc(c_ima_cache, GFP_KERNEL);
 	if (!data) {
-		retrun ERR_PTR(-ENOMEM);
+		return ERR_PTR(-ENOMEM);
 		pr_err("Allocation failed in cache\n");
 	}
 	return data;
@@ -143,7 +91,7 @@ struct container_ima_data *init_container_ima(unsigned int container_id, static 
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
 
-	container_ima_vtpm = container_ima_vtpm_setup(data, container_id, ima_tpm_chip); // per container vTPM
+	data->vtpm = container_ima_vtpm_setup(data, container_id, ima_tpm_chip); // per container vTPM
 
 	ret = container_ima_fs_init(container_id, c_ima_dir, c_ima_symlink);
 	//ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
@@ -206,11 +154,10 @@ int container_ima_crypto_init(struct container_ima_data *data)
 int create_mmap_bpf_map(void) 
 {
 	int ret;
-	enum bpf_map_type = BPF_MAP_TYPE_ARRAY;
 	int key_size = (int) sizeof(uint64_t);
-	int value_size = sizeof(struct mmap_args_t args);
+	int value_size = sizeof(struct mmap_args_t);
 
-	return bpf_create_map_node(bpf_map_type, key_size, value_size, MMAP_MAX_MAPPINGS, 0, -1);
+	return bpf_create_map_node(BPF_MAP_TYPE_ARRAY, key_size, value_size, MMAP_MAX_MAPPINGS, 0, -1);
 
 
 }
@@ -218,7 +165,7 @@ int create_mmap_bpf_map(void)
  * mmap_bpf_map_add
  * https://elixir.bootlin.com/linux/v4.14.135/source/tools/lib/bpf/bpf.c#L170
  */
-int mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd)
+static long mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd)
 {
 	return bpf_map_update_elem(map_fd, &id, (void *)args, 0);
 
@@ -227,9 +174,9 @@ int mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd)
  * mmap_bpf_map_lookup 
  * https://elixir.bootlin.com/linux/v4.14.135/source/tools/lib/bpf/bpf.c#L184 
  */
-int mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd)
+static long mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd)
 {
-	bpf_map_lookup_elem(map_fd, &id, (void *)args, 0);
-	return bpf_map_delete_elem(map_fd, &id);
+	args = bpf_map_lookup_elem(map_fd, &id);
+	return bpf_map_delete_elem(&map_fd, &id);
 }
 #endif

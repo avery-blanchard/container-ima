@@ -8,9 +8,11 @@
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/ima.h>
-
 #include "container_ima.h"
-
+#include "container_ima.h"
+#include "container_ima_init.h"
+#include "container_ima_fs.h"
+#include "container_ima_api.h"
 #define IMA_PCR 10
 static struct kmem_cache *c_ima_iint_cache;
 static DEFINE_MUTEX(ima_extend_list_mutex);
@@ -31,7 +33,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 		audit_mmap_fd(fd, flags);
 		file = fget(args->fd);
 		if (!file) {
-			pr_error("fget fails\n");
+			pr_err("fget fails\n");
 		}
 		if (is_file_hugepages(file)) {
 			args->len = ALIGN(len, huge_page_size(hstate_file(file)));
@@ -76,7 +78,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	loff_t i_size;
 	loff_t offset; 
 
-	file = retrieve_file(args);
+	file = container_ima_retrieve_file(args);
 	if (!file) {
 		pr_err("error retrieving file\n");
 		return -1;
@@ -162,9 +164,9 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	node = &iint->rb_node;
 	inode->i_flags |= S_IMA;
 	rb_link_node(node, parent, ptr);
-	rb_insert_color(node, &data->container_iint_tree);
+	rb_insert_color(node, &data->container_integrity_iint_tree;);
 
-	write_unlock(&data->integrity_iint_lock);
+	write_unlock(&data->container_integrity_iint_lock);
 	return iint;
 
 }
@@ -175,7 +177,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
  */
 void container_ima_add_violation(struct container_ima_data *data, struct file *file, const unsigned char *filename,
 		       struct integrity_iint_cache *iint,
-		       const char *op, const char *cause, int container) 
+		       const char *op, const char *cause, unsigned int container_id) 
 {
 	struct ima_template_entry *entry;
 	struct inode *inode = file_inode(file);
@@ -187,7 +189,7 @@ void container_ima_add_violation(struct container_ima_data *data, struct file *f
 	int result;
 
 	/* can overflow, only indicator */
-	atomic_long_inc(&ima_htable.violations);
+	atomic_long_inc(&data->hash_tbl.violations);
 
 	/* try to use IMA's allocation function */
 	result = ima_alloc_init_template(&event_data, &entry, NULL);
@@ -225,7 +227,7 @@ static void container_ima_rdwr_violation_check(struct container_ima_data *data, 
 	if (mode & FMODE_WRITE) {
 		if (atomic_read(&inode->i_readcount) && IS_IMA(inode)) {
 			if (!iint)
-				iint = container_integrity_iint_find(data, inode, container_id);
+				iint = container_integrity_inode_find(data, inode, container_id);
 			if (iint && test_bit(IMA_MUST_MEASURE,
 						&iint->atomic_flags))
 				send_t = true;
@@ -308,7 +310,6 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	struct ima_template_desc *template_desc = NULL;
 	char filename[NAME_MAX];
 	const char *pathname = NULL;
-	struct container_ima_data *data;
 	int ret, action, appraisal; 
 	struct evm_ima_xattr_data *xattr_value = NULL;
 	struct modsig *modsig = NULL;
@@ -442,10 +443,10 @@ out:
  */
 static int container_ima_add_digest_entry(struct container_ima_data *data, struct ima_template_entry *entry)
 {
-	struct ima_queue_entry *q;
+	struct ima_queue_entry *qe;
 	unsigned int key;
 
-	qe = kmalloc(sizeof(*q),  GFP_KERNEL);
+	qe = kmalloc(sizeof(*qe),  GFP_KERNEL);
 
 	qe->entry = entry;
 
@@ -453,12 +454,12 @@ static int container_ima_add_digest_entry(struct container_ima_data *data, struc
 	list_add_tail_rcu(&qe->later, &data->c_ima_measurements);
 	atomic_long_inc(&data->hash_tbl.len);
 	key = ima_hash_key(entry->digests[ima_hash_algo_idx].digest);
-	hlist_add_head_rcu(&qe->hnext, &hash_tbl.queue[key]);
+	hlist_add_head_rcu(&qe->hnext, &data.hash_tbl.queue[key]);
 	if (&data->binary_runtime_size != ULONG_MAX) {
 		int size;
 		size = get_binary_runtime_size(entry);
 		data->binary_runtime_size = (data->binary_runtime_size < ULONG_MAX - size) ?
-		     data-?binary_runtime_size + size : ULONG_MAX;
+		     data->binary_runtime_size + size : ULONG_MAX;
 	}
 	return 0;
 
@@ -600,15 +601,15 @@ int container_ima_store_measurement(struct container_ima_data *data, struct mmap
 static struct ima_queue_entry *container_ima_lookup_digest_entry(struct container_ima_data *data, u8 *digest_value,
 						       int pcr, unsigned int container_id)
 {
-    struct ima_queue_entry *entry, *ret = NULL;
+    struct ima_queue_entry *qr, *ret = NULL;
     int key, tmp;
 
     key = ima_hash_key(digest_value);
     rcu_read_lock();
 
     hlist_for_each_entry_rcu(qe, &data->hash_tbl.queue[key], hnext) {
-		tmp = memcmp(qe->entry->digests[ima_hash_algo_idx].digest,
-			    digest_value, hash_digest_size[ima_hash_algo]);
+		tmp = memcmp(qe->entry->digests[PCR].digest,
+			    digest_value, hash_digest_size[HASH_ALGO_SHA1]);
 		if ((tmp == 0) && (qe->entry->pcr == pcr)) {
 			ret = qe;
 			break;
@@ -660,7 +661,7 @@ static struct container_ima_data *ima_data_from_file(const struct file *filp)
 		pr_err("Container data from ID is NULL\n");
 	}
 	
-	return &entry->data;
+	return entry->data;
 } 
 struct container_ima_data *ima_data_exists(unsigned int id) 
 {
@@ -671,7 +672,7 @@ struct container_ima_data *ima_data_exists(unsigned int id)
 	if (!entry)
 		return NULL;
 	
-	return &entry->data;
+	return entry->data;
 
 }
 #endif

@@ -18,9 +18,14 @@
 #include <uapi/linux/bpf.h>
 #include <keys/system_keyring.h>
 #include <linux/bpf.h>
+#include <linux/init.h>
+#include <linux/module.h>
 
 #include "container_ima.h"
-
+#include "container_ima.h"
+#include "container_ima_init.h"
+#include "container_ima_fs.h"
+#include "container_ima_api.h"
 #include "ebpf/bpf_helpers.h"
 
 #define PROT_EXEC 0x04

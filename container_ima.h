@@ -159,8 +159,8 @@ static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos);
 static ssize_t c_ima_show_htable_violations(struct file *filp,
 					  char __user *buf,
 					  size_t count, loff_t *ppos);
-int mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd);
-int mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd);
+static long mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd);
+static long mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd);
 int create_mmap_bpf_map(void);
 static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 static int container_ima_add_digest_entry(struct container_ima_data *data, struct ima_template_entry *entry);

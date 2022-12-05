@@ -16,6 +16,11 @@
 #include <linux/vmalloc.h>
 #include <linux/ima.h>
 #include "container_ima.h"
+#include "container_ima.h"
+#include "container_ima_init.h"
+#include "container_ima_fs.h"
+#include "container_ima_api.h"
+#include "container_ima.h"
 
 
 static int c_ima_seq_open(struct inode *inode, struct file *file)
