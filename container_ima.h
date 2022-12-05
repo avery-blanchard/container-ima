@@ -24,11 +24,41 @@
 #include <linux/ima.h>
 #include <linux/file.h>
 #include <linux/vtpm_proxy.h>
+#include "../integrity.h"
+#include "../ima/ima.h"
+
+
+/* flags definitions */
+#define IMA_FUNC	0x0001
+#define IMA_MASK	0x0002
+#define IMA_FSMAGIC	0x0004
+#define IMA_UID		0x0008
+#define IMA_FOWNER	0x0010
+#define IMA_FSUUID	0x0020
+#define IMA_INMASK	0x0040
+#define IMA_EUID	0x0080
+#define IMA_PCR		0x0100
+#define IMA_FSNAME	0x0200
+#define IMA_KEYRINGS	0x0400
+#define IMA_LABEL	0x0800
+#define IMA_VALIDATE_ALGOS	0x1000
+#define IMA_GID		0x2000
+#define IMA_EGID	0x4000
+#define IMA_FGROUP	0x8000
+
+#define UNKNOWN		0
+#define MEASURE		0x0001	/* same as IMA_MEASURE */
+#define DONT_MEASURE	0x0002
+#define APPRAISE	0x0004	/* same as IMA_APPRAISE */
+#define DONT_APPRAISE	0x0008
+#define AUDIT		0x0040
+#define HASH		0x0100
+#define DONT_HASH	0x0200
 
 /* define digest sizes */
 #define CONTAINER_IMA_DIGEST_SIZE       SHA1_DIGEST_SIZE
 #define IMA_TEMPLATE_IMA_NAME "container-ima"
-
+#define AUDIT_CAUSE_LEN_MAX 32
 /* define sizes for hash tables */
 #define CONTAINER_IMA_HASH_BITS 10
 #define CONTAINER_IMA_HTABLE_SIZE (1 << CONTAINER_IMA_HASH_BITS)
@@ -101,7 +131,7 @@ struct container_ima_data {
 	int valid_policy;
 	unsigned int container_id;
 	spinlock_t c_ima_queue_lock;
-	struct dentry *c_ima_policy;
+	//struct dentry *c_ima_policy;
 	struct dentry *container_dir;
 	struct dentry *binary_runtime_measurements;
 	struct dentry *ascii_runtime_measurements;
@@ -135,7 +165,7 @@ int container_ima_store_template(struct container_ima_data *, struct ima_templat
 		       int, struct inode *,
 		       const unsigned char *, int);
 int container_ima_store_measurement(struct container_ima_data *, struct mmap_args_t *, int, struct integrity_iint_cache *, 
-                struct file *, struct modsig, struct ima_template_desc *, unsigned char *); 
+                struct file *, struct modsig *, struct ima_template_desc *, unsigned char *); 
 struct container_ima_data *init_container_ima(unsigned int container_id, struct dentry *c_ima_dir, struct dentry *c_ima_symlink);
 int syscall__probe_entry_mmap(struct pt_regs *, void *, size_t, int, int, int, off_t);
 int syscall__probe_ret_mmap(struct pt_regs *);
@@ -167,4 +197,6 @@ static long mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd);
 int create_mmap_bpf_map(void);
 static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 static int container_ima_add_digest_entry(struct container_ima_data *data, struct ima_template_entry *entry);
+struct container_ima_data *ima_data_exists(unsigned int id);
+static int get_binary_runtime_size(struct ima_template_entry *entry);
 #endif

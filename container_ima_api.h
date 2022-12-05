@@ -42,7 +42,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 			args->length = ALIGN(args->length, huge_page_size(hstate_file(file)));
 		} else if (unlikely(flags & MAP_HUGETLB)) {
 			file = NULL;
-			goto out;
+			return file;
 		}
 	} else if (args->flags & MAP_HUGETLB) {
 		struct hstate *hs;
@@ -103,7 +103,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 		return -1;
 	}
 	f = file;
-	return ima_calc_file_shash(f, hash);
+	return ima_calc_file_hash(f, hash);
 
  }
  /*
@@ -167,7 +167,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	node = &iint->rb_node;
 	inode->i_flags |= S_IMA;
 	rb_link_node(node, parent, ptr);
-	rb_insert_color(node, &data->container_integrity_iint_tree;);
+	rb_insert_color(node, &data->container_integrity_iint_tree);
 
 	write_unlock(container_integrity_iint_lock);
 	return iint;
@@ -207,7 +207,7 @@ void container_ima_add_violation(struct container_ima_data *data, struct file *f
 err_out:
     // try to use IMA's audit messages? may be fine 
 	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
-			    op, cause, result, 0, container_id);
+			    op, cause, result, 0);
 
 }
 /*
@@ -291,13 +291,13 @@ int container_ima_get_action(struct container_ima_data *data, struct user_namesp
 	int flag;
 	
 	flag = IMA_MEASURE | IMA_AUDIT | IMA_APPRAISE | IMA_HASH; // not implementing appraisal currently, maybe exclude
-	flag &= data->c_ima_policy_flag;
+	flag &= data->c_ima_policy_flags;
 
 	/* ima_match policy reads IMA tmp rules list, which for container IMA is per
 	 * container and in struct container_data, re-write for different policies (later on)
 	 */ 
 	action = container_ima_match_policy(data, mnt_userns, inode, cred, secid, mask,
-				flags, pcr, template_desc, func_data, allowed_algos);
+				flag, pcr, template_desc, func_data, allowed_algos);
 
 	return action;
 }
@@ -330,14 +330,8 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 
 	/* re-write for future use of different IMA polcies per container */
 	action  = container_ima_get_action(data, file_mnt_user_ns(file), inode, cred, secid,
-				mask, IMA_PCR, template_desc, NULL,
+				mask, IMA_PCR, &template_desc, NULL,
 				&allowed_algos);
-	
-	violation_check = ((func == FILE_CHECK || func == MMAP_CHECK) &&
-			   (&data->ima_policy_flag & IMA_MEASURE));
-	
-	if (!action && !violation_check)
-		return 0;
 	
 	//appraisal = action & IMA_APPRAISE; // implement apprasial in future
 	if (action & IMA_FILE_APPRAISE)
@@ -345,7 +339,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	inode_lock(inode);
 
 	if (action) {
-		iint = container_integrity_inode_get(data, inode);
+		iint = container_integrity_inode_get(data, inode, container_id);
 		if (!iint)
 			ret = -ENOMEM;
 	}
@@ -491,7 +485,7 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 	if (!violation && !IS_ENABLED(CONFIG_IMA_DISABLE_HTABLE)) {
 		if (container_ima_lookup_digest_entry(data, digest, IMA_PCR, container_id)) {
 			audit_cause = "hash_exists";
-			result = -EEXIST;
+			res = -EEXIST;
 			goto out;
 		}
 	}
@@ -515,7 +509,7 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 	 * extend PCR of container's vTPM, figure out functions for extending vTPM 
 	 * https://elixir.bootlin.com/linux/latest/source/drivers/char/tpm/tpm-interface.c#L314 
 	 */
-	res = vtpm_pcr_extend(data, digest_args, entry->pcr);
+	res = vtpm_pcr_extend(data, digests_arg, entry->pcr);
 	if (res != 0) {
 		pr_err("vTPM failed\n");
 		audit_info = 0;
@@ -525,7 +519,7 @@ out:
 	mutex_lock(&ima_extend_list_mutex);
 	// make this container specific? 
 	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
-			    op, audit_cause, result, 0, container_id);
+			    op, audit_cause, res, 0);
 	return res;
 
 }
@@ -545,7 +539,7 @@ int container_ima_store_template(struct container_ima_data *data, struct ima_tem
 	if (!violation) {
 		// try to use IMA's hashing functions, hash should be in entry->digests[tfm_idx].digest
 		res = ima_calc_field_array_hash(&entry->template_data[0],
-						   entry, container_id);
+						   entry);
 		if (res < 0) {
 			// error, add logging
 			pr_err("error calculating hash\n");
@@ -566,7 +560,7 @@ int container_ima_store_template(struct container_ima_data *data, struct ima_tem
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_api.c#L339
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L159
  */
-int container_ima_store_measurement(struct container_ima_data *data, struct mmap_args_t *arg , unsigned int container_id, struct integrity_iint_cache *iint, struct file *file, struct modsig modsig, struct ima_template_desc *template_desc, unsigned char *filename) 
+int container_ima_store_measurement(struct container_ima_data *data, struct mmap_args_t *arg , unsigned int container_id, struct integrity_iint_cache *iint, struct file *file, struct modsig *modsig, struct ima_template_desc *template_desc, unsigned char *filename) 
 {
 	struct inode *inode;
 	struct ima_template_entry *entry;
@@ -581,7 +575,7 @@ int container_ima_store_measurement(struct container_ima_data *data, struct mmap
 		return 0;
 
 	/* using IMA's function to allocate should be define, not keeping memory separate yet */
-	res = ima_alloc_init_template(&event_data, &entry, template_desc);
+	res = ima_alloc_init_template(event_data, &entry, template_desc);
 	// going to need to rewrite store template due to host specific stuff
 	res = container_ima_store_template(data, entry, 1, inode, filename, container_id);
 	if ((!res || res == -EEXIST) && !(file->f_flags & O_DIRECT)) {
@@ -676,5 +670,17 @@ struct container_ima_data *ima_data_exists(unsigned int id)
 	
 	return entry->data;
 
+}
+static int get_binary_runtime_size(struct ima_template_entry *entry)
+{
+	int size = 0;
+
+	size += sizeof(u32);	/* pcr */
+	size += TPM_DIGEST_SIZE;
+	size += sizeof(int);	/* template name size field */
+	size += strlen(entry->template_desc->name);
+	size += sizeof(entry->template_data_len);
+	size += entry->template_data_len;
+	return size;
 }
 #endif

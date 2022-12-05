@@ -160,7 +160,7 @@ int create_mmap_bpf_map(void)
 	int key_size = (int) sizeof(uint64_t);
 	int value_size = sizeof(struct mmap_args_t);
 
-	return bpf_create_map_node(BPF_MAP_TYPE_ARRAY, key_size, value_size, MMAP_MAX_MAPPINGS, 0, -1);
+	return bpf_create_map(BPF_MAP_TYPE_ARRAY, key_size, value_size, MMAP_MAX_MAPPINGS, 0, -1);
 
 
 }
