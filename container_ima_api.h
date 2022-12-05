@@ -1,6 +1,6 @@
 /*
  * File: container_ima_api.c
- *      Functions for collectins and storing file measurments
+ *      Functions for collecting and storing file measurments
  */
 #ifndef __CONTAINER_IMA_API_H__
 #define __CONTAINER_IMA_API_H__
@@ -10,15 +10,22 @@
 #include <linux/fs.h>
 #include <linux/ima.h>
 #include <linux/integrity.h>
-
+#include <linux/iversion.h>
+//#include <linux/fsverity.h>
 #include "container_ima.h"
 #include "container_ima.h"
 #include "container_ima_init.h"
 #include "container_ima_fs.h"
 #include "container_ima_api.h"
+
 #define IMA_PCR 10
 static struct kmem_cache *c_ima_iint_cache;
 static DEFINE_MUTEX(ima_extend_list_mutex);
+int ima_hash_algo = HASH_ALGO_SHA1;
+int ima_policy = ORIGINAL_TCB;
+
+/* pre-allocated array of tpm_digest structures to extend a PCR */
+static struct tpm_digest *digests;
 
 /*
  * container_ima_retrieve_file
@@ -42,7 +49,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 			args->length = ALIGN(args->length, huge_page_size(hstate_file(file)));
 		} else if (unlikely(flags & MAP_HUGETLB)) {
 			file = NULL;
-			goto out;
+			return file;
 		}
 	} else if (args->flags & MAP_HUGETLB) {
 		struct hstate *hs;
@@ -67,19 +74,21 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
   * container_ima_collect_measurement
   *     Get file from mmap args and measure
   */
- int container_ima_collect_measurement(struct container_ima_data *data, struct mmap_args_t *args, unsigned int container_id, struct modsid *modsig, struct integrity_iint_cache *iint) 
+ int container_ima_collect_measurement(struct container_ima_data *data, struct mmap_args_t *args, unsigned int container_id, struct modsig *modsig, struct integrity_iint_cache *iint, enum hash_algo hash_algo, void *buf, loff_t size) 
  {
-	int ret;
+	int result;
 	struct file *file, *f;
 	struct inode *inode;
 	const char *filename;
-	struct container_ima_data *data;
 	struct ima_max_digest_data hash;
-	struct container_ima_hash *hash_data;
-	void *buf;
+	void *tmpbuf; 
 	int length;
 	loff_t i_size;
 	loff_t offset; 
+	u64 i_version;
+	const char *audit_cause = "failed";
+
+	result = 0;
 
 	file = container_ima_retrieve_file(args);
 	if (!file) {
@@ -90,21 +99,58 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	inode = file_inode(file);
 	filename = file->f_path.dentry->d_name.name;
 
-	hash_data = data->hash_tbl;
-	hash.hdr.algo = hash_data->algo;
-	hash.hdr.length = hash_data->length;
+	i_version = inode_query_iversion(inode);
+	hash.hdr.algo = hash_algo;
+	hash.hdr.length = hash_digest_size[hash_algo];
+
 
 	/* zero out, in case of failue */
 	memset(&hash.digest, 0, sizeof(hash.digest));
-
-	/* If it cannot read, handle later */
-	if (!(file->f_mode & FMODE_READ)) {
-		pr_err("Cannot read\n");
-		return -1;
+	if (iint->flags & IMA_VERITY_REQUIRED) {
+		result = ima_get_verity_digest(iint, &hash);
+		switch (result) {
+		case 0:
+			break;
+		case -ENODATA:
+			audit_cause = "no-verity-digest";
+			break;
+		default:
+			audit_cause = "invalid-verity-digest";
+			break;
+		}
+	} else if (buf) {
+		result = ima_calc_buffer_hash(buf, size, &hash.hdr);
+	} else {
+		result = ima_calc_file_hash(file, &hash.hdr);
 	}
-	f = file;
-	return ima_calc_file_shash(f, hash);
 
+	if (result == -ENOMEM)
+		goto out;
+
+	length = sizeof(hash.hdr) + hash.hdr.length;
+	tmpbuf = krealloc(iint->ima_hash, length, GFP_NOFS);
+	if (!tmpbuf) {
+		result = -ENOMEM;
+		goto out;
+	}
+
+	iint->ima_hash = tmpbuf;
+	memcpy(iint->ima_hash, &hash, length);
+	iint->version = i_version;
+
+	/* Possibly temporary failure due to type of read (eg. O_DIRECT) */
+	if (!result)
+		iint->flags |= IMA_COLLECTED;
+out:
+	if (result) {
+		if (file->f_flags & O_DIRECT)
+			audit_cause = "failed(directio)";
+
+		integrity_audit_msg(AUDIT_INTEGRITY_DATA, inode,
+				    filename, "collect_data", audit_cause,
+				    result, 0);
+	}
+	return result;
  }
  /*
   * container_integrity_inode_find
@@ -167,7 +213,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	node = &iint->rb_node;
 	inode->i_flags |= S_IMA;
 	rb_link_node(node, parent, ptr);
-	rb_insert_color(node, &data->container_integrity_iint_tree;);
+	rb_insert_color(node, &data->container_integrity_iint_tree);
 
 	write_unlock(container_integrity_iint_lock);
 	return iint;
@@ -192,7 +238,7 @@ void container_ima_add_violation(struct container_ima_data *data, struct file *f
 	int result;
 
 	/* can overflow, only indicator */
-	atomic_long_inc(&data->hash_tbl.violations);
+	atomic_long_inc(&data->hash_tbl->violations);
 
 	/* try to use IMA's allocation function */
 	result = ima_alloc_init_template(&event_data, &entry, NULL);
@@ -207,7 +253,7 @@ void container_ima_add_violation(struct container_ima_data *data, struct file *f
 err_out:
     // try to use IMA's audit messages? may be fine 
 	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
-			    op, cause, result, 0, container_id);
+			    op, cause, result, 0);
 
 }
 /*
@@ -264,7 +310,7 @@ int container_ima_match_policy(struct container_ima_data *data, struct user_name
 		     const struct cred *cred, u32 secid,
 		     int mask, int flags, int *pcr,
 		     struct ima_template_desc **template_desc,
-		     const char *func_data, unsigned int *allowed_algos)
+		     const char *func_data, unsigned int *allowed_algos, enum ima_hooks func)
 {
 	int action;
 	int action_mask;
@@ -273,7 +319,7 @@ int container_ima_match_policy(struct container_ima_data *data, struct user_name
 	/* TODO edit this for future use with different policies per container */
 
 
-	return IMA_DEFAULT_POLICY;
+	return ima_policy;
 
 }
 /*
@@ -285,19 +331,19 @@ int container_ima_match_policy(struct container_ima_data *data, struct user_name
 int container_ima_get_action(struct container_ima_data *data, struct user_namespace *mnt_userns, struct inode *inode,
 		   const struct cred *cred, u32 secid, int mask, int *pcr,
 		   struct ima_template_desc **template_desc,
-		   const char *func_data, unsigned int *allowed_algos) 
+		   const char *func_data, unsigned int *allowed_algos, enum ima_hooks func) 
 {
 	int action;
 	int flag;
 	
 	flag = IMA_MEASURE | IMA_AUDIT | IMA_APPRAISE | IMA_HASH; // not implementing appraisal currently, maybe exclude
-	flag &= data->c_ima_policy_flag;
+	flag &= data->c_ima_policy_flags;
 
 	/* ima_match policy reads IMA tmp rules list, which for container IMA is per
 	 * container and in struct container_data, re-write for different policies (later on)
 	 */ 
 	action = container_ima_match_policy(data, mnt_userns, inode, cred, secid, mask,
-				flags, pcr, template_desc, func_data, allowed_algos);
+				flag, pcr, template_desc, func_data, allowed_algos, func);
 
 	return action;
 }
@@ -306,7 +352,7 @@ int container_ima_get_action(struct container_ima_data *data, struct user_namesp
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_main.c#L201
  */
 int container_ima_process_measurement(struct container_ima_data *data, struct file *file, const struct cred *cred,
-			       u32 secid, char *buf, loff_t size, int mask, unsigned int container_id, struct mmap_args_t *args) 
+			       u32 secid, void *buf, loff_t size, int mask, unsigned int container_id, struct mmap_args_t *args, enum ima_hooks func) 
 {
 	struct inode *inode;
 	struct integrity_iint_cache *iint = NULL;
@@ -319,7 +365,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	struct modsig *modsig = NULL;
 	int xattr_len = 0;
 	bool violation_check;
-	enum hash_algo hash_algo = SHA1;
+	enum hash_algo hash_algo;
 	unsigned int allowed_algos = 0;
 
 	inode = file_inode(file);
@@ -330,22 +376,22 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 
 	/* re-write for future use of different IMA polcies per container */
 	action  = container_ima_get_action(data, file_mnt_user_ns(file), inode, cred, secid,
-				mask, IMA_PCR, template_desc, NULL,
-				&allowed_algos);
+				mask, IMA_PCR, &template_desc, NULL,
+				&allowed_algos, func);
 	
 	violation_check = ((func == FILE_CHECK || func == MMAP_CHECK) &&
-			   (&data->ima_policy_flag & IMA_MEASURE));
-	
+			   (ima_policy_flag & IMA_MEASURE));
 	if (!action && !violation_check)
 		return 0;
 	
 	//appraisal = action & IMA_APPRAISE; // implement apprasial in future
 	if (action & IMA_FILE_APPRAISE)
 		func = FILE_CHECK;
+	
 	inode_lock(inode);
 
 	if (action) {
-		iint = container_integrity_inode_get(data, inode);
+		iint = container_integrity_inode_get(data, inode, container_id);
 		if (!iint)
 			ret = -ENOMEM;
 	}
@@ -378,7 +424,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	action &= IMA_DO_MASK;
 	action &= ~((iint->flags & (IMA_DONE_MASK ^ IMA_MEASURED)) >> 1);
 
-	if ((action & IMA_MEASURE) && (iint->measured_pcrs & (0x1 << pcr)))
+	if ((action & IMA_MEASURE) && (iint->measured_pcrs & (0x1 << IMA_PCR)))
 		action ^= IMA_MEASURE;
 	
 	if ((action & IMA_HASH) &&
@@ -402,7 +448,9 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 				action |= IMA_MEASURE;
 		}
 	}
-	ret = container_ima_collect_measurement(data, args, container_id, modsig, iint);
+	hash_algo = ima_get_hash_algo(xattr_value, xattr_len);
+
+	ret = container_ima_collect_measurement(data, args, container_id, modsig, iint, hash_algo, buf, size);
 	if (ret != 0) {
 		pr_err("collecting measurement failed\n");
 		goto out_locked;
@@ -425,7 +473,7 @@ out_locked:
 	     !(iint->flags & IMA_NEW_FILE))
 			ret = -EACCES;
 	mutex_unlock(&iint->mutex);
-	//kfree(xattr_value);
+	kfree(xattr_value);
 	ima_free_modsig(modsig);
 out:
 	if ((mask & MAY_WRITE) && test_bit(IMA_DIGSIG, &iint->atomic_flags) &&
@@ -455,8 +503,8 @@ static int container_ima_add_digest_entry(struct container_ima_data *data, struc
 	INIT_LIST_HEAD(&qe->later);
 	list_add_tail_rcu(&qe->later, &data->c_ima_measurements);
 	atomic_long_inc(&data->hash_tbl.len);
-	key = ima_hash_key(entry->digests[HASH_ALGO_SHA1]->digest);
-	hlist_add_head_rcu(&qe->hnext, &data.hash_tbl->queue[key]);
+	key = ima_hash_key(entry->digests[HASH_ALGO_SHA1].digest); // idx of hash algo
+	hlist_add_head_rcu(&qe->hnext, &data->hash_tbl.queue[key]);
 	if (&data->binary_runtime_size != ULONG_MAX) {
 		int size;
 		size = get_binary_runtime_size(entry);
@@ -475,7 +523,7 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 			   const unsigned char *filename, unsigned int container_id)
 {
 
-	u8 *digest = entry->digests[PCR].digest;
+	u8 *digest = entry->digests[IMA_PCR].digest;
 	struct tpm_digest *digests_arg = entry->digests;
 	const char *audit_cause = "hash_added";
 	char tpm_audit_cause[AUDIT_CAUSE_LEN_MAX];
@@ -491,7 +539,7 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 	if (!violation && !IS_ENABLED(CONFIG_IMA_DISABLE_HTABLE)) {
 		if (container_ima_lookup_digest_entry(data, digest, IMA_PCR, container_id)) {
 			audit_cause = "hash_exists";
-			result = -EEXIST;
+			res = -EEXIST;
 			goto out;
 		}
 	}
@@ -509,13 +557,13 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 
 	/* if violation occurs, invalidate the PCR */
 	if (violation)
-		digests_arg = digest;
+		digests_arg = digests;
 	
 	/* 
 	 * extend PCR of container's vTPM, figure out functions for extending vTPM 
 	 * https://elixir.bootlin.com/linux/latest/source/drivers/char/tpm/tpm-interface.c#L314 
 	 */
-	res = vtpm_pcr_extend(data, digest_args, entry->pcr);
+	res = vtpm_pcr_extend(data, digests_arg, entry->pcr);
 	if (res != 0) {
 		pr_err("vTPM failed\n");
 		audit_info = 0;
@@ -525,7 +573,7 @@ out:
 	mutex_lock(&ima_extend_list_mutex);
 	// make this container specific? 
 	integrity_audit_msg(AUDIT_INTEGRITY_PCR, inode, filename,
-			    op, audit_cause, result, 0, container_id);
+			    op, audit_cause, res, 0);
 	return res;
 
 }
@@ -545,7 +593,7 @@ int container_ima_store_template(struct container_ima_data *data, struct ima_tem
 	if (!violation) {
 		// try to use IMA's hashing functions, hash should be in entry->digests[tfm_idx].digest
 		res = ima_calc_field_array_hash(&entry->template_data[0],
-						   entry, container_id);
+						   entry);
 		if (res < 0) {
 			// error, add logging
 			pr_err("error calculating hash\n");
@@ -566,7 +614,7 @@ int container_ima_store_template(struct container_ima_data *data, struct ima_tem
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_api.c#L339
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L159
  */
-int container_ima_store_measurement(struct container_ima_data *data, struct mmap_args_t *arg , unsigned int container_id, struct integrity_iint_cache *iint, struct file *file, struct modsig modsig, struct ima_template_desc *template_desc, unsigned char *filename) 
+int container_ima_store_measurement(struct container_ima_data *data, struct mmap_args_t *arg , unsigned int container_id, struct integrity_iint_cache *iint, struct file *file, struct modsig *modsig, struct ima_template_desc *template_desc, unsigned char *filename) 
 {
 	struct inode *inode;
 	struct ima_template_entry *entry;
@@ -581,12 +629,12 @@ int container_ima_store_measurement(struct container_ima_data *data, struct mmap
 		return 0;
 
 	/* using IMA's function to allocate should be define, not keeping memory separate yet */
-	res = ima_alloc_init_template(&event_data, &entry, template_desc);
+	res = ima_alloc_init_template(event_data, &entry, template_desc);
 	// going to need to rewrite store template due to host specific stuff
 	res = container_ima_store_template(data, entry, 1, inode, filename, container_id);
 	if ((!res || res == -EEXIST) && !(file->f_flags & O_DIRECT)) {
 		iint->flags |= IMA_MEASURED;
-		iint->measured_pcrs |= (0x1 << PCR);
+		iint->measured_pcrs |= (0x1 << IMA_PCR);
 	}
 	if (res < 0)
 		ima_free_template_entry(entry);
@@ -610,7 +658,7 @@ static struct ima_queue_entry *container_ima_lookup_digest_entry(struct containe
     rcu_read_lock();
 
     hlist_for_each_entry_rcu(qe, &data->hash_tbl->queue[key], hnext) {
-		tmp = memcmp(qe->entry->digests[IMA_PCR]->digest,
+		tmp = memcmp(qe->entry->digests[IMA_PCR].digest,
 			    digest_value, hash_digest_size[HASH_ALGO_SHA1]);
 		if ((tmp == 0) && (qe->entry->pcr == IMA_PCR)) {
 			ret = qe;
@@ -677,4 +725,43 @@ struct container_ima_data *ima_data_exists(unsigned int id)
 	return entry->data;
 
 }
+static int get_binary_runtime_size(struct ima_template_entry *entry)
+{
+	int size = 0;
+
+	size += sizeof(u32);	/* pcr */
+	size += TPM_DIGEST_SIZE;
+	size += sizeof(int);	/* template name size field */
+	size += strlen(entry->template_desc->name);
+	size += sizeof(entry->template_data_len);
+	size += entry->template_data_len;
+	return size;
+}
+// https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_api.c#L204
+static int ima_get_verity_digest(struct integrity_iint_cache *iint,
+				 struct ima_max_digest_data *hash)
+{
+	enum hash_algo verity_alg;
+	int ret;
+
+	/*
+	 * On failure, 'measure' policy rules will result in a file data
+	 * hash containing 0's.
+	 */
+	ret = fsverity_get_digest(iint->inode, hash->digest, &verity_alg);
+	if (ret)
+		return ret;
+
+	/*
+	 * Unlike in the case of actually calculating the file hash, in
+	 * the fsverity case regardless of the hash algorithm, return
+	 * the verity digest to be included in the measurement list. A
+	 * mismatch between the verity algorithm and the xattr signature
+	 * algorithm, if one exists, will be detected later.
+	 */
+	hash->hdr.algo = verity_alg;
+	hash->hdr.length = hash_digest_size[verity_alg];
+	return 0;
+}
+
 #endif

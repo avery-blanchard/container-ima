@@ -20,8 +20,10 @@
 #include "container_ima_api.h"
 
 #define MMAP_MAX_MAPPINGS 100 //adjust as needed
+
 struct tpm_chip *ima_tpm_chip;
 static struct kmem_cache *c_ima_cache;
+
 /*
  * init_container_ima_data
  * 	
@@ -106,15 +108,6 @@ struct container_ima_data *init_container_ima(unsigned int container_id, static 
 	
 	//ret = container_ima_crypto_init(data); // iterate over PCR banks and init the algorithms per bank  
 
-	if (ret)
-		return ret;
-
-
-	if (ret) 
-		return ret;
-
-	//container_ima_policy_init(data); // start with default policy for all containers
-
 	return data;
 }
 
@@ -160,7 +153,7 @@ int create_mmap_bpf_map(void)
 	int key_size = (int) sizeof(uint64_t);
 	int value_size = sizeof(struct mmap_args_t);
 
-	return bpf_create_map_node(BPF_MAP_TYPE_ARRAY, key_size, value_size, MMAP_MAX_MAPPINGS, 0, -1);
+	return bpf_create_map(BPF_MAP_TYPE_ARRAY, key_size, value_size, MMAP_MAX_MAPPINGS, 0, -1);
 
 
 }

@@ -18,7 +18,7 @@
  */
 static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
 {
-    return tpm_pcr_extend(ima_tpm_chip, 11, digests_arg); //until vTPM is fixed
+    return tpm_pcr_extend(ima_tpm_chip, IMA_PCR, digests_arg); //until vTPM is fixed
 
 }
 /*

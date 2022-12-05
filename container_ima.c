@@ -133,7 +133,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	cred = get_task_cred(task);
 	security_cred_getsecid(cred, &sec_id);
 
-	ret = container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
+	ret = container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args, MMAP_CHECK);
 	if (ret != 0) {
 		pr_err("measurement fails\n");
 		return ret;
