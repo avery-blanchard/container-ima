@@ -14,6 +14,8 @@
 #include <linux/rcupdate.h>
 #include <linux/parser.h>
 #include <linux/vmalloc.h>
+#include <linux/fs.h>
+#include <linux/integrity.h>
 #include <linux/ima.h>
 #include "container_ima.h"
 #include "container_ima.h"
@@ -29,7 +31,7 @@ static int c_ima_seq_open(struct inode *inode, struct file *file)
 }
 static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos)
 {
-    struct container_data *data;
+    struct container_ima_data *data;
     struct ima_queue_entry *qe = v;
 
     data = ima_data_from_file(m->file);
@@ -39,19 +41,19 @@ static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos)
     rcu_read_unlock();
     (*pos)++;
 
-    return (?qe->later == &data->c_ima_measurements) ? NULL : qe;
+    return (qe->later == &data->c_ima_measurements) ? NULL : qe;
 }
 static ssize_t c_ima_show_htable_violations(struct file *filp,
 					  char __user *buf,
 					  size_t count, loff_t *ppos) 
 {
-    struct container_data *data;
+    struct container_ima_data *data;
     char tmp[32];
     ssize_t len;
     atomic_long_t *val;
 
-    data = ima_data_from_file(file);
-    val = &  &data->hash_tbl.violations;
+    data = ima_data_from_file(filp);
+    val = &data->hash_tbl->violations;
     len = scnprintf(tmp, sizeof(tmp), "%li\n", atomic_long_read(val));
 
     return  simple_read_from_buffer(buf, count, ppos, tmp, len);
@@ -101,7 +103,7 @@ int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_
 	sprintf(id, "%s", &data->container_id);
 	strcat(dir_name, id);
 
-	data->container_dir = securityfs_create_dir("container_ima", dir_name);
+	data->container_dir = securityfs_create_dir("container_ima", c_ima_dir);
 	if (IS_ERR(data->container_dir))
 		return -1;
 
@@ -111,7 +113,7 @@ int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_
 				   &c_ima_measurements_ops);
 
 	if (IS_ERR(data->binary_runtime_measurements)) {
-		ret = PTR_ERR(data->binary_runtime_measurements);
+		res = PTR_ERR(data->binary_runtime_measurements);
 		goto out;
 	}
 
@@ -120,7 +122,7 @@ int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_
 				   S_IRUSR | S_IRGRP, data->container_dir, NULL,
 				   &c_ima_ascii_measurements_ops);
 	if (IS_ERR(data->ascii_runtime_measurements)) {
-		ret = PTR_ERR(data->ascii_runtime_measurements);
+		res = PTR_ERR(data->ascii_runtime_measurements);
 		goto out;
 	}
 
@@ -129,15 +131,15 @@ int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_
 				   S_IRUSR | S_IRGRP,data->container_dir, NULL,
 				   &ima_measurements_count_ops);
 	if (IS_ERR(data->runtime_measurements_count)) {
-		ret = PTR_ERR(data->runtime_measurements_count);
+		res = PTR_ERR(data->runtime_measurements_count);
 		goto out;
 	}
 
 	data->violations_log =
 	    securityfs_create_file("violations", S_IRUSR | S_IRGRP,
 				   data->container_dir, NULL, &c_ima_htable_violations_ops);
-	if (IS_ERR(data->violations)) {
-		ret = PTR_ERR(data->violations);
+	if (IS_ERR(data->violations_log)) {
+		res = PTR_ERR(data->violations_log);
 		goto out;
     }
     
@@ -145,14 +147,14 @@ int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_
 					    data->container_dir, NULL,
 					    &ima_measure_policy_ops);
 	if (IS_ERR(data->c_ima_policy)) {
-		ret = PTR_ERR(data->c_ima_policy);
+		res = PTR_ERR(data->c_ima_policy);
 		goto out;
 	}
     
 	return 0;
 out:
 	securityfs_remove(data->c_ima_policy);
-	securityfs_remove(data->violations);
+	securityfs_remove(data->violations_log);
 	securityfs_remove(data->runtime_measurements_count);
 	securityfs_remove(data->ascii_runtime_measurements);
 	securityfs_remove(data->binary_runtime_measurements);

@@ -9,6 +9,8 @@
 #include <linux/hugetlb.h>
 #include <linux/vtpm_proxy.h>
 #include <linux/bpf.h>
+#include <linux/spinlock.h>
+#include <linux/integrity.h>
 #include "ebpf/bpf_helpers.h"
 #include "container_ima.h"
 #include "container_ima.h"
@@ -33,11 +35,12 @@ struct container_ima_data *init_container_ima_data(unsigned int container_id)
 	INIT_LIST_HEAD(&data->c_ima_policy_rules);
 
 	data->c_ima_rules = (struct list_head __rcu *)(&data->c_ima_rules);
-	
+	data->container_id = container_id;
+
 	/* init hash table */
-	atomic_long_set(&data->c_ima_write_mutex.len, 0);
-	atomic_long_set(&data->hash_tbl.violations, 0);
-	memset(&data->hash_tbl.queue, 0, sizeof(data->hash_tbl));
+	atomic_long_set(&data->c_ima_write_mutex.owner, 0);
+	atomic_long_set(&data->hash_tbl->violations, 0);
+	memset(&data->hash_tbl->queue, 0, sizeof(data->hash_tbl));
 
 	/* init ML */
 	INIT_LIST_HEAD(&data->c_ima_measurements);
@@ -47,7 +50,7 @@ struct container_ima_data *init_container_ima_data(unsigned int container_id)
 	data->c_ima_fs_flags = 0;
 
 	data->container_integrity_iint_tree = RB_ROOT;
-	DEFINE_RWLOCK(&data->container_integrity_iint_lock);
+	//DEFINE_RWLOCK(data->container_integrity_iint_lock);
 
 	return data;
 }
@@ -91,9 +94,9 @@ struct container_ima_data *init_container_ima(unsigned int container_id, static 
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
 
-	data->vtpm = container_ima_vtpm_setup(data, container_id, ima_tpm_chip); // per container vTPM
+	ret = container_ima_vtpm_setup(data, container_id, ima_tpm_chip); // per container vTPM
 
-	ret = container_ima_fs_init(container_id, c_ima_dir, c_ima_symlink);
+	ret = container_ima_fs_init(data, c_ima_dir, c_ima_symlink);
 	//ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
 
 	//data->keyring = INTEGRITY_KEYRING_IMA;

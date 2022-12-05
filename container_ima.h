@@ -35,8 +35,11 @@
 #define IMA_DIGEST_SIZE		SHA1_DIGEST_SIZE
 #define PCR 10
 
+static DEFINE_RWLOCK(container_integrity_iint_lock);
+
 extern struct tpm_chip *ima_tpm_chip;
 extern int host_inum;
+extern struct c_ima_data_hash_table *container_hash_table;
 
 /* struct for BPF argument mappings */
 struct mmap_args_t {
@@ -96,6 +99,7 @@ struct container_ima_data {
 	unsigned long c_ima_fs_flags;
 	int c_ima_policy_flags;
 	int valid_policy;
+	unsigned int container_id;
 	spinlock_t c_ima_queue_lock;
 	struct dentry *c_ima_policy;
 	struct dentry *container_dir;
@@ -105,7 +109,6 @@ struct container_ima_data {
 	struct dentry *violations_log;
 	struct dentry *active;
 	struct rb_root container_integrity_iint_tree;
-	rwlock_t container_integrity_iint_lock;
 
 };
 
@@ -125,14 +128,14 @@ static void container_ima_rdwr_violation_check(struct container_ima_data *, stru
 				     int, char **, const char **, char *, unsigned int);
 int container_ima_process_measurement(struct container_ima_data *, struct file *, const struct cred *,
 			       u32, char *, loff_t, int, unsigned int, struct mmap_args_t *);
-int container_ima_add_template_entry(struct container_ima_data *, struct ima_template_entry *, int,
-			   const char *, struct inode *,
-			   const unsigned char *, unsigned int);
+int container_ima_add_template_entry(struct container_ima_data *data, struct ima_template_entry *entry, int violation,
+			   const char *op, struct inode *inode,
+			   const unsigned char *filename, unsigned int container_id);
 int container_ima_store_template(struct container_ima_data *, struct ima_template_entry *,
 		       int, struct inode *,
 		       const unsigned char *, int);
 int container_ima_store_measurement(struct container_ima_data *, struct mmap_args_t *, int, struct integrity_iint_cache *, 
-                struct file *, struct modsig, struct ima_template_desc *); 
+                struct file *, struct modsig, struct ima_template_desc *, unsigned char *); 
 struct container_ima_data *init_container_ima(unsigned int container_id, struct dentry *c_ima_dir, struct dentry *c_ima_symlink);
 int syscall__probe_entry_mmap(struct pt_regs *, void *, size_t, int, int, int, off_t);
 int syscall__probe_ret_mmap(struct pt_regs *);

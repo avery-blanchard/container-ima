@@ -39,6 +39,8 @@ int host_inum;
 struct dentry *c_ima_dir;
 struct dentry *c_ima_symlink;
 int map_fd;
+
+struct c_ima_data_hash_table *container_hash_table;
 /* mapping of id to system call arguments */
 //BPF_HASH(active_mmap_args_map, u64);
 //struct ebpf_args *active_mmap_args_map;
