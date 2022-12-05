@@ -24,6 +24,8 @@
 #include <linux/ima.h>
 #include <linux/file.h>
 #include <linux/vtpm_proxy.h>
+#include "../integrity.h"
+#include "../ima/ima.h"
 
 /* define digest sizes */
 #define CONTAINER_IMA_DIGEST_SIZE       SHA1_DIGEST_SIZE
@@ -167,4 +169,5 @@ static long mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd);
 int create_mmap_bpf_map(void);
 static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 static int container_ima_add_digest_entry(struct container_ima_data *data, struct ima_template_entry *entry);
+struct container_ima_data *ima_data_exists(unsigned int id);
 #endif
