@@ -297,6 +297,11 @@ struct c_ima_hash_table {
     struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
 };
 
+struct ima_h_table {
+	atomic_long_t len;	/* number of stored measurements in the list */
+	atomic_long_t violations;
+	struct hlist_head queue[IMA_MEASURE_HTABLE_SIZE];
+};
 struct c_ima_queue_entry {
 	struct hlist_node hnext;
 	unsigned int id;
@@ -337,7 +342,7 @@ struct container_ima_data {
 	struct list_head c_ima_measurements;
 	unsigned long binary_runtime_size;
 	struct file *ml;
-	struct ima_hash_table *hash_tbl; 
+	struct ima_h_table *hash_tbl; 
 	struct mutex c_ima_write_mutex;
 	unsigned long c_ima_fs_flags;
 	int c_ima_policy_flags;
@@ -494,7 +499,7 @@ static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
 					 struct ima_template_desc *td,
 					 int num_fields,
 					 struct ima_digest_data *hash,  struct crypto_shash *tfm);
-int ima_calc_field_array_hash(struct ima_field_data *field_data,
+int struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
 			      struct ima_digest_data *hash);
 

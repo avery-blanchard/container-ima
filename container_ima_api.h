@@ -570,7 +570,7 @@ int container_ima_store_template(struct container_ima_data *data, struct ima_tem
 		struct ima_digest_data hdr;
 		char digest[TPM_DIGEST_SIZE];
 	} hash;
-	
+
 	if (!violation) {
 		// try to use IMA's hashing functions, hash should be in entry->digests[tfm_idx].digest
 		int num_fields = entry->template_desc->num_fields;
@@ -831,9 +831,9 @@ void integrity_audit_msg(int audit_msgno, struct inode *inode,
 			 audit_get_sessionid(current));
 	audit_log_task_context(ab);
 	audit_log_format(ab, " op=");
-	audit_log_string(ab, op);
+	audit_log_n_string(ab, op, strlen(op));
 	audit_log_format(ab, " cause=");
-	audit_log_string(ab, cause);
+	audit_log_n_string(ab, op, strlen(op));
 	audit_log_format(ab, " comm=");
 	audit_log_untrustedstring(ab, get_task_comm(name, current));
 	if (fname) {
