@@ -198,7 +198,7 @@ out:
 	if (!iint)
 		return NULL;
 
-	write_lock(container_integrity_iint_lock>);
+	write_lock(&container_integrity_iint_lock);
 
 	ptr = &data->container_integrity_iint_tree.rb_node;
 	while (*ptr) {
@@ -215,7 +215,7 @@ out:
 	rb_link_node(node, parent, ptr);
 	rb_insert_color(node, &data->container_integrity_iint_tree);
 
-	write_unlock(container_integrity_iint_lock);
+	write_unlock(&container_integrity_iint_lock);
 	return iint;
 
 }

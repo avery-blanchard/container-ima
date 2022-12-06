@@ -63,7 +63,7 @@
 #define CONTAINER_IMA_HASH_BITS 10
 #define CONTAINER_IMA_HTABLE_SIZE (1 << CONTAINER_IMA_HASH_BITS)
 #define IMA_DIGEST_SIZE		SHA1_DIGEST_SIZE
-static DEFINE_RWLOCK(container_integrity_iint_lock);
+extern static DEFINE_RWLOCK(container_integrity_iint_lock);
 
 #define INVALID_PCR(a) (((a) < 0) || \
 	(a) >= (sizeof_field(struct integrity_iint_cache, measured_pcrs) * 8))
@@ -72,7 +72,6 @@ enum policy_types { ORIGINAL_TCB = 1, DEFAULT_TCB };
 
 enum policy_rule_list { IMA_DEFAULT_POLICY = 1, IMA_CUSTOM_POLICY };
 
-extern static int ima_policy;
 extern struct tpm_chip *ima_tpm_chip;
 extern int host_inum;
 extern struct c_ima_data_hash_table *container_hash_table;
