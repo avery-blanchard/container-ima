@@ -8,13 +8,13 @@
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/fs.h>
-#include <linux/ima.h>
-#include <linux/integrity.h>
+#include <linux/xattr.h>
+#include <linux/evm.h>
 #include <linux/iversion.h>
-//#include <linux/fsverity.h>
 #include "container_ima.h"
 #include "container_ima.h"
 #include "container_ima_init.h"
+#include <linux/mount.h>
 #include "container_ima_fs.h"
 #include "container_ima_api.h"
 
@@ -47,21 +47,22 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 		}
 		if (is_file_hugepages(file)) {
 			args->length = ALIGN(args->length, huge_page_size(hstate_file(file)));
-		} else if (unlikely(flags & MAP_HUGETLB)) {
+		} else if (unlikely(args->flags & MAP_HUGETLB)) {
 			file = NULL;
 			return file;
 		}
 	} else if (args->flags & MAP_HUGETLB) {
+		struct user_struct *user = NULL;
 		struct hstate *hs;
 		hs =  hstate_sizelog((args->flags >> MAP_HUGE_SHIFT) & MAP_HUGE_MASK);
 		if (!hs) {
 			ret = -EINVAL;
 			return ret;
 		}
-		len = ALIGN(args->length, huge_page_size(hs));
+		args->length = ALIGN(args->length, huge_page_size(hs));
 		file = hugetlb_file_setup(HUGETLB_ANON_FILE, args->length,
 				VM_NORESERVE,
-				HUGETLB_ANONHUGE_INODE,
+				&user, HUGETLB_ANONHUGE_INODE,
 				(args->flags >> MAP_HUGE_SHIFT) & MAP_HUGE_MASK);
 		if (IS_ERR(file)) {
 			ret = PTR_ERR(file);
@@ -106,19 +107,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 
 	/* zero out, in case of failue */
 	memset(&hash.digest, 0, sizeof(hash.digest));
-	if (iint->flags & IMA_VERITY_REQUIRED) {
-		result = ima_get_verity_digest(iint, &hash);
-		switch (result) {
-		case 0:
-			break;
-		case -ENODATA:
-			audit_cause = "no-verity-digest";
-			break;
-		default:
-			audit_cause = "invalid-verity-digest";
-			break;
-		}
-	} else if (buf) {
+	if (buf) {
 		result = ima_calc_buffer_hash(buf, size, &hash.hdr);
 	} else {
 		result = ima_calc_file_hash(file, &hash.hdr);
@@ -238,7 +227,7 @@ void container_ima_add_violation(struct container_ima_data *data, struct file *f
 	int result;
 
 	/* can overflow, only indicator */
-	atomic_long_inc(&data->hash_tbl->violations);
+	atomic_long_inc(&data->hash_tbl.violations);
 
 	/* try to use IMA's allocation function */
 	result = ima_alloc_init_template(&event_data, &entry, NULL);
@@ -306,7 +295,7 @@ static void container_ima_rdwr_violation_check(struct container_ima_data *data, 
  *		
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_policy.c#L690
  */
-int container_ima_match_policy(struct container_ima_data *data, struct user_namespace *mnt_userns, struct inode *inode,
+int container_ima_match_policy(struct container_ima_data *data, struct inode *inode,
 		     const struct cred *cred, u32 secid,
 		     int mask, int flags, int *pcr,
 		     struct ima_template_desc **template_desc,
@@ -318,7 +307,6 @@ int container_ima_match_policy(struct container_ima_data *data, struct user_name
 	action_mask = flags | (flags << 1);
 	/* TODO edit this for future use with different policies per container */
 
-
 	return ima_policy;
 
 }
@@ -328,7 +316,7 @@ int container_ima_match_policy(struct container_ima_data *data, struct user_name
  * Determine IMA policy for container 
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_policy.c#L690 
  */
-int container_ima_get_action(struct container_ima_data *data, struct user_namespace *mnt_userns, struct inode *inode,
+int container_ima_get_action(struct container_ima_data *data, struct inode *inode,
 		   const struct cred *cred, u32 secid, int mask, int *pcr,
 		   struct ima_template_desc **template_desc,
 		   const char *func_data, unsigned int *allowed_algos, enum ima_hooks func) 
@@ -342,7 +330,7 @@ int container_ima_get_action(struct container_ima_data *data, struct user_namesp
 	/* ima_match policy reads IMA tmp rules list, which for container IMA is per
 	 * container and in struct container_data, re-write for different policies (later on)
 	 */ 
-	action = container_ima_match_policy(data, mnt_userns, inode, cred, secid, mask,
+	action = container_ima_match_policy(data, inode, cred, secid, mask,
 				flag, pcr, template_desc, func_data, allowed_algos, func);
 
 	return action;
@@ -375,7 +363,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 		return 0;
 
 	/* re-write for future use of different IMA polcies per container */
-	action  = container_ima_get_action(data, file_mnt_user_ns(file), inode, cred, secid,
+	action  = container_ima_get_action(data, inode, cred, secid,
 				mask, IMA_PCR, &template_desc, NULL,
 				&allowed_algos, func);
 	
@@ -657,7 +645,7 @@ static struct ima_queue_entry *container_ima_lookup_digest_entry(struct containe
     key = ima_hash_key(digest_value);
     rcu_read_lock();
 
-    hlist_for_each_entry_rcu(qe, &data->hash_tbl->queue[key], hnext) {
+    hlist_for_each_entry_rcu(qe, &data->hash_tbl.queue[key], hnext) {
 		tmp = memcmp(qe->entry->digests[IMA_PCR].digest,
 			    digest_value, hash_digest_size[HASH_ALGO_SHA1]);
 		if ((tmp == 0) && (qe->entry->pcr == IMA_PCR)) {
@@ -737,31 +725,4 @@ static int get_binary_runtime_size(struct ima_template_entry *entry)
 	size += entry->template_data_len;
 	return size;
 }
-// https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_api.c#L204
-static int ima_get_verity_digest(struct integrity_iint_cache *iint,
-				 struct ima_max_digest_data *hash)
-{
-	enum hash_algo verity_alg;
-	int ret;
-
-	/*
-	 * On failure, 'measure' policy rules will result in a file data
-	 * hash containing 0's.
-	 */
-	ret = fsverity_get_digest(iint->inode, hash->digest, &verity_alg);
-	if (ret)
-		return ret;
-
-	/*
-	 * Unlike in the case of actually calculating the file hash, in
-	 * the fsverity case regardless of the hash algorithm, return
-	 * the verity digest to be included in the measurement list. A
-	 * mismatch between the verity algorithm and the xattr signature
-	 * algorithm, if one exists, will be detected later.
-	 */
-	hash->hdr.algo = verity_alg;
-	hash->hdr.length = hash_digest_size[verity_alg];
-	return 0;
-}
-
 #endif

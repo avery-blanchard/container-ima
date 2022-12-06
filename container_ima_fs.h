@@ -205,7 +205,7 @@ static ssize_t c_ima_show_htable_violations(struct file *filp,
     atomic_long_t *val;
 
     data = ima_data_from_file(filp);
-    val = &data->hash_tbl->violations;
+    val = &data->hash_tbl.violations;
     len = scnprintf(tmp, sizeof(tmp), "%li\n", atomic_long_read(val));
 
     return  simple_read_from_buffer(buf, count, ppos, tmp, len);

@@ -80,7 +80,7 @@ void container_ima_free_data(struct container_ima_data *data)
  *		Create measurment log 
  * 		Default policy
  */
-struct container_ima_data *init_container_ima(unsigned int container_id, static struct dentry *c_ima_dir, static struct dentry *c_ima_symlink) 
+struct container_ima_data *init_container_ima(unsigned int container_id, struct dentry *c_ima_dir, struct dentry *c_ima_symlink) 
 {
 	int ret;
 	struct container_ima_data *data;
@@ -142,6 +142,47 @@ int container_ima_crypto_init(struct container_ima_data *data)
 	return 0;
 
 }
+
+int bpf_create_map_xattr(const struct bpf_create_map_attr *create_attr)
+{
+	union bpf_attr attr;
+
+	memset(&attr, '\0', sizeof(attr));
+
+	attr.map_type = create_attr->map_type;
+	attr.key_size = create_attr->key_size;
+	attr.value_size = create_attr->value_size;
+	attr.max_entries = create_attr->max_entries;
+	attr.map_flags = create_attr->map_flags;
+	if (create_attr->name)
+		memcpy(attr.map_name, create_attr->name,
+		       min(strlen(create_attr->name), BPF_OBJ_NAME_LEN - 1));
+	attr.numa_node = create_attr->numa_node;
+	attr.btf_fd = create_attr->btf_fd;
+	attr.btf_key_type_id = create_attr->btf_key_type_id;
+	attr.btf_value_type_id = create_attr->btf_value_type_id;
+	attr.map_ifindex = create_attr->map_ifindex;
+	if (attr.map_type == BPF_MAP_TYPE_STRUCT_OPS)
+		attr.btf_vmlinux_value_type_id =
+			create_attr->btf_vmlinux_value_type_id;
+	else
+		attr.inner_map_fd = create_attr->inner_map_fd;
+
+	return bpf_sys_bpf(BPF_MAP_CREATE, &attr, sizeof(attr));
+}
+int bpf_create_map(enum bpf_map_type map_type, int key_size,
+		   int value_size, int max_entries, __u32 map_flags)
+{
+	struct bpf_create_map_attr map_attr = {};
+
+	map_attr.map_type = map_type;
+	map_attr.map_flags = map_flags;
+	map_attr.key_size = key_size;
+	map_attr.value_size = value_size;
+	map_attr.max_entries = max_entries;
+
+	return bpf_create_map_xattr(&map_attr);
+}
 /*
  * create_mmap_bpf_map
  * https://elixir.boo lin.com/linux/v4.14.135/source/tools/lib/bpf/bpf.c#L83
@@ -153,7 +194,7 @@ int create_mmap_bpf_map(void)
 	int key_size = (int) sizeof(uint64_t);
 	int value_size = sizeof(struct mmap_args_t);
 
-	return bpf_create_map(BPF_MAP_TYPE_ARRAY, key_size, value_size, MMAP_MAX_MAPPINGS, 0, -1);
+	return bpf_create_map(BPF_MAP_TYPE_ARRAY, key_size, value_size, MMAP_MAX_MAPPINGS, 0);
 
 
 }

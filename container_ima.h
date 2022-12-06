@@ -63,7 +63,8 @@
 #define CONTAINER_IMA_HASH_BITS 10
 #define CONTAINER_IMA_HTABLE_SIZE (1 << CONTAINER_IMA_HASH_BITS)
 #define IMA_DIGEST_SIZE		SHA1_DIGEST_SIZE
-extern static DEFINE_RWLOCK(container_integrity_iint_lock);
+
+static DEFINE_RWLOCK(container_integrity_iint_lock);
 
 #define INVALID_PCR(a) (((a) < 0) || \
 	(a) >= (sizeof_field(struct integrity_iint_cache, measured_pcrs) * 8))
@@ -76,7 +77,8 @@ extern struct tpm_chip *ima_tpm_chip;
 extern int host_inum;
 extern struct c_ima_data_hash_table *container_hash_table;
 extern int ima_hash_algo_idx;
-
+extern struct dentry *c_ima_dir;
+extern struct dentry *c_ima_symlink;
 /* struct for BPF argument mappings */
 struct mmap_args_t {
 	void *addr;
@@ -164,6 +166,23 @@ struct modsig {
 	int raw_pkcs7_len;
 	u8 raw_pkcs7[];
 };
+struct bpf_create_map_attr {
+	const char *name;
+	enum bpf_map_type map_type;
+	__u32 map_flags;
+	__u32 key_size;
+	__u32 value_size;
+	__u32 max_entries;
+	__u32 numa_node;
+	__u32 btf_fd;
+	__u32 btf_key_type_id;
+	__u32 btf_value_type_id;
+	__u32 map_ifindex;
+	union {
+		__u32 inner_map_fd;
+		__u32 btf_vmlinux_value_type_id;
+	};
+};
 
 /* Internal container IMA function definitions */
 int container_keyring_init(void);
@@ -197,11 +216,11 @@ static int container_ima_init(void);
 static void container_ima_exit(void);
 struct container_ima_data *create_container_ima_data(void);
 void container_ima_free_data(struct container_ima_data *);
-int container_ima_get_action(struct container_ima_data *, struct user_namespace *, struct inode *,
+int container_ima_get_action(struct container_ima_data *, struct inode *,
 		   const struct cred *, u32, int, int *,
 		   struct ima_template_desc **,
 		   const char *, unsigned int *,  enum ima_hooks func);
-int container_ima_match_policy(struct container_ima_data *, struct user_namespace *, struct inode *,
+int container_ima_match_policy(struct container_ima_data *, struct inode *,
 		     const struct cred *, u32,
 		     int, int, int *,
 		     struct ima_template_desc **,
