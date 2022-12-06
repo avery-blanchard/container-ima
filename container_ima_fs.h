@@ -26,6 +26,29 @@
 #include "container_ima_api.h"
 #include "container_ima.h"
 
+static DEFINE_MUTEX(ima_write_mutex);
+
+bool ima_canonical_fmt;
+
+static int __init default_canonical_fmt_setup(char *str)
+{
+#ifdef __BIG_ENDIAN
+	ima_canonical_fmt = true;
+#endif
+	return 1;
+}
+__setup("ima_canonical_fmt", default_canonical_fmt_setup);
+
+static int valid_policy = 1;
+
+void ima_print_digest(struct seq_file *m, u8 *digest, u32 size)
+{
+	u32 i;
+
+	for (i = 0; i < size; i++)
+		seq_printf(m, "%02x", *(digest + i));
+}
+
 static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos)
 {
     struct container_ima_data *data;
@@ -73,7 +96,7 @@ static int ima_ascii_measurements_show(struct seq_file *m, void *v)
 	seq_printf(m, "%2d ", e->pcr);
 
 	/* 2nd: SHA1 template hash */
-	ima_print_digest(m, e->digests[ima_sha1_idx].digest, TPM_DIGEST_SIZE);
+	ima_print_digest(m, e->digests[ima_hash_algo_idx].digest, TPM_DIGEST_SIZE);
 
 	/* 3th:  template name */
 	seq_printf(m, " %s", template_name);
@@ -140,7 +163,7 @@ int ima_measurements_show(struct seq_file *m, void *v)
 	ima_putc(m, &pcr, sizeof(e->pcr));
 
 	/* 2nd: template digest */
-	ima_putc(m, e->digests[ima_sha1_idx].digest, TPM_DIGEST_SIZE);
+	ima_putc(m, e->digests[ima_hash_algo_idx].digest, TPM_DIGEST_SIZE);
 
 	/* 3rd: template name size */
 	namelen = !ima_canonical_fmt ? strlen(template_name) :
@@ -236,13 +259,6 @@ static int ima_measurements_open(struct inode *inode, struct file *file)
 	return seq_open(file, &c_ima_measurments_seqops);
 }
 
-void ima_print_digest(struct seq_file *m, u8 *digest, u32 size)
-{
-	u32 i;
-
-	for (i = 0; i < size; i++)
-		seq_printf(m, "%02x", *(digest + i));
-}
 static int ima_ascii_measurements_open(struct inode *inode, struct file *file)
 {
 	return seq_open(file, &c_ima_ascii_measurements_seqops);

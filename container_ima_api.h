@@ -11,12 +11,16 @@
 #include <linux/xattr.h>
 #include <linux/evm.h>
 #include <linux/iversion.h>
+#include <linux/gfp.h>
+#include <linux/audit.h>
+#include <linux/mount.h>
+
 #include "container_ima.h"
 #include "container_ima.h"
 #include "container_ima_init.h"
-#include <linux/mount.h>
 #include "container_ima_fs.h"
 #include "container_ima_api.h"
+#include "container_ima_crypto.h"
 
 #define IMA_PCR 10
 static struct kmem_cache *c_ima_iint_cache;
@@ -75,18 +79,21 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
   * container_ima_collect_measurement
   *     Get file from mmap args and measure
   */
- int container_ima_collect_measurement(struct container_ima_data *data, struct mmap_args_t *args, unsigned int container_id, struct modsig *modsig, struct integrity_iint_cache *iint, enum hash_algo hash_algo, void *buf, loff_t size) 
+ int container_ima_collect_measurement(struct container_ima_data *data, struct mmap_args_t *args, unsigned int container_id, struct integrity_iint_cache *iint, enum hash_algo hash_algo, void *buf, loff_t size) 
  {
 	int result;
 	struct file *file, *f;
 	struct inode *inode;
 	const char *filename;
-	struct ima_max_digest_data hash;
 	void *tmpbuf; 
 	int length;
 	loff_t i_size;
 	loff_t offset; 
 	u64 i_version;
+		struct {
+		struct ima_digest_data hdr;
+		char digest[IMA_MAX_DIGEST_SIZE];
+	} hash;
 	const char *audit_cause = "failed";
 
 	result = 0;
@@ -299,7 +306,7 @@ int container_ima_match_policy(struct container_ima_data *data, struct inode *in
 		     const struct cred *cred, u32 secid,
 		     int mask, int flags, int *pcr,
 		     struct ima_template_desc **template_desc,
-		     const char *func_data, unsigned int *allowed_algos, enum ima_hooks func)
+		     const char *func_data, unsigned int *allowed_algos)
 {
 	int action;
 	int action_mask;
@@ -319,7 +326,7 @@ int container_ima_match_policy(struct container_ima_data *data, struct inode *in
 int container_ima_get_action(struct container_ima_data *data, struct inode *inode,
 		   const struct cred *cred, u32 secid, int mask, int *pcr,
 		   struct ima_template_desc **template_desc,
-		   const char *func_data, unsigned int *allowed_algos, enum ima_hooks func) 
+		   const char *func_data, unsigned int *allowed_algos) 
 {
 	int action;
 	int flag;
@@ -331,7 +338,7 @@ int container_ima_get_action(struct container_ima_data *data, struct inode *inod
 	 * container and in struct container_data, re-write for different policies (later on)
 	 */ 
 	action = container_ima_match_policy(data, inode, cred, secid, mask,
-				flag, pcr, template_desc, func_data, allowed_algos, func);
+				flag, pcr, template_desc, func_data, allowed_algos);
 
 	return action;
 }
@@ -340,7 +347,7 @@ int container_ima_get_action(struct container_ima_data *data, struct inode *inod
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_main.c#L201
  */
 int container_ima_process_measurement(struct container_ima_data *data, struct file *file, const struct cred *cred,
-			       u32 secid, void *buf, loff_t size, int mask, unsigned int container_id, struct mmap_args_t *args, enum ima_hooks func) 
+			       u32 secid, void *buf, loff_t size, int mask, unsigned int container_id, struct mmap_args_t *args) 
 {
 	struct inode *inode;
 	struct integrity_iint_cache *iint = NULL;
@@ -350,7 +357,6 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	const char *pathname = NULL;
 	int ret, action, appraisal; 
 	struct evm_ima_xattr_data *xattr_value = NULL;
-	struct modsig *modsig = NULL;
 	int xattr_len = 0;
 	bool violation_check;
 	enum hash_algo hash_algo;
@@ -359,22 +365,19 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	inode = file_inode(file);
 
 
-	if (!ima_policy_flag || !S_ISREG(inode->i_mode))
+	if (!data->c_ima_policy_flags || !S_ISREG(inode->i_mode))
 		return 0;
 
 	/* re-write for future use of different IMA polcies per container */
 	action  = container_ima_get_action(data, inode, cred, secid,
 				mask, IMA_PCR, &template_desc, NULL,
-				&allowed_algos, func);
+				&allowed_algos);
 	
-	violation_check = ((func == FILE_CHECK || func == MMAP_CHECK) &&
-			   (ima_policy_flag & IMA_MEASURE));
+	violation_check = ((data->c_ima_policy_flags & IMA_MEASURE));
 	if (!action && !violation_check)
 		return 0;
 	
 	//appraisal = action & IMA_APPRAISE; // implement apprasial in future
-	if (action & IMA_FILE_APPRAISE)
-		func = FILE_CHECK;
 	
 	inode_lock(inode);
 
@@ -398,8 +401,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 
 	if (test_and_clear_bit(IMA_CHANGE_ATTR, &iint->atomic_flags))
 		iint->flags &= ~(IMA_APPRAISE | IMA_APPRAISED |
-				 IMA_APPRAISE_SUBMASK | IMA_APPRAISED_SUBMASK |
-				 IMA_NONACTION_FLAGS);
+				 IMA_APPRAISE_SUBMASK | IMA_APPRAISED_SUBMASK);
 
 	if (test_and_clear_bit(IMA_CHANGE_XATTR, &iint->atomic_flags) ||
 	    ((inode->i_sb->s_iflags & SB_I_IMA_UNVERIFIABLE_SIGNATURE) &&
@@ -425,20 +427,9 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 		action ^= IMA_HASH;
 		set_bit(IMA_UPDATE_XATTR, &iint->atomic_flags);
 	}
-
-	if ((action & IMA_APPRAISE_SUBMASK) ||
-	    strcmp(template_desc->name, IMA_TEMPLATE_IMA_NAME) != 0) {
-			if (iint->flags & IMA_MODSIG_ALLOWED) {
-			ret = ima_read_modsig(func, buf, size, &modsig);
-
-			if (!ret && ima_template_has_modsig(template_desc) &&
-			    iint->flags & IMA_MEASURED)
-				action |= IMA_MEASURE;
-		}
-	}
 	hash_algo = ima_get_hash_algo(xattr_value, xattr_len);
 
-	ret = container_ima_collect_measurement(data, args, container_id, modsig, iint, hash_algo, buf, size);
+	ret = container_ima_collect_measurement(data, args, container_id, iint, hash_algo, buf, size);
 	if (ret != 0) {
 		pr_err("collecting measurement failed\n");
 		goto out_locked;
@@ -447,7 +438,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 		pathname = ima_d_path(&file->f_path, &pathbuf, filename);
 
 	if (action & IMA_MEASURE)
-		container_ima_store_measurement(data, args, container_id, iint, file, modsig,template_desc, pathname);
+		container_ima_store_measurement(data, args, container_id, iint, file,template_desc, pathname);
 	
 	// appraisal would go here
 
@@ -462,13 +453,11 @@ out_locked:
 			ret = -EACCES;
 	mutex_unlock(&iint->mutex);
 	kfree(xattr_value);
-	ima_free_modsig(modsig);
 out:
 	if ((mask & MAY_WRITE) && test_bit(IMA_DIGSIG, &iint->atomic_flags) &&
 	     !(iint->flags & IMA_NEW_FILE))
 		ret = -EACCES;
 	mutex_unlock(&iint->mutex);
-	ima_free_modsig(modsig);
 
 	return 0;
 
@@ -571,17 +560,24 @@ out:
  */
 int container_ima_store_template(struct container_ima_data *data, struct ima_template_entry *entry,
 		       int violation, struct inode *inode,
-		       const unsigned char *filename, unsigned int container_id)
+		       const char *filename, unsigned int container_id)
 {
 	int res;
 	static const char op[] = "add_template_measure";
 	static const char audit_cause[] = "ENOMEM";
 	char *template_name = entry->template_desc->name;
-
+		struct {
+		struct ima_digest_data hdr;
+		char digest[TPM_DIGEST_SIZE];
+	} hash;
+	
 	if (!violation) {
 		// try to use IMA's hashing functions, hash should be in entry->digests[tfm_idx].digest
+		int num_fields = entry->template_desc->num_fields;
+		hash.hdr.algo = HASH_ALGO_SHA1;
 		res = ima_calc_field_array_hash(&entry->template_data[0],
-						   entry);
+						   entry->template_desc,
+						   num_fields, &hash.hdr);
 		if (res < 0) {
 			// error, add logging
 			pr_err("error calculating hash\n");
@@ -602,7 +598,7 @@ int container_ima_store_template(struct container_ima_data *data, struct ima_tem
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_api.c#L339
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_queue.c#L159
  */
-int container_ima_store_measurement(struct container_ima_data *data, struct mmap_args_t *arg , unsigned int container_id, struct integrity_iint_cache *iint, struct file *file, struct modsig *modsig, struct ima_template_desc *template_desc, unsigned char *filename) 
+int container_ima_store_measurement(struct container_ima_data *data, struct mmap_args_t *arg , unsigned int container_id, struct integrity_iint_cache *iint, struct file *file, struct ima_template_desc *template_desc, const char *filename) 
 {
 	struct inode *inode;
 	struct ima_template_entry *entry;
@@ -612,8 +608,7 @@ int container_ima_store_measurement(struct container_ima_data *data, struct mmap
 	int res;
 
 	inode = file_inode(file);
-
-	if (iint->measured_pcrs & (0x1 << IMA_PCR) && !modsig)
+	if (iint->measured_pcrs & (0x1 << IMA_PCR))
 		return 0;
 
 	/* using IMA's function to allocate should be define, not keeping memory separate yet */
@@ -724,5 +719,150 @@ static int get_binary_runtime_size(struct ima_template_entry *entry)
 	size += sizeof(entry->template_data_len);
 	size += entry->template_data_len;
 	return size;
+}
+void ima_audit_measurement(struct integrity_iint_cache *iint,
+			   const unsigned char *filename)
+{
+	struct audit_buffer *ab;
+	char *hash;
+	const char *algo_name = hash_algo_name[iint->ima_hash->algo];
+	int i;
+
+	if (iint->flags & IMA_AUDITED)
+		return;
+
+	hash = kzalloc((iint->ima_hash->length * 2) + 1, GFP_KERNEL);
+	if (!hash)
+		return;
+
+	for (i = 0; i < iint->ima_hash->length; i++)
+		hex_byte_pack(hash + (i * 2), iint->ima_hash->digest[i]);
+	hash[i * 2] = '\0';
+
+	ab = audit_log_start(audit_context(), GFP_KERNEL,
+			     AUDIT_INTEGRITY_RULE);
+	if (!ab)
+		goto out;
+
+	audit_log_format(ab, "file=");
+	audit_log_untrustedstring(ab, filename);
+	audit_log_format(ab, " hash=\"%s:%s\"", algo_name, hash);
+
+	audit_log_task_info(ab);
+	audit_log_end(ab);
+
+	iint->flags |= IMA_AUDITED;
+out:
+	kfree(hash);
+	return;
+}
+const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf)
+{
+	char *pathname = NULL;
+
+	*pathbuf = __getname();
+	if (*pathbuf) {
+		pathname = d_absolute_path(path, *pathbuf, PATH_MAX);
+		if (IS_ERR(pathname)) {
+			__putname(*pathbuf);
+			*pathbuf = NULL;
+			pathname = NULL;
+		}
+	}
+
+	if (!pathname) {
+		strlcpy(namebuf, path->dentry->d_name.name, NAME_MAX);
+		pathname = namebuf;
+	}
+
+	return pathname;
+}
+int ima_alloc_init_template(struct ima_event_data *event_data,
+			    struct ima_template_entry **entry, struct ima_template_desc *template_desc)
+{
+	int i, result = 0;
+
+	*entry = kzalloc(sizeof(**entry) + template_desc->num_fields *
+			 sizeof(struct ima_field_data), GFP_NOFS);
+	if (!*entry)
+		return -ENOMEM;
+
+	(*entry)->template_desc = template_desc;
+	for (i = 0; i < template_desc->num_fields; i++) {
+		struct ima_template_field *field = template_desc->fields[i];
+		u32 len;
+
+		result = field->field_init(event_data,
+					   &((*entry)->template_data[i]));
+		if (result != 0)
+			goto out;
+
+		len = (*entry)->template_data[i].len;
+		(*entry)->template_data_len += sizeof(len);
+		(*entry)->template_data_len += len;
+	}
+	return 0;
+out:
+	ima_free_template_entry(*entry);
+	*entry = NULL;
+	return result;
+}
+void ima_free_template_entry(struct ima_template_entry *entry)
+{
+	int i;
+
+	for (i = 0; i < entry->template_desc->num_fields; i++)
+		kfree(entry->template_data[i].data);
+
+	kfree(entry);
+}
+void integrity_audit_msg(int audit_msgno, struct inode *inode,
+			 const unsigned char *fname, const char *op,
+			 const char *cause, int result, int audit_info)
+{
+	struct audit_buffer *ab;
+	char name[TASK_COMM_LEN];
+
+	ab = audit_log_start(audit_context(), GFP_KERNEL, audit_msgno);
+	audit_log_format(ab, "pid=%d uid=%u auid=%u ses=%u",
+			 task_pid_nr(current),
+			 from_kuid(&init_user_ns, current_cred()->uid),
+			 from_kuid(&init_user_ns, audit_get_loginuid(current)),
+			 audit_get_sessionid(current));
+	audit_log_task_context(ab);
+	audit_log_format(ab, " op=");
+	audit_log_string(ab, op);
+	audit_log_format(ab, " cause=");
+	audit_log_string(ab, cause);
+	audit_log_format(ab, " comm=");
+	audit_log_untrustedstring(ab, get_task_comm(name, current));
+	if (fname) {
+		audit_log_format(ab, " name=");
+		audit_log_untrustedstring(ab, fname);
+	}
+	if (inode) {
+		audit_log_format(ab, " dev=");
+		audit_log_untrustedstring(ab, inode->i_sb->s_id);
+		audit_log_format(ab, " ino=%lu", inode->i_ino);
+	}
+	audit_log_format(ab, " res=%d", !result);
+	audit_log_end(ab);
+}
+int integrity_kernel_read(struct file *file, loff_t offset,
+			  void *addr, unsigned long count)
+{
+	mm_segment_t old_fs;
+	char __user *buf = (char __user *)addr;
+	ssize_t ret;
+
+	if (!(file->f_mode & FMODE_READ))
+		return -EBADF;
+
+	old_fs = get_fs();
+	set_fs(get_ds());
+	ret = __vfs_read(file, buf, count, &offset);
+	set_fs(old_fs);
+
+	return ret;
 }
 #endif
