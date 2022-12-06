@@ -14,6 +14,9 @@
 #include <linux/gfp.h>
 #include <linux/audit.h>
 #include <linux/mount.h>
+#include <linux/dcache.h>
+#include <linux/hugetlb.h>
+#include <linux/shm.h>
 
 #include "container_ima.h"
 #include "container_ima.h"
@@ -540,7 +543,7 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 	 * extend PCR of container's vTPM, figure out functions for extending vTPM 
 	 * https://elixir.bootlin.com/linux/latest/source/drivers/char/tpm/tpm-interface.c#L314 
 	 */
-	res = vtpm_pcr_extend(data, digests_arg, entry->pcr);
+	res = ima_pcr_extend(data, digests_arg, entry->pcr);
 	if (res != 0) {
 		pr_err("vTPM failed\n");
 		audit_info = 0;
@@ -865,6 +868,7 @@ int integrity_kernel_read(struct file *file, loff_t offset,
 
 	return ret;
 }
+
 static int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
 {
     return tpm_pcr_extend(ima_tpm_chip, IMA_PCR, digests_arg); //until vTPM is fixed

@@ -19,6 +19,9 @@
 #include <linux/bpf.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/dcache.h>
+#include <linux/hugetlb.h>
+#include <linux/shm.h>
 
 #include "container_ima.h"
 #include "container_ima_crypto.h"
