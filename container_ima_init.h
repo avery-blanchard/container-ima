@@ -96,7 +96,7 @@ struct container_ima_data *init_container_ima(unsigned int container_id, static 
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
 
-	ret = container_ima_vtpm_setup(data, container_id, ima_tpm_chip); // per container vTPM
+	//ret = container_ima_vtpm_setup(data, container_id, ima_tpm_chip); // per container vTPM
 
 	ret = container_ima_fs_init(data, c_ima_dir, c_ima_symlink);
 	//ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
