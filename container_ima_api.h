@@ -234,7 +234,7 @@ void container_ima_add_violation(struct container_ima_data *data, struct file *f
 	int result;
 
 	/* can overflow, only indicator */
-	atomic_long_inc(&data->hash_tbl.violations);
+	atomic_long_inc(&data->hash_tbl->violations);
 
 	/* try to use IMA's allocation function */
 	result = ima_alloc_init_template(&event_data, &entry, NULL);
@@ -479,9 +479,9 @@ static int container_ima_add_digest_entry(struct container_ima_data *data, struc
 
 	INIT_LIST_HEAD(&qe->later);
 	list_add_tail_rcu(&qe->later, &data->c_ima_measurements);
-	atomic_long_inc(&data->hash_tbl.len);
+	atomic_long_inc(&data->hash_tbl->len);
 	key = ima_hash_key(entry->digests[HASH_ALGO_SHA1].digest); // idx of hash algo
-	hlist_add_head_rcu(&qe->hnext, &data->hash_tbl.queue[key]);
+	hlist_add_head_rcu(&qe->hnext, &data->hash_tbl->queue[key]);
 	if (&data->binary_runtime_size != ULONG_MAX) {
 		int size;
 		size = get_binary_runtime_size(entry);
@@ -640,7 +640,7 @@ static struct ima_queue_entry *container_ima_lookup_digest_entry(struct containe
     key = ima_hash_key(digest_value);
     rcu_read_lock();
 
-    hlist_for_each_entry_rcu(qe, &data->hash_tbl.queue[key], hnext) {
+    hlist_for_each_entry_rcu(qe, &data->hash_tbl->queue[key], hnext) {
 		tmp = memcmp(qe->entry->digests[IMA_PCR].digest,
 			    digest_value, hash_digest_size[HASH_ALGO_SHA1]);
 		if ((tmp == 0) && (qe->entry->pcr == IMA_PCR)) {
@@ -864,5 +864,10 @@ int integrity_kernel_read(struct file *file, loff_t offset,
 	set_fs(old_fs);
 
 	return ret;
+}
+static int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
+{
+    return tpm_pcr_extend(ima_tpm_chip, IMA_PCR, digests_arg); //until vTPM is fixed
+
 }
 #endif

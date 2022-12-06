@@ -22,6 +22,7 @@
 #include <linux/printk.h>
 #include <uapi/linux/bpf.h>
 #include <linux/ima.h>
+#include <linux/list.h>
 #include <linux/file.h>
 #include <linux/hash.h>
 #include <linux/vtpm_proxy.h>
@@ -499,10 +500,10 @@ static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
 					 struct ima_template_desc *td,
 					 int num_fields,
 					 struct ima_digest_data *hash,  struct crypto_shash *tfm);
-int struct ima_field_data *field_data,
+int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
 			      struct ima_digest_data *hash);
-
+static int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 static inline unsigned long ima_hash_key(u8 *digest)
 {
 	return hash_long(*digest, IMA_HASH_BITS);
@@ -517,5 +518,4 @@ static inline int ima_read_xattr(struct dentry *dentry,
 {
 	return 0;
 }
-
 #endif

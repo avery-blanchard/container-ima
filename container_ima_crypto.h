@@ -12,11 +12,11 @@
 #include <linux/ratelimit.h>
 #include <linux/file.h>
 #include <linux/crypto.h>
-#include "container_ima.h"
+
 #include "container_ima.h"
 #include "container_ima_init.h"
 #include "container_ima_fs.h"
-#include "container_ima.h"
+#include "container_ima_api.h"
 
 /* default is 0 - 1 page. */
 static int ima_maxorder;

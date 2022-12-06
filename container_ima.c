@@ -6,7 +6,6 @@
  * Avery Blanchard, agb2178
  */
 #include <linux/module.h>
-#include <linux/list.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
@@ -22,7 +21,7 @@
 #include <linux/module.h>
 
 #include "container_ima.h"
-#include "container_ima.h"
+#include "container_ima_crypto.h"
 #include "container_ima_init.h"
 #include "container_ima_fs.h"
 #include "container_ima_api.h"
