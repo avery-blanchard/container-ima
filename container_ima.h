@@ -236,6 +236,12 @@ struct ima_event_data {
 	int buf_len;
 };
 
+// define digests 
+struct tpm_digest {
+	u16 alg_id;
+	u8 digest[TPM_MAX_DIGEST_SIZE];
+};
+
 /* IMA template field data definition */
 struct ima_field_data {
 	u8 *data;
