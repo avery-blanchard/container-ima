@@ -330,16 +330,15 @@ struct hash {
 		char digest[IMA_MAX_DIGEST_SIZE];
 };
 struct container_ima_data {
+	unsigned int container_id;  // inum of ns
 	atomic_long_t len;
 	atomic_long_t violations;
 	struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
 	struct vtpm_proxy_new_dev vtpm;
-	char vtpmdev[16];
 	/* policy configurations */
 	struct list_head c_ima_default_rules;
 	struct list_head c_ima_policy_rules;
 	struct list_head __rcu *c_ima_rules;
-	unsigned int id;
 	struct list_head c_ima_measurements;
 	unsigned long binary_runtime_size;
 	struct file *ml;
@@ -348,9 +347,7 @@ struct container_ima_data {
 	unsigned long c_ima_fs_flags;
 	int c_ima_policy_flags;
 	int valid_policy;
-	unsigned int container_id;
 	spinlock_t c_ima_queue_lock;
-	//struct dentry *c_ima_policy;
 	struct dentry *container_dir;
 	struct dentry *binary_runtime_measurements;
 	struct dentry *ascii_runtime_measurements;

@@ -10,6 +10,7 @@
 #include <linux/fs.h>
 #include <linux/xattr.h>
 #include <linux/evm.h>
+#include <linux/audit.h>
 #include <linux/iversion.h>
 #include <linux/gfp.h>
 #include <linux/audit.h>
