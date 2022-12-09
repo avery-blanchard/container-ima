@@ -15,6 +15,8 @@
 #include <linux/gfp.h>
 #include <linux/audit.h>
 #include <linux/mount.h>
+#include <linux/hash.h>
+#include <linux/crypto.h>
 #include <linux/dcache.h>
 #include <linux/hugetlb.h>
 #include <linux/shm.h>
