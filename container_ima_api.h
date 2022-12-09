@@ -247,7 +247,7 @@ void container_ima_add_violation(struct container_ima_data *data, struct file *f
 		goto err_out;
 	}
 	result = container_ima_store_template(data, entry, violation, inode,
-				    filename, CONFIG_IMA_MEASURE_PCR_IDX);
+				    filename, IMA_PCR);
 	if (result < 0)
 		ima_free_template_entry(entry);
 err_out:
@@ -274,7 +274,7 @@ static void container_ima_rdwr_violation_check(struct container_ima_data *data, 
 	bool send_w = false;
 
 	if (mode & FMODE_WRITE) {
-		if (atomic_read(&inode->i_readcount) && IS_IMA(inode)) {
+		if (atomic_read(&inode->i_count) && IS_IMA(inode)) {
 			if (!iint)
 				iint = container_integrity_inode_find(data, inode, container_id);
 			if (iint && test_bit(IMA_MUST_MEASURE,
