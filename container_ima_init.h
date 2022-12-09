@@ -162,11 +162,6 @@ int bpf_create_map_xattr(const struct bpf_create_map_attr *create_attr)
 	attr.btf_key_type_id = create_attr->btf_key_type_id;
 	attr.btf_value_type_id = create_attr->btf_value_type_id;
 	attr.map_ifindex = create_attr->map_ifindex;
-	if (attr.map_type == BPF_MAP_TYPE_STRUCT_OPS)
-		attr.btf_vmlinux_value_type_id =
-			create_attr->btf_vmlinux_value_type_id;
-	else
-		attr.inner_map_fd = create_attr->inner_map_fd;
 
 	return bpf_sys_bpf(BPF_MAP_CREATE, &attr, sizeof(attr));
 }
