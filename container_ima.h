@@ -506,7 +506,7 @@ static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
 					 struct ima_digest_data *hash,  struct crypto_shash *tfm);
 int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
-			      struct ima_digest_data *hash); */
+			      struct ima_digest_data *hash); 
 static int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 static inline unsigned long ima_hash_key(u8 *digest)
 {
