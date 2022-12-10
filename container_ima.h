@@ -498,7 +498,7 @@ static int calc_buffer_shash_tfm(const void *buf, loff_t size,
 static int calc_buffer_ahash_atfm(const void *buf, loff_t len,
 				  struct ima_digest_data *hash,
 				  struct crypto_ahash *tfm);
-static struct crypto_shash *ima_alloc_tfm(enum hash_algo algo);
+struct crypto_shash *ima_alloc_tfm(enum hash_algo algo);
 static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
 					 struct ima_template_desc *td,
 					 int num_fields,
