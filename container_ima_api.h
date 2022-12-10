@@ -746,7 +746,7 @@ void ima_audit_measurement(struct integrity_iint_cache *iint,
 		goto out;
 
 	audit_log_format(ab, "file=");
-	audit_log_untrustedstring(ab, filename);
+	//audit_log_untrustedstring(ab, filename);
 	audit_log_format(ab, " hash=\"%s:%s\"", algo_name, hash);
 
 	audit_log_task_info(ab, current);
@@ -852,7 +852,7 @@ void integrity_audit_msg(int audit_msgno, struct inode *inode,
 	audit_log_format(ab, " cause=");
 	//audit_log_string(ab, op, strlen(op));
 	audit_log_format(ab, " comm=");
-	audit_log_untrustedstring(ab, get_task_comm(name, current));
+	//audit_log_untrustedstring(ab, get_task_comm(name, current));
 	if (fname) {
 		audit_log_format(ab, " name=");
 		//audit_log_untrustedstring(ab, fname);
