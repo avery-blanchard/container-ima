@@ -13,6 +13,7 @@
 #include <linux/audit.h>
 #include <linux/iversion.h>
 #include <linux/gfp.h>
+#include <linux/skbuff.h>
 #include <linux/audit.h>
 #include <linux/mount.h>
 #include <linux/hash.h>
@@ -827,6 +828,30 @@ ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
 {
 	return file->f_op->read(file, buf, count, pos);
 }
+/* https://elixir.bootlin.com/linux/v4.19/source/kernel/audit.c#L1937 
+void audit_log_string(struct audit_buffer *ab, const char *string,
+			size_t slen)
+{
+	unsigned char *str;
+	int len, new_len; 
+	struct sk_buff *skb;
+
+	if (!ab)
+		return;
+	skb = ab->skb;
+	len = skb_tailroom(skb);
+	new_len = slen + 3;
+
+	// add quotes around string
+	str =  skb_tail_pointer(skb);
+	*str++ = '"';
+	memcpy(str, string, slen);
+	*str++ = '"';
+	*str++ = 0;
+
+	skb_put(skb, slen + 2);
+
+}*/
 void integrity_audit_msg(int audit_msgno, struct inode *inode,
 			 const unsigned char *fname, const char *op,
 			 const char *cause, int result, int audit_info)
@@ -842,9 +867,9 @@ void integrity_audit_msg(int audit_msgno, struct inode *inode,
 			 audit_get_sessionid(current));
 	audit_log_task_context(ab);
 	audit_log_format(ab, " op=");
-	audit_log_n_string(ab, op, strlen(op));
+	//audit_log_string(ab, op, strlen(op));
 	audit_log_format(ab, " cause=");
-	audit_log_n_string(ab, op, strlen(op));
+	//audit_log_string(ab, op, strlen(op));
 	audit_log_format(ab, " comm=");
 	audit_log_untrustedstring(ab, get_task_comm(name, current));
 	if (fname) {
