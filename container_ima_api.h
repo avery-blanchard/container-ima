@@ -871,8 +871,7 @@ int integrity_kernel_read(struct file *file, loff_t offset,
 
 	return ret;
 }
-
-static int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
+int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
 {
     return tpm_pcr_extend(ima_tpm_chip, IMA_PCR, digests_arg->digest); //until vTPM is fixed
 

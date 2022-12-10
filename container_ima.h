@@ -472,9 +472,7 @@ void integrity_audit_msg(int audit_msgno, struct inode *inode,
 //static int ima_calc_file_shash(struct file *file, struct ima_digest_data *hash);	
 //static int ima_calc_file_ahash(struct file *file, struct ima_digest_data *hash);
 //static void ima_free_atfm(struct crypto_ahash *tfm);
-//static int ima_calc_file_hash_atfm(struct file *file,
-				   struct ima_digest_data *hash,
-				   struct crypto_ahash *tfm); 
+//static int ima_calc_file_hash_atfm(struct file *file,struct ima_digest_data *hash, struct crypto_ahash *tfm); 
 //static void ima_free_pages(void *ptr, size_t size);
 int integrity_kernel_read(struct file *file, loff_t offset,
 			  void *addr, unsigned long count);
@@ -506,8 +504,8 @@ static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
 					 struct ima_digest_data *hash,  struct crypto_shash *tfm);*/
 int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
-			      struct ima_digest_data *hash); */
-static int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
+			      struct ima_digest_data *hash); 
+int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 static inline unsigned long ima_hash_key(u8 *digest)
 {
 	return hash_long(*digest, IMA_HASH_BITS);
