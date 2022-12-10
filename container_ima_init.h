@@ -91,7 +91,7 @@ struct container_ima_data *init_container_ima(unsigned int container_id, struct 
 
 	data = init_container_ima_data(container_id);
 
-	ima_tpm_chip = tpm_default_chip();
+	ima_tpm_chip = NULL; //tpm_default_chip();
 	if (!ima_tpm_chip)
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
