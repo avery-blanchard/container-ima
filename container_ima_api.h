@@ -50,22 +50,16 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 	struct file *file;
 
 	/* Get file from fd, len, and address for measurment */
-	if (!(args->flags & MAP_ANONYMOUS)) {
-		audit_mmap_fd(args->fd, args->flags);
-		file = fget(args->fd);
-		if (!file) {
-			pr_err("fget fails\n");
-		}
-		if (is_file_hugepages(file)) {
-			args->length = ALIGN(args->length, huge_page_size(hstate_file(file)));
-		} else if (unlikely(args->flags & MAP_HUGETLB)) {
-			file = NULL;
-			return file;
-		}
+		//audit_mmap_fd(args->fd, args->flags);
+	file = fget(args->fd);
+	if (!file) {
+		pr_err("fget fails\n");
+	}
+	/*
 	} else if (args->flags & MAP_HUGETLB) {
 		struct user_struct *user = NULL;
 		struct hstate *hs;
-		hs =  hstate_sizelog((args->flags >> MAP_HUGE_SHIFT) & MAP_HUGE_MASK);
+		hs = &default_hstate; // remove default later
 		if (!hs) {
 			ret = -EINVAL;
 			return ret;
@@ -79,7 +73,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 			ret = PTR_ERR(file);
 			return ret;
 		}
-	}
+	} */
 	return file;
  }
  /*
@@ -861,11 +855,11 @@ void integrity_audit_msg(int audit_msgno, struct inode *inode,
 	audit_log_untrustedstring(ab, get_task_comm(name, current));
 	if (fname) {
 		audit_log_format(ab, " name=");
-		audit_log_untrustedstring(ab, fname);
+		//audit_log_untrustedstring(ab, fname);
 	}
 	if (inode) {
 		audit_log_format(ab, " dev=");
-		audit_log_untrustedstring(ab, inode->i_sb->s_id);
+		//audit_log_untrustedstring(ab, inode->i_sb->s_id);
 		audit_log_format(ab, " ino=%lu", inode->i_ino);
 	}
 	audit_log_format(ab, " res=%d", !result);
