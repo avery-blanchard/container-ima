@@ -4,6 +4,8 @@
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/kernel.h>
+#include <linux/moduleparam.h>
 #include <linux/ima.h>
 #include <linux/integrity.h>
 #include <linux/scatterlist.h>
@@ -27,6 +29,29 @@ static struct crypto_ahash *ima_ahash_tfm;
 static unsigned long ima_ahash_minsize;
 module_param_named(ahash_minsize, ima_ahash_minsize, ulong, 0644);
 MODULE_PARM_DESC(ahash_minsize, "Minimum file size for ahash use");
+
+static int param_set_bufsize(const char *val, const struct kernel_param *kp)
+{
+	unsigned long long size;
+	int order;
+
+	size = memparse(val, NULL);
+	order = get_order(size);
+	if (order >= MAX_ORDER)
+		return -EINVAL;
+	ima_maxorder = order;
+	ima_bufsize = PAGE_SIZE << order;
+	return 0;
+}
+
+static const struct kernel_param_ops param_ops_bufsize = {
+	.set = param_set_bufsize,
+	.get = param_get_uint,
+};
+#define param_check_bufsize(name, p) __param_check(name, p, unsigned int)
+
+module_param_named(ahash_bufsize, ima_bufsize, bufsize, 0644);
+MODULE_PARM_DESC(ahash_bufsize, "Maximum ahash buffer size");
 
 static int param_set_bufsize(const char *val, const struct kernel_param *kp)
 {
@@ -410,7 +435,7 @@ static void ima_free_tfm(struct crypto_shash *tfm)
 	if (tfm != ima_shash_tfm)
 		crypto_free_shash(tfm);
 }
-struct crypto_shash *ima_alloc_tfm(enum hash_algo algo)
+static struct crypto_shash *ima_alloc_tfm(enum hash_algo algo)
 {
 	struct crypto_shash *tfm = ima_shash_tfm;
 	int rc;
