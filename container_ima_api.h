@@ -822,6 +822,11 @@ void ima_free_template_entry(struct ima_template_entry *entry)
 
 	kfree(entry);
 }
+ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
+		   loff_t *pos)
+{
+	return file->f_op->read(file, buf, count, pos);
+}
 void integrity_audit_msg(int audit_msgno, struct inode *inode,
 			 const unsigned char *fname, const char *op,
 			 const char *cause, int result, int audit_info)
