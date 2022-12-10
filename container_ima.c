@@ -132,7 +132,8 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 		pr_err("error retrieving file\n");
 		return -1;
 	}
-	cred = get_task_cred(task);
+	//cred = get_task_cred(task);
+	cred = rcu_dereference_protected(current->cred, 1);
 	security_cred_getsecid(cred, &sec_id);
 
 	ret = container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
