@@ -209,7 +209,6 @@ extern struct tpm_chip *ima_tpm_chip;
 extern int host_inum;
 extern struct c_ima_data_hash_table *container_hash_table;
 extern int ima_hash_algo;
-extern int ima_hash_algo_idx;
 extern struct dentry *c_ima_dir;
 extern struct dentry *c_ima_symlink;
 extern bool ima_canonical_fmt;

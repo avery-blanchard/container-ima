@@ -74,7 +74,6 @@ void ima_putc(struct seq_file *m, void *data, int datalen)
 	while (datalen--)
 		seq_putc(m, *(char *)data++);
 }
-/* print in ascii */
 static int ima_ascii_measurements_show(struct seq_file *m, void *v)
 {
 	/* the list never shrinks, so we don't need a lock here */
@@ -95,7 +94,7 @@ static int ima_ascii_measurements_show(struct seq_file *m, void *v)
 	seq_printf(m, "%2d ", e->pcr);
 
 	/* 2nd: SHA1 template hash */
-	ima_print_digest(m, e->digests[ima_hash_algo_idx].digest, TPM_DIGEST_SIZE);
+	ima_print_digest(m, e->digest, TPM_DIGEST_SIZE);
 
 	/* 3th:  template name */
 	seq_printf(m, " %s", template_name);
@@ -134,7 +133,6 @@ static void *ima_measurements_start(struct seq_file *m, loff_t *pos)
 	rcu_read_unlock();
 	return NULL;
 }
-
 int ima_measurements_show(struct seq_file *m, void *v)
 {
 	/* the list never shrinks, so we don't need a lock here */
@@ -158,15 +156,15 @@ int ima_measurements_show(struct seq_file *m, void *v)
 	 * PCR used defaults to the same (config option) in
 	 * little-endian format, unless set in policy
 	 */
-	pcr = !ima_canonical_fmt ? e->pcr : (__force u32)cpu_to_le32(e->pcr);
+	pcr = !ima_canonical_fmt ? e->pcr : cpu_to_le32(e->pcr);
 	ima_putc(m, &pcr, sizeof(e->pcr));
 
 	/* 2nd: template digest */
-	ima_putc(m, e->digests[ima_hash_algo_idx].digest, TPM_DIGEST_SIZE);
+	ima_putc(m, e->digest, TPM_DIGEST_SIZE);
 
 	/* 3rd: template name size */
 	namelen = !ima_canonical_fmt ? strlen(template_name) :
-		(__force u32)cpu_to_le32(strlen(template_name));
+		cpu_to_le32(strlen(template_name));
 	ima_putc(m, &namelen, sizeof(namelen));
 
 	/* 4th:  template name */
@@ -178,15 +176,14 @@ int ima_measurements_show(struct seq_file *m, void *v)
 
 	if (!is_ima_template) {
 		template_data_len = !ima_canonical_fmt ? e->template_data_len :
-			(__force u32)cpu_to_le32(e->template_data_len);
+			cpu_to_le32(e->template_data_len);
 		ima_putc(m, &template_data_len, sizeof(e->template_data_len));
 	}
 
 	/* 6th:  template specific data */
 	for (i = 0; i < e->template_desc->num_fields; i++) {
 		enum ima_show_type show = IMA_SHOW_BINARY;
-		const struct ima_template_field *field =
-			e->template_desc->fields[i];
+		struct ima_template_field *field = e->template_desc->fields[i];
 
 		if (is_ima_template && strcmp(field->field_id, "d") == 0)
 			show = IMA_SHOW_BINARY_NO_FIELD_LEN;
