@@ -763,25 +763,11 @@ out:
 	kfree(hash);
 	return;
 }
-/* https://elixir.bootlin.com/linux/v4.19/source/fs/d_path.c#L191 */
-char *copy_absolute_path(const struct path *path, char *buf, int buflen)
-{	
-	struct path root;
-	char *res = buf + buflen;
-
-	if (error > 1)
-		error = -EINVAL;
-	if (error < 0)
-		return ERR_PTR(error);
-	return res;
-
-}
 const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf)
 {
 	char *pathname = NULL;
 	strlcpy(namebuf, path->dentry->d_name.name, NAME_MAX);
 	pathname = namebuf;
-
 
 	return pathname;
 }
