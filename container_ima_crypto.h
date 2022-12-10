@@ -53,19 +53,6 @@ static const struct kernel_param_ops param_ops_bufsize = {
 module_param_named(ahash_bufsize, ima_bufsize, bufsize, 0644);
 MODULE_PARM_DESC(ahash_bufsize, "Maximum ahash buffer size");
 
-static int param_set_bufsize(const char *val, const struct kernel_param *kp)
-{
-	unsigned long long size;
-	int order;
-
-	size = memparse(val, NULL);
-	order = get_order(size);
-	if (order >= MAX_ORDER)
-		return -EINVAL;
-	ima_maxorder = order;
-	ima_bufsize = PAGE_SIZE << order;
-	return 0;
-}
 int __init ima_init_crypto(void)
 {
 	long rc;
