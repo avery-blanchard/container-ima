@@ -115,7 +115,11 @@ static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
 
 	return rc;
 }
-
+static void ima_free_tfm(struct crypto_shash *tfm)
+{
+	if (tfm != ima_shash_tfm)
+		crypto_free_shash(tfm);
+}
 int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
 			      struct ima_digest_data *hash)
@@ -129,6 +133,93 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 
 	rc = ima_calc_field_array_hash_tfm(field_data, desc, num_fields,
 					   hash, tfm);
+
+	ima_free_tfm(tfm);
+
+	return rc;
+}
+static int ima_calc_file_ahash(struct file *file, struct ima_digest_data *hash)
+{
+	struct crypto_ahash *tfm;
+	int rc;
+
+	tfm = ima_alloc_atfm(hash->algo);
+	if (IS_ERR(tfm))
+		return PTR_ERR(tfm);
+
+	rc = ima_calc_file_hash_atfm(file, hash, tfm);
+
+	ima_free_atfm(tfm);
+
+	return rc;
+}
+static int ima_calc_file_hash_tfm(struct file *file,
+				  struct ima_digest_data *hash,
+				  struct crypto_shash *tfm)
+{
+	loff_t i_size, offset = 0;
+	char *rbuf;
+	int rc, read = 0;
+	SHASH_DESC_ON_STACK(shash, tfm);
+
+	shash->tfm = tfm;
+	shash->flags = 0;
+
+	hash->length = crypto_shash_digestsize(tfm);
+
+	rc = crypto_shash_init(shash);
+	if (rc != 0)
+		return rc;
+
+	i_size = i_size_read(file_inode(file));
+
+	if (i_size == 0)
+		goto out;
+
+	rbuf = kzalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!rbuf)
+		return -ENOMEM;
+
+	if (!(file->f_mode & FMODE_READ)) {
+		file->f_mode |= FMODE_READ;
+		read = 1;
+	}
+
+	while (offset < i_size) {
+		int rbuf_len;
+
+		rbuf_len = integrity_kernel_read(file, offset, rbuf, PAGE_SIZE);
+		if (rbuf_len < 0) {
+			rc = rbuf_len;
+			break;
+		}
+		if (rbuf_len == 0)
+			break;
+		offset += rbuf_len;
+
+		rc = crypto_shash_update(shash, rbuf, rbuf_len);
+		if (rc)
+			break;
+	}
+	if (read)
+		file->f_mode &= ~FMODE_READ;
+	kfree(rbuf);
+out:
+	if (!rc)
+		rc = crypto_shash_final(shash, hash->digest);
+	return rc;
+}
+
+static int ima_calc_file_shash(struct file *file, struct ima_digest_data *hash)
+{
+	struct crypto_shash *tfm;
+	int rc;
+
+	tfm = ima_alloc_tfm(hash->algo);
+	if (IS_ERR(tfm))
+		return PTR_ERR(tfm);
+
+	rc = ima_calc_file_hash_tfm(file, hash, tfm);
 
 	ima_free_tfm(tfm);
 
@@ -402,6 +493,36 @@ static int calc_buffer_ahash(const void *buf, loff_t len,
 
 	return rc;
 }
+static int calc_buffer_shash_tfm(const void *buf, loff_t size,
+				struct ima_digest_data *hash,
+				struct crypto_shash *tfm)
+{
+	SHASH_DESC_ON_STACK(shash, tfm);
+	unsigned int len;
+	int rc;
+
+	shash->tfm = tfm;
+	shash->flags = 0;
+
+	hash->length = crypto_shash_digestsize(tfm);
+
+	rc = crypto_shash_init(shash);
+	if (rc != 0)
+		return rc;
+
+	while (size) {
+		len = size < PAGE_SIZE ? size : PAGE_SIZE;
+		rc = crypto_shash_update(shash, buf, len);
+		if (rc)
+			break;
+		buf += len;
+		size -= len;
+	}
+
+	if (!rc)
+		rc = crypto_shash_final(shash, hash->digest);
+	return rc;
+}
 static int calc_buffer_shash(const void *buf, loff_t len,
 			     struct ima_digest_data *hash)
 {
@@ -417,11 +538,7 @@ static int calc_buffer_shash(const void *buf, loff_t len,
 	ima_free_tfm(tfm);
 	return rc;
 }
-static void ima_free_tfm(struct crypto_shash *tfm)
-{
-	if (tfm != ima_shash_tfm)
-		crypto_free_shash(tfm);
-}
+
 static struct crypto_shash *ima_alloc_tfm(enum hash_algo algo)
 {
 	struct crypto_shash *tfm = ima_shash_tfm;
@@ -510,61 +627,4 @@ static int calc_buffer_shash_tfm(const void *buf, loff_t size,
 		rc = crypto_shash_final(shash, hash->digest);
 	return rc;
 }
-static int ima_calc_file_hash_tfm(struct file *file,
-				  struct ima_digest_data *hash,
-				  struct crypto_shash *tfm)
-{
-	loff_t i_size, offset = 0;
-	char *rbuf;
-	int rc, read = 0;
-	SHASH_DESC_ON_STACK(shash, tfm);
-
-	shash->tfm = tfm;
-	shash->flags = 0;
-
-	hash->length = crypto_shash_digestsize(tfm);
-
-	rc = crypto_shash_init(shash);
-	if (rc != 0)
-		return rc;
-
-	i_size = i_size_read(file_inode(file));
-
-	if (i_size == 0)
-		goto out;
-
-	rbuf = kzalloc(PAGE_SIZE, GFP_KERNEL);
-	if (!rbuf)
-		return -ENOMEM;
-
-	if (!(file->f_mode & FMODE_READ)) {
-		file->f_mode |= FMODE_READ;
-		read = 1;
-	}
-
-	while (offset < i_size) {
-		int rbuf_len;
-
-		rbuf_len = integrity_kernel_read(file, offset, rbuf, PAGE_SIZE);
-		if (rbuf_len < 0) {
-			rc = rbuf_len;
-			break;
-		}
-		if (rbuf_len == 0)
-			break;
-		offset += rbuf_len;
-
-		rc = crypto_shash_update(shash, rbuf, rbuf_len);
-		if (rc)
-			break;
-	}
-	if (read)
-		file->f_mode &= ~FMODE_READ;
-	kfree(rbuf);
-out:
-	if (!rc)
-		rc = crypto_shash_final(shash, hash->digest);
-	return rc;
-}
-
 #endif
