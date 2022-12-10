@@ -8,7 +8,7 @@ all: kmod
 
 PHONY += kmod
 kmod:
-		make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+		make COPTS=-g -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 PHONY += clean
 clean:
