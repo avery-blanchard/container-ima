@@ -11,8 +11,6 @@
 #include <linux/moduleparam.h>
 #include <linux/ratelimit.h>
 #include <linux/file.h>
-#include <crypto/hash.h>
-#include <linux/crypto.h>
 
 #include "container_ima.h"
 #include "container_ima_init.h"
