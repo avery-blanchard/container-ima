@@ -693,8 +693,8 @@ static struct container_ima_data *ima_data_from_file(const struct file *filp)
 	struct inode *inode = file_inode(filp);
 	//struct user_namespace *ns =  inode->i_sb->s_user_ns;
 
-	//inum = inode->i_sb->s_user_ns->ns_common->inum;
-	inum = 0;
+	inum = inode->i_sb->s_user_ns->ns.inum;
+	//inum = 0;
 	entry = container_ima_lookup_data_entry(inum);
 	if (!entry) {
 		pr_err("Container data from ID is NULL\n");

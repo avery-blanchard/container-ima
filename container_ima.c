@@ -110,7 +110,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	if (!ns->cgroup_ns)
 		return -1;
 	
-	//inum = ns->cgroup_ns->ns_common->inum;
+	inum = ns->cgroup_ns->ns.inum;
 	inum = 0;
 	//active_mmap_args_map.pop(&args);
 	ret = mmap_bpf_map_lookup(id, args, map_fd);
@@ -158,8 +158,8 @@ static int container_ima_init(void)
 	if (!ns->uts_ns) 
 		return -1;
 	
-	//host_inum = ns->uts_ns->ns_common->inum;
-	host_inum = 0;
+	host_inum = ns->cgroup_ns->ns.inum;
+	//host_inum = 0;
 	map_fd = create_mmap_bpf_map();
 	pr_err("map_fd %d\n", map_fd);
 	c_ima_dir = securityfs_create_dir("container_ima", NULL);
