@@ -71,28 +71,7 @@ int syscall__probe_entry_mmap(struct pt_regs *ctx, void *addr, size_t length, in
 	args->offset = offset;
 
 	//active_mmap_args_map.update(&id, &args);
-	mmap_bpf_map_add(id, args, map_fd);
-	return 0;
-
-}
-/*
- * syscall__probe_ret_mmap 
- *
- * Exit hook for mmap system call
- */
-int syscall__probe_ret_mmap(struct pt_regs *ctx) 
-{
-	/* if system call was 
-	 * 	1. orginating from the container
-	 * 	2. maps an executable page
-	 * 	3. was successful
-	 * then 
-	 * 	1. access argument cache
-	 * 	2. call functions to create hash digest, extend,
-	 * 		and send to TPM for IMA per container.
-	 */
-	pr_info("In mmap probe return\n");
-
+	//mmap_bpf_map_add(id, args, map_fd);
 	int ret;
 	struct task_struct *task;
 	struct file *file;
@@ -101,8 +80,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	const struct cred *cred;
 	struct nsproxy *ns;
 	u32 sec_id;
-	struct mmap_args_t *args;
-	uint64_t id = bpf_get_current_pid_tgid();
+
 	
 	ret = 0;
 	task =  bpf_get_current_task();
@@ -112,7 +90,7 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	
 	inum = ns->cgroup_ns->ns.inum;
 	inum = 0;
-	//active_mmap_args_map.pop(&args);
+	////active_mmap_args_map.pop(&args);
 	ret = mmap_bpf_map_lookup(id, args, map_fd);
 
 	if (inum == host_inum) {
@@ -143,8 +121,76 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	}
 
 	return ret;
+	return 0;
 
+}
+/*
+ * syscall__probe_ret_mmap 
+ *
+ * Exit hook for mmap system call
+ */
+int syscall__probe_ret_mmap(struct pt_regs *ctx) 
+{
+	/* if system call was 
+	 * 	1. orginating from the container
+	 * 	2. maps an executable page
+	 * 	3. was successful
+	 * then 
+	 * 	1. access argument cache
+	 * 	2. call functions to create hash digest, extend,
+	 * 		and send to TPM for IMA per container.
+	 */
+	pr_info("In mmap probe return\n");
+/*
+	int ret;
+	struct task_struct *task;
+	struct file *file;
+	struct container_ima_data *data;
+	unsigned int inum;
+	const struct cred *cred;
+	struct nsproxy *ns;
+	u32 sec_id;
+	struct mmap_args_t *args;
+	uint64_t id = bpf_get_current_pid_tgid();
+	
+	ret = 0;
+	task =  bpf_get_current_task();
+    ns = task->nsproxy;
+	if (!ns->cgroup_ns)
+		return -1;
+	
+	inum = ns->cgroup_ns->ns.inum;
+	inum = 0;
+	//active_mmap_args_map.pop(&args);
+	ret = mmap_bpf_map_lookup(id, args, map_fd);
 
+	if (inum == host_inum) {
+		return ret;
+	}
+	if (args->prot != PROT_EXEC) {
+		return ret;
+	}
+	data = init_container_ima(inum, c_ima_dir, c_ima_symlink);
+
+	file = container_ima_retrieve_file(args);
+	if (!file) {
+		pr_err("error retrieving file\n");
+		return -1;
+	}
+	//cred = get_task_cred(task);
+	cred = rcu_dereference_protected(current->cred, 1);
+	security_cred_getsecid(cred, &sec_id);
+
+	ret = container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
+	if (ret != 0) {
+		pr_err("measurement fails\n");
+		return ret;
+	}
+
+	return ret;
+
+	*/
+	return 0;
 }
 static int container_ima_init(void)
 {
@@ -161,8 +207,8 @@ static int container_ima_init(void)
 	
 	host_inum = ns->cgroup_ns->ns.inum;
 	//host_inum = 0;
-	map_fd = create_mmap_bpf_map();
-	pr_err("map_fd %d\n", map_fd);
+	//map_fd = create_mmap_bpf_map();
+	//pr_err("map_fd %d\n", map_fd);
 	c_ima_dir = securityfs_create_dir("container_ima", NULL);
 	if (IS_ERR(c_ima_dir))
 		return -1;
