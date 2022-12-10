@@ -460,7 +460,6 @@ static int ima_get_verity_digest(struct integrity_iint_cache *iint,
 void ima_audit_measurement(struct integrity_iint_cache *iint,
 			   const unsigned char *filename);
 const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf);
-
 int ima_alloc_init_template(struct ima_event_data *event_data,
 			    struct ima_template_entry **entry, struct ima_template_desc *template_desc);
 void ima_free_template_entry(struct ima_template_entry *entry);
@@ -470,24 +469,24 @@ int ima_calc_buffer_hash(const void *buf, loff_t len,
 void integrity_audit_msg(int audit_msgno, struct inode *inode,
 			 const unsigned char *fname, const char *op,
 			 const char *cause, int result, int audit_info);
-//static int ima_calc_file_shash(struct file *file, struct ima_digest_data *hash);	
-//static int ima_calc_file_ahash(struct file *file, struct ima_digest_data *hash);
-//static void ima_free_atfm(struct crypto_ahash *tfm);
-//static int ima_calc_file_hash_atfm(struct file *file,
+static int ima_calc_file_shash(struct file *file, struct ima_digest_data *hash);	
+static int ima_calc_file_ahash(struct file *file, struct ima_digest_data *hash);
+static void ima_free_atfm(struct crypto_ahash *tfm);
+static int ima_calc_file_hash_atfm(struct file *file,
 				   struct ima_digest_data *hash,
 				   struct crypto_ahash *tfm); 
-//static void ima_free_pages(void *ptr, size_t size);
+static void ima_free_pages(void *ptr, size_t size);
 int integrity_kernel_read(struct file *file, loff_t offset,
 			  void *addr, unsigned long count);
 
-//static void *ima_alloc_pages(loff_t max_size, size_t *allocated_size,
+static void *ima_alloc_pages(loff_t max_size, size_t *allocated_size,
 			     int last_warn);
-//static inline int ahash_wait(int err, struct crypto_wait *wait);
-//static int param_set_bufsize(const char *val, const struct kernel_param *kp);
+static inline int ahash_wait(int err, struct crypto_wait *wait);
+static int param_set_bufsize(const char *val, const struct kernel_param *kp);
 int __init ima_init_crypto(void);	
-//static struct crypto_ahash *ima_alloc_atfm(enum hash_algo algo);
-//static void ima_free_tfm(struct crypto_shash *tfm);
-//static int ima_calc_file_hash_tfm(struct file *file,
+static struct crypto_ahash *ima_alloc_atfm(enum hash_algo algo);
+static void ima_free_tfm(struct crypto_shash *tfm);
+static int ima_calc_file_hash_tfm(struct file *file,
 				  struct ima_digest_data *hash,
 				  struct crypto_shash *tfm);
 static int calc_buffer_shash(const void *buf, loff_t len,
