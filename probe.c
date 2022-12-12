@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <bpf/libbpf.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -81,15 +80,11 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	inum = ns->cgroup_ns->ns.inum;
 	active_mmap_args_map.pop(&args);
 	//ret = mmap_bpf_map_lookup(id, args, map_fd);
-
-	if (inum == host_inum) {
-		return ret;
-	}
 	if (args->prot != PROT_EXEC) {
         printf("Protocol is not exec\n");
 		return ret;
 	}
-    printf("Mmap length is %d\n", args->len);
+    	printf("Mmap length is %ld\n", args->length);
 	/*data = init_container_ima(inum, c_ima_dir, c_ima_symlink);
 
 	/*file = container_ima_retrieve_file(args);

@@ -10,6 +10,16 @@
 
 #define LOG_SIZE 4096
 #define PROBE_SIZE 4096
+#define MAX_ENTRIES 100
+
+struct mmap_args_t {
+	void *addr;
+	size_t length;
+	int prot;
+	int flags;
+	int fd;
+	off_t offset;
+};
 
 int main(int argc, char **argv) 
 {
@@ -18,6 +28,7 @@ int main(int argc, char **argv)
     unsigned char log_buf[PROBE_SIZE];
     struct bpf_insn *insn;
     union bpf_attr attr = {};
+    union bpf_attr map_attr = {};
     int len;
     int ret;
 
@@ -37,6 +48,13 @@ int main(int argc, char **argv)
     attr.license = (unsigned int)"GPL";
     
     ret = syscall(SYS_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
+
+    map_attr.map_type = BPF_MAP_TYPE_HASH;
+    map_attr.key_size = sizeof(uint64_t);
+    map_attr.value_size = sizeof(struct mmap_args_t);
+    map_attr.max_entries = MAX_ENTRIES;
+    map_attr.map_flags = 0;
+    ret = syscall(SYS_bpf, BPF_MAP_CREATE, &map_attr, sizeof(map_attr));
 
     while(1);
 
