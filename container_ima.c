@@ -31,7 +31,9 @@
 #include "ebpf/bpf_helpers.h"
 
 #define PROT_EXEC 0x04
-
+#define LOG_SIZE 4096
+#define PROBE_SIZE 4096
+#define MAX_ENTRIES 100
 #define MODULE_NAME "ContainerIMA"
 #define INTEGRITY_KEYRING_IMA 1
 
@@ -58,7 +60,6 @@ struct c_ima_data_hash_table *container_hash_table;
  */
 int syscall__probe_entry_mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int flags, int fd, off_t offset) 
 {
-	pr_info("In mmap probe entry\n");
 	uint64_t id = bpf_get_current_pid_tgid();
 	
 	struct mmap_args_t *args;
@@ -209,7 +210,37 @@ static int container_ima_init(void)
 	//host_inum = 0;
 	//map_fd = create_mmap_bpf_map();
 	//pr_err("map_fd %d\n", map_fd);
-	c_ima_dir = securityfs_create_dir("container_ima", NULL);
+	struct file *probe_file;
+    int map_fd;
+    unsigned char probe_buf[PROBE_SIZE];
+    unsigned char log_buf[PROBE_SIZE];
+    struct bpf_insn *insn;
+    union bpf_attr attr = {};
+    union bpf_attr map_attr = {};
+    ssize_t len;
+    int ret;
+
+	probe_file = filp_open("./probe", O_RDONLY, 0);
+    if (!probe_file) {
+        pr_err("Unable to open probe file\n");
+        return -1;
+    }
+    pr_info("Opened probe fd\n");
+    len = kernel_read(probe_file, probe_buf, PROBE_SIZE, &probe_file->f_pos);
+    filp_close(probe_file, NULL);
+    pr_info("Read probe into buf\n");
+    insn = (struct bpf_insn *)probe_buf;
+    attr.prog_type = BPF_PROG_TYPE_KPROBE;
+    attr.log_level = 1;
+    attr.log_buf = &log_buf;
+    attr.log_size = LOG_SIZE;
+    attr.insns = insn;
+    attr.license = (unsigned int)"GPL";
+	pr_info("Doing syscall\n");
+    ret = bpf_sys_bpf(BPF_PROG_LOAD, &attr, sizeof(attr));
+    pr_info("Syscall returned %d\n", ret);
+
+	/*c_ima_dir = securityfs_create_dir("container_ima", NULL);
 	if (IS_ERR(c_ima_dir))
 		return -1;
 	
@@ -218,7 +249,7 @@ static int container_ima_init(void)
 	if (IS_ERR(c_ima_symlink)) {
 		//ret = PTR_ERR(c_ima_symlink);
 		return -1;
-	}
+	}*/
 
 	return 0;
 }
@@ -229,6 +260,7 @@ static void container_ima_exit(void)
 	 * Free keyring and vTPMs
 	 */
 	int ret;
+
 	//ret = container_ima_cleanup();
 	return;
 }

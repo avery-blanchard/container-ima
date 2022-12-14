@@ -3,8 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <linux/bpf.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include "ebpf/bpf_helpers.h"
+
+#define MAX_ENTRIES 100
 /* struct for BPF argument mappings */
 struct mmap_args_t {
 	void *addr;
@@ -14,7 +18,16 @@ struct mmap_args_t {
 	int fd;
 	off_t offset;
 };
-BPF_HASH(active_mmap_args_map, u64);
+
+int map_fd;
+union bpf_attr map_attr = {
+	.map_type = BPF_MAP_TYPE_HASH,
+	.key_size = sizeof(uint64_t),
+	.value_size = sizeof(struct mmap_args_t),
+	.max_entries = MAX_ENTRIES,
+	.map_flags = 0
+
+};
 /*
  * syscall__probe_entry_mmap
  * 
@@ -27,7 +40,7 @@ BPF_HASH(active_mmap_args_map, u64);
  */
 int syscall__probe_entry_mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int flags, int fd, off_t offset) 
 {
-	printf("In mmap probe entry\n");
+	
 	uint64_t id = bpf_get_current_pid_tgid();
 	
 	struct mmap_args_t *args;
@@ -39,8 +52,15 @@ int syscall__probe_entry_mmap(struct pt_regs *ctx, void *addr, size_t length, in
 	args->fd = fd;
 	args->offset = offset;
 
-	active_mmap_args_map.update(&id, &args);
-	return 0;
+	// https://man7.org/linux/man-pages/man2/bpf.2.html
+	union bpf_attr attr = {
+                          .map_fd = map_fd,
+                          .key    = &id,
+                          .value  = &args,
+                          .flags  = 0,
+                      };
+	
+	return syscall(SYS_bpf, BPF_MAP_UPDATE_ELEM, &attr, sizeof(attr));
 
 }
 /*
@@ -67,24 +87,26 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	unsigned int inum;
 	const struct cred *cred;
 	struct nsproxy *ns;
-	u32 sec_id;
+	int sec_id;
 	struct mmap_args_t *args;
 	uint64_t id = bpf_get_current_pid_tgid();
 	
 	ret = 0;
 	task =  bpf_get_current_task();
-    ns = task->nsproxy;
-	if (!ns->cgroup_ns)
-		return -1;
-	
-	inum = ns->cgroup_ns->ns.inum;
-	active_mmap_args_map.pop(&args);
+	union bpf_attr attr = {
+                          .map_fd = map_fd,
+                          .key    = &id,
+                          .value  = &args,
+        };
+
+	ret = syscall(SYS_bpf,BPF_MAP_LOOKUP_ELEM, &attr,  sizeof(attr));
+
 	//ret = mmap_bpf_map_lookup(id, args, map_fd);
-	if (args->prot != PROT_EXEC) {
+	if (args->prot != 0x04) {
         printf("Protocol is not exec\n");
 		return ret;
 	}
-    	printf("Mmap length is %ld\n", args->length);
+    printf("Mmap length is %ld\n", args->length);
 	/*data = init_container_ima(inum, c_ima_dir, c_ima_symlink);
 
 	/*file = container_ima_retrieve_file(args);
@@ -103,4 +125,8 @@ int syscall__probe_ret_mmap(struct pt_regs *ctx)
 	}*/
 
 	return ret;
+}
+int main(int argc, char **argv)
+{
+	map_fd = syscall(SYS_bpf, BPF_MAP_CREATE, &map_attr, sizeof(map_attr));
 }

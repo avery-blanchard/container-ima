@@ -19,4 +19,5 @@ PHONY += clean
 clean:
 		make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 		rm -f format_ebpf_ima
+		rm -f probe
 .PHONY: $(PHONY)
