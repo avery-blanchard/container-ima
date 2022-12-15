@@ -37,6 +37,7 @@
 #define MAX_ENTRIES 100
 #define MODULE_NAME "ContainerIMA"
 #define INTEGRITY_KEYRING_IMA 1
+#define mmap_log "/home/avery/container-ima/log.txt"
 
 struct dentry *integrity_dir;
 struct tpm_chip *ima_tpm_chip;
@@ -46,6 +47,57 @@ struct dentry *c_ima_symlink;
 int map_fd;
 
 struct c_ima_data_hash_table *container_hash_table;
+
+int collect_mmap_args(void) 
+{
+	pr_info("In collect map args\n");
+	struct file *file;
+	struct task_struct *task;
+	struct file *cur_file;
+	struct container_ima_data *data;
+	const struct cred *cred;
+	u32 sec_id;
+	int ret;
+	struct mmap_args_t args;
+
+	task = current;
+
+	memset(&args, 0, sizeof(args));
+	
+	file = filp_open(mmap_log, O_RDONLY, 0);
+	if (!file) {
+		pr_err("Failed to open probe logs");
+		return -1;
+	}
+	while((kernel_read(file, &args, 1, &file->f_pos)) != 0 ) {
+		if (args.id != host_inum) {
+			pr_info("Namespace is not host NS\n");
+			if(args.prot == PROT_EXEC) {
+				pr_info("File mapped with prot exec\n");
+				// check if container IMA data exist
+				// process measurement
+				data = init_container_ima(args.id, c_ima_dir, c_ima_symlink);
+
+				cur_file = container_ima_retrieve_file(&args);
+				if (!cur_file) {
+					pr_err("error retrieving file\n");
+					return -1;
+				}		
+				cred = task->real_cred;
+				security_cred_getsecid(cred, &sec_id);
+
+				ret = container_ima_process_measurement(data, cur_file, current_cred(), sec_id, NULL, 0, MAY_EXEC, args.id, &args);
+				if (ret != 0) {
+					pr_err("measurement fails\n");
+					return ret;
+				}
+			}
+		}
+	}
+	filp_close(file, NULL);
+	pr_info("Exiting read\n");
+	return 0;
+}
 static int container_ima_init(void)
 {
 	pr_info("Starting container IMA\n");
@@ -55,60 +107,25 @@ static int container_ima_init(void)
 	struct nsproxy *ns;
 
 	task = current;
-	ns = task->nsproxy;
-	if (!ns->uts_ns) 
+	pr_info("Getting host task\n");
+	host_inum = task->nsproxy->cgroup_ns->ns.inum;
+
+	pr_info("Creating dir\n");
+	c_ima_dir = create_dir("container_ima", NULL);
+	if (IS_ERR(c_ima_dir)) {
+		pr_err("create dir fails\n");
 		return -1;
-	
-	host_inum = ns->cgroup_ns->ns.inum;
-	//host_inum = 0;
-	//map_fd = create_mmap_bpf_map();
-	//pr_err("map_fd %d\n", map_fd);
-	struct file *probe_file;
-    int map_fd;
-    unsigned char probe_buf[PROBE_SIZE];
-    unsigned char log_buf[PROBE_SIZE];
-    struct bpf_insn *insn;
-    union bpf_attr *attr;
-    union bpf_attr map_attr = {};
-    ssize_t len;
-    int ret;
+	}
+	pr_info("Collect\n");
 	/*
-	attr = kmalloc(sizeof(union bpf_attr *),  GFP_KERNEL);
-
-	probe_file = filp_open("./probe", O_RDONLY, 0);
-    if (!probe_file) {
-        pr_err("Unable to open probe file\n");
-        return -1;
-    }
-    pr_info("Opened probe fd\n");
-    len = kernel_read(probe_file, probe_buf, PROBE_SIZE, &probe_file->f_pos);
-    filp_close(probe_file, NULL);
-    pr_info("Read probe into buf\n");
-	pr_info("Probe file: %s\n", probe_buf);
-    insn = (struct bpf_insn *)probe_buf;
-    attr->prog_type = BPF_PROG_TYPE_KPROBE;
-    attr->log_level = 1;
-    attr->log_buf = &log_buf;
-    attr->log_size = LOG_SIZE;
-    attr->insns = insn;
-    attr->license = (unsigned int)"GPL";
-	pr_info("Doing syscall\n");
-	pr_info("Check attr log size: %d\n", attr->log_size);
-    ret = sys_bpf(BPF_PROG_LOAD, attr, sizeof(attr));
-    pr_info("Syscall returned %d\n", ret);
-
-	/*c_ima_dir = securityfs_create_dir("container_ima", NULL);
-	if (IS_ERR(c_ima_dir))
-		return -1;
-	
-	c_ima_symlink = securityfs_create_symlink("container_ima", NULL, "container_ima",
+	c_ima_symlink = create_file("container_ima", NULL, "container_ima",
 						NULL);
 	if (IS_ERR(c_ima_symlink)) {
 		//ret = PTR_ERR(c_ima_symlink);
 		return -1;
 	}*/
 
-	return 0;
+	return collect_mmap_args();
 }
 
 static void container_ima_exit(void)

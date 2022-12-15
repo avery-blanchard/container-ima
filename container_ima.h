@@ -221,6 +221,7 @@ struct mmap_args_t {
 	int flags;
 	int fd;
 	off_t offset;
+	uint64_t id;
 };
 
 /* IMA event related data */
@@ -505,6 +506,8 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
 			      struct ima_digest_data *hash); 
 int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
+struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir);
+struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent, void *data, const struct file_operations *ops);
 static inline unsigned long ima_hash_key(u8 *digest)
 {
 	return hash_long(*digest, IMA_HASH_BITS);
