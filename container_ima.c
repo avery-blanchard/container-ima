@@ -6,6 +6,7 @@
  * Avery Blanchard, agb2178
  */
 #include <linux/module.h>
+#include <linux/unistd.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
@@ -20,6 +21,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/dcache.h>
+#include <linux/syscalls.h>
 #include <linux/hugetlb.h>
 #include <linux/shm.h>
 
@@ -28,11 +30,10 @@
 #include "container_ima_init.h"
 #include "container_ima_fs.h"
 #include "container_ima_api.h"
-#include "ebpf/bpf_helpers.h"
 
 #define PROT_EXEC 0x04
 #define LOG_SIZE 4096
-#define PROBE_SIZE 4096
+#define PROBE_SIZE 2048
 #define MAX_ENTRIES 100
 #define MODULE_NAME "ContainerIMA"
 #define INTEGRITY_KEYRING_IMA 1
@@ -45,154 +46,6 @@ struct dentry *c_ima_symlink;
 int map_fd;
 
 struct c_ima_data_hash_table *container_hash_table;
-/* mapping of id to system call arguments */
-//BPF_HASH(active_mmap_args_map, u64);
-//struct ebpf_args *active_mmap_args_map;
-/*
- * syscall__probe_entry_mmap
- * 
- * void *mmap(void *addr, size_t length, int prot, int flags,
- * 		int fd, off_t offset);
- *
- * https://man7.org/linux/man-pages/man2/mmap.2.html
- *
- * Entry hook for mmap system call 
- */
-int syscall__probe_entry_mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int flags, int fd, off_t offset) 
-{
-	uint64_t id = bpf_get_current_pid_tgid();
-	
-	struct mmap_args_t *args;
-
-	args->addr = addr;
-	args->length = length;
-	args->prot = prot;
-	args->flags = flags;
-	args->fd = fd;
-	args->offset = offset;
-
-	//active_mmap_args_map.update(&id, &args);
-	//mmap_bpf_map_add(id, args, map_fd);
-	int ret;
-	struct task_struct *task;
-	struct file *file;
-	struct container_ima_data *data;
-	unsigned int inum;
-	const struct cred *cred;
-	struct nsproxy *ns;
-	u32 sec_id;
-
-	
-	ret = 0;
-	task =  bpf_get_current_task();
-    ns = task->nsproxy;
-	if (!ns->cgroup_ns)
-		return -1;
-	
-	inum = ns->cgroup_ns->ns.inum;
-	inum = 0;
-	////active_mmap_args_map.pop(&args);
-	ret = mmap_bpf_map_lookup(id, args, map_fd);
-
-	if (inum == host_inum) {
-		return ret;
-	}
-	/* PROT_EXEC 0x04 */
-	if (args->prot != PROT_EXEC) {
-		return ret;
-	}
-
-	/* Check if container already has an active ML, create hash of page and add to ML */
-	/* If not, init then process measurment */
-	data = init_container_ima(inum, c_ima_dir, c_ima_symlink);
-
-	file = container_ima_retrieve_file(args);
-	if (!file) {
-		pr_err("error retrieving file\n");
-		return -1;
-	}
-	//cred = get_task_cred(task);
-	cred = rcu_dereference_protected(current->cred, 1);
-	security_cred_getsecid(cred, &sec_id);
-
-	ret = container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
-	if (ret != 0) {
-		pr_err("measurement fails\n");
-		return ret;
-	}
-
-	return ret;
-	return 0;
-
-}
-/*
- * syscall__probe_ret_mmap 
- *
- * Exit hook for mmap system call
- */
-int syscall__probe_ret_mmap(struct pt_regs *ctx) 
-{
-	/* if system call was 
-	 * 	1. orginating from the container
-	 * 	2. maps an executable page
-	 * 	3. was successful
-	 * then 
-	 * 	1. access argument cache
-	 * 	2. call functions to create hash digest, extend,
-	 * 		and send to TPM for IMA per container.
-	 */
-	pr_info("In mmap probe return\n");
-/*
-	int ret;
-	struct task_struct *task;
-	struct file *file;
-	struct container_ima_data *data;
-	unsigned int inum;
-	const struct cred *cred;
-	struct nsproxy *ns;
-	u32 sec_id;
-	struct mmap_args_t *args;
-	uint64_t id = bpf_get_current_pid_tgid();
-	
-	ret = 0;
-	task =  bpf_get_current_task();
-    ns = task->nsproxy;
-	if (!ns->cgroup_ns)
-		return -1;
-	
-	inum = ns->cgroup_ns->ns.inum;
-	inum = 0;
-	//active_mmap_args_map.pop(&args);
-	ret = mmap_bpf_map_lookup(id, args, map_fd);
-
-	if (inum == host_inum) {
-		return ret;
-	}
-	if (args->prot != PROT_EXEC) {
-		return ret;
-	}
-	data = init_container_ima(inum, c_ima_dir, c_ima_symlink);
-
-	file = container_ima_retrieve_file(args);
-	if (!file) {
-		pr_err("error retrieving file\n");
-		return -1;
-	}
-	//cred = get_task_cred(task);
-	cred = rcu_dereference_protected(current->cred, 1);
-	security_cred_getsecid(cred, &sec_id);
-
-	ret = container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
-	if (ret != 0) {
-		pr_err("measurement fails\n");
-		return ret;
-	}
-
-	return ret;
-
-	*/
-	return 0;
-}
 static int container_ima_init(void)
 {
 	pr_info("Starting container IMA\n");
@@ -215,10 +68,12 @@ static int container_ima_init(void)
     unsigned char probe_buf[PROBE_SIZE];
     unsigned char log_buf[PROBE_SIZE];
     struct bpf_insn *insn;
-    union bpf_attr attr = {};
+    union bpf_attr *attr;
     union bpf_attr map_attr = {};
     ssize_t len;
     int ret;
+	/*
+	attr = kmalloc(sizeof(union bpf_attr *),  GFP_KERNEL);
 
 	probe_file = filp_open("./probe", O_RDONLY, 0);
     if (!probe_file) {
@@ -229,15 +84,17 @@ static int container_ima_init(void)
     len = kernel_read(probe_file, probe_buf, PROBE_SIZE, &probe_file->f_pos);
     filp_close(probe_file, NULL);
     pr_info("Read probe into buf\n");
+	pr_info("Probe file: %s\n", probe_buf);
     insn = (struct bpf_insn *)probe_buf;
-    attr.prog_type = BPF_PROG_TYPE_KPROBE;
-    attr.log_level = 1;
-    attr.log_buf = &log_buf;
-    attr.log_size = LOG_SIZE;
-    attr.insns = insn;
-    attr.license = (unsigned int)"GPL";
+    attr->prog_type = BPF_PROG_TYPE_KPROBE;
+    attr->log_level = 1;
+    attr->log_buf = &log_buf;
+    attr->log_size = LOG_SIZE;
+    attr->insns = insn;
+    attr->license = (unsigned int)"GPL";
 	pr_info("Doing syscall\n");
-    ret = bpf_sys_bpf(BPF_PROG_LOAD, &attr, sizeof(attr));
+	pr_info("Check attr log size: %d\n", attr->log_size);
+    ret = sys_bpf(BPF_PROG_LOAD, attr, sizeof(attr));
     pr_info("Syscall returned %d\n", ret);
 
 	/*c_ima_dir = securityfs_create_dir("container_ima", NULL);

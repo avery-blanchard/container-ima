@@ -11,7 +11,6 @@
 #include <linux/bpf.h>
 #include <linux/spinlock.h>
 #include <linux/integrity.h>
-#include "ebpf/bpf_helpers.h"
 #include "container_ima.h"
 #include "container_ima.h"
 #include "container_ima.h"
@@ -141,73 +140,5 @@ int container_ima_crypto_init(struct container_ima_data *data)
 
 	return 0;
 
-}
-
-int bpf_create_map_xattr(const struct bpf_create_map_attr *create_attr)
-{
-	union bpf_attr attr;
-
-	memset(&attr, '\0', sizeof(attr));
-
-	attr.map_type = create_attr->map_type;
-	attr.key_size = create_attr->key_size;
-	attr.value_size = create_attr->value_size;
-	attr.max_entries = create_attr->max_entries;
-	attr.map_flags = create_attr->map_flags;
-	if (create_attr->name)
-		memcpy(attr.map_name, create_attr->name,
-		       min(strlen(create_attr->name), BPF_OBJ_NAME_LEN - 1));
-	attr.numa_node = create_attr->numa_node;
-	attr.btf_fd = create_attr->btf_fd;
-	attr.btf_key_type_id = create_attr->btf_key_type_id;
-	attr.btf_value_type_id = create_attr->btf_value_type_id;
-	attr.map_ifindex = create_attr->map_ifindex;
-
-	return bpf_sys_bpf(BPF_MAP_CREATE, &attr, sizeof(attr));
-}
-int bpf_create_map(enum bpf_map_type map_type, int key_size,
-		   int value_size, int max_entries, __u32 map_flags)
-{
-	struct bpf_create_map_attr map_attr = {};
-
-	map_attr.map_type = map_type;
-	map_attr.map_flags = map_flags;
-	map_attr.key_size = key_size;
-	map_attr.value_size = value_size;
-	map_attr.max_entries = max_entries;
-
-	return bpf_create_map_xattr(&map_attr);
-}
-/*
- * create_mmap_bpf_map
- * https://elixir.boo lin.com/linux/v4.14.135/source/tools/lib/bpf/bpf.c#L83
- * https://man7.org/linux/man-pages/man2/bpf.2.html
- */
-int create_mmap_bpf_map(void) 
-{
-	int ret;
-	int key_size = (int) sizeof(uint64_t);
-	int value_size = sizeof(struct mmap_args_t *);
-	return bpf_create_map(BPF_MAP_TYPE_ARRAY, key_size, value_size, MMAP_MAX_MAPPINGS, 0);
-
-
-}
-/*
- * mmap_bpf_map_add
- * https://elixir.bootlin.com/linux/v4.14.135/source/tools/lib/bpf/bpf.c#L170
- */
-static long mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd)
-{
-	return bpf_map_update_elem(map_fd, &id, (void *)args, 0);
-
-}
-/*
- * mmap_bpf_map_lookup 
- * https://elixir.bootlin.com/linux/v4.14.135/source/tools/lib/bpf/bpf.c#L184 
- */
-static long mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd)
-{
-	args = bpf_map_lookup_elem(map_fd, &id);
-	return bpf_map_delete_elem(&map_fd, &id);
 }
 #endif
