@@ -8,7 +8,6 @@ prog = """
 #include <linux/cgroup.h>
 #include <linux/security.h>
 #include <linux/integrity.h>
-#include "container_ima.h"
 struct mmap_args_t {
 	void *addr;
 	size_t length;
@@ -46,8 +45,7 @@ int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int 
     mmap.id = id;
 
     key = bpf_get_prandom_u32();
-    if (prot == 0x04)
-        mmap_args.insert(&key, &mmap);
+    mmap_args.insert(&key, &mmap);
     
     
     return 0;
