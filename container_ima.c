@@ -57,10 +57,11 @@ int collect_mmap_args(void * ptr)
 	u32 sec_id;
 	int ret;
 	long res;
-	int len;
-	int fd;
-	int off;
+	char  *len;
+	char *fd;
+	char *off;
 	int i;
+	char *tmp;
 	int j;
 	struct mmap_args_t *args;
 
@@ -86,66 +87,64 @@ int collect_mmap_args(void * ptr)
 		char *tmp = &buf[0];
 		cur = strsep(&tmp, "\n");
 		pr_info("Cur %s\n", cur);
-		for (i = 0; i <7; i++) {
-		   //cur = strsep(&tmp, "\n");
-			args->id = strsep(&cur, ",");
-			if (!args->id) {
+		for (i = 0; i < 7; i++) {
+			tmp = strsep(&cur, ",");
+			if (!tmp) {
 				pr_err("strsep returns NULL");
 				return -1;
 			}
-			pr_info("Log ID %s\n",args->id);
+			pr_info("Log ID %s\n",tmp);
 
-			if (kstrtol(args->id, 0, &res) !=0)
+			if (kstrtol(tmp, 0, &args->id) !=0)
 				return -1;
-			pr_info("check: %llu\n", res);
+			pr_info("check: %llu\n", args->id);
 			pr_info("host_inum %llu\n", host_inum);
 
+			pr_info("ADDR PRE\n");
 			args->addr = (void *) strsep(&cur, ",");
-			if (!args->addr)	{
+			if (strlen(args->addr) <= 0)	{
 				pr_err("strsep returns NULL");
 				return -1;
 			}
-			
-			args->length = strsep(&cur, ",");
-			if (!args->length)	{
-				pr_err("strsep returns NULL");
-				return -1;
-			}
-			pr_info("Len str %s\n", args->length);
+			pr_info("ADDR AFTER\n");
 
-			if (kstrtoint(args->length, 0, &len) !=0)	{
+			
+			len = strsep(&cur, ",");
+			if (strlen(len) <= 0)	{
+				pr_err("strsep returns NULL");
+				return -1;
+			}
+			pr_info("Len str %s\n", len);
+
+			if (kstrtoint(len, 0, &args->length) !=0)	{
 				pr_err("kstrtpint returns 0");
 				return -1;
 			}
-			args->length = len;
 			pr_info("Length: %d\n", args->length);
 
 			args->prot = PROT_EXEC;
 
-			args->fd = strsep(&cur, ",");
-			if (!args->length)	{
+			fd = strsep(&cur, ",");
+			if (strlen(fd) <= 0)	{
 				pr_err("strsep returns NULL");
 				return -1;
 			}
-			if (kstrtoint(args->fd, 0, &fd) !=0){
+			if (kstrtoint(fd, 0, &args->fd) !=0){
 				pr_err("kstrtpint returns 0");
 				return -1;
 			}
-			args->fd = fd;
 			pr_info("FD: %d\n", args->fd);
 
 
-			args->offset = strsep(&cur, ",");
-			if (!args->offset)	{
+			off = strsep(&cur, ",");
+			if (strlen(off) <= 0)	{
 				pr_err("strsep returns NULL");
 				return -1;
 			}
-			if (kstrtoint(args->offset, 0, &off) !=0){
+			if (kstrtoint(off, 0, &args->offset) !=0){
 				pr_err("kstrtpint returns 0");
 				return -1;
 			}
-			args->offset = (off_t)off;
-			//pr_info("Length: %d\n", args->length);
 			// check if container IMA data exist
 			// process measurement
 			data = init_container_ima(args->id, c_ima_dir, c_ima_symlink);
