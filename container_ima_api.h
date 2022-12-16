@@ -363,6 +363,8 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	enum hash_algo hash_algo;
 	unsigned int allowed_algos = 0;
 
+	pr_info("In process measurment\n");
+
 	inode = file_inode(file);
 
 
@@ -374,6 +376,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 				mask, IMA_PCR, &template_desc, NULL,
 				&allowed_algos);
 	
+	pr_info("Got action\n");
 	violation_check = ((data->c_ima_policy_flags & IMA_MEASURE));
 	if (!action && !violation_check)
 		return 0;
@@ -387,7 +390,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 		if (!iint)
 			ret = -ENOMEM;
 	}
-
+	pr_info("Retrived inode from rb tree\n");
 	// handle violations 
 	if (!ret && violation_check)
 		container_ima_rdwr_violation_check(data, file, iint, action & IMA_MEASURE,
@@ -428,7 +431,10 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 		action ^= IMA_HASH;
 		set_bit(IMA_UPDATE_XATTR, &iint->atomic_flags);
 	}
+	pr_info("Got hash algo\n");
 	hash_algo = ima_get_hash_algo(xattr_value, xattr_len);
+
+	pr_info("Pre-collect measurement\n");
 
 	ret = container_ima_collect_measurement(data, args, container_id, iint, hash_algo, buf, size);
 	if (ret != 0) {
@@ -460,6 +466,7 @@ out:
 		ret = -EACCES;
 	mutex_unlock(&iint->mutex);
 
+	pr_info("leaving process measurment\n");
 	return 0;
 
 

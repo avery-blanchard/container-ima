@@ -1,10 +1,4 @@
-/*
- * Project for comsE6118:
- * Container IMA using eBPF
- * Fall 2022
- *
- * Avery Blanchard, agb2178
- */
+#define _GNU_SOURCE
 #include <linux/module.h>
 #include <linux/unistd.h>
 #include <linux/slab.h>
@@ -24,6 +18,8 @@
 #include <linux/syscalls.h>
 #include <linux/hugetlb.h>
 #include <linux/shm.h>
+#include <linux/fcntl.h>
+#include <linux/kthread.h>
 
 #include "container_ima.h"
 #include "container_ima_crypto.h"
@@ -41,68 +37,171 @@
 
 struct dentry *integrity_dir;
 struct tpm_chip *ima_tpm_chip;
-int host_inum;
+long host_inum;
 struct dentry *c_ima_dir;
 struct dentry *c_ima_symlink;
 int map_fd;
-
+struct task_struct *thread;
 struct c_ima_data_hash_table *container_hash_table;
 
-int collect_mmap_args(void) 
+int collect_mmap_args(void * ptr) 
 {
 	pr_info("In collect map args\n");
 	struct file *file;
 	struct task_struct *task;
 	struct file *cur_file;
+	char *cur;
+	char buf[2048];
 	struct container_ima_data *data;
 	const struct cred *cred;
 	u32 sec_id;
 	int ret;
-	struct mmap_args_t args;
+	long res;
+	int len;
+	int fd;
+	int off;
+	int i;
+	int j;
+	struct mmap_args_t *args;
 
 	task = current;
 
 	memset(&args, 0, sizeof(args));
-	
-	file = filp_open(mmap_log, O_RDONLY, 0);
-	if (!file) {
-		pr_err("Failed to open probe logs");
-		return -1;
-	}
-	while((kernel_read(file, &args, 1, &file->f_pos)) != 0 ) {
-		if (args.id != host_inum) {
-			pr_info("Namespace is not host NS\n");
-			if(args.prot == PROT_EXEC) {
-				pr_info("File mapped with prot exec\n");
-				// check if container IMA data exist
-				// process measurement
-				data = init_container_ima(args.id, c_ima_dir, c_ima_symlink);
+	for (j = 0; j <1 ;j++) {
+		file = filp_open(mmap_log, O_RDONLY, 0);
+		if (!file) {
+			pr_err("Failed to open probe logs");
+			return -1;
+		}
+		args = kmalloc(sizeof(struct mmap_args_t),  GFP_KERNEL);
+		if (!args) {
+			pr_err("Kmalloc fails\n");
+			return -1;
+		}
+		pr_info("Starting loop\n");
+		ret = kernel_read(file, &buf, sizeof(buf), &file->f_pos);
 
-				cur_file = container_ima_retrieve_file(&args);
-				if (!cur_file) {
-					pr_err("error retrieving file\n");
-					return -1;
-				}		
-				cred = task->real_cred;
-				security_cred_getsecid(cred, &sec_id);
+		if (ret == 0)
+			break;
+		char *tmp = &buf[0];
+		cur = strsep(&tmp, "\n");
+		pr_info("Cur %s\n", cur);
+		for (i = 0; i <7; i++) {
+		   //cur = strsep(&tmp, "\n");
+			args->id = strsep(&cur, ",");
+			if (!args->id) {
+				pr_err("strsep returns NULL");
+				return -1;
+			}
+			pr_info("Log ID %s\n",args->id);
 
-				ret = container_ima_process_measurement(data, cur_file, current_cred(), sec_id, NULL, 0, MAY_EXEC, args.id, &args);
-				if (ret != 0) {
-					pr_err("measurement fails\n");
-					return ret;
-				}
+			if (kstrtol(args->id, 0, &res) !=0)
+				return -1;
+			pr_info("check: %llu\n", res);
+			pr_info("host_inum %llu\n", host_inum);
+
+			args->addr = (void *) strsep(&cur, ",");
+			if (!args->addr)	{
+				pr_err("strsep returns NULL");
+				return -1;
+			}
+			
+			args->length = strsep(&cur, ",");
+			if (!args->length)	{
+				pr_err("strsep returns NULL");
+				return -1;
+			}
+			pr_info("Len str %s\n", args->length);
+
+			if (kstrtoint(args->length, 0, &len) !=0)	{
+				pr_err("kstrtpint returns 0");
+				return -1;
+			}
+			args->length = len;
+			pr_info("Length: %d\n", args->length);
+
+			args->prot = PROT_EXEC;
+
+			args->fd = strsep(&cur, ",");
+			if (!args->length)	{
+				pr_err("strsep returns NULL");
+				return -1;
+			}
+			if (kstrtoint(args->fd, 0, &fd) !=0){
+				pr_err("kstrtpint returns 0");
+				return -1;
+			}
+			args->fd = fd;
+			pr_info("FD: %d\n", args->fd);
+
+
+			args->offset = strsep(&cur, ",");
+			if (!args->offset)	{
+				pr_err("strsep returns NULL");
+				return -1;
+			}
+			if (kstrtoint(args->offset, 0, &off) !=0){
+				pr_err("kstrtpint returns 0");
+				return -1;
+			}
+			args->offset = (off_t)off;
+			//pr_info("Length: %d\n", args->length);
+			// check if container IMA data exist
+			// process measurement
+			data = init_container_ima(args->id, c_ima_dir, c_ima_symlink);
+
+			cur_file = container_ima_retrieve_file(args);
+			if (!cur_file) {
+				pr_err("error retrieving file\n");
+				return -1;
+			}		
+			cred = task->real_cred;
+			security_cred_getsecid(cred, &sec_id);
+
+			ret = container_ima_process_measurement(data, cur_file, current_cred(), sec_id, NULL, 0, MAY_EXEC, args->id, args);
+			if (ret != 0) {
+				pr_err("measurement fails\n");
+						return ret;
 			}
 		}
+		kfree(args);
+		args = kmalloc(sizeof(struct mmap_args_t ),  GFP_KERNEL);
+		if (!args) {
+			pr_err("Kmalloc fails\n");
+			return -1;
+		}
+		filp_close(file, NULL);
+		return 1;
 	}
-	filp_close(file, NULL);
 	pr_info("Exiting read\n");
 	return 0;
+}
+int process_mmap(struct mmap_args_t *args) 
+{
+	struct task_struct *task;
+	const struct cred *cred;
+	u32 sec_id;
+	int ret;
+
+	return 1;
+}
+EXPORT_SYMBOL(process_mmap);
+
+void init_bpf_thread(void)
+{
+	pr_info("Creating bpf thread\n");
+	int (*threadfn)(void *data) = &collect_mmap_args;
+	// https://elixir.bootlin.com/linux/v4.19/source/include/linux/kthread.h#L26 
+	thread = kthread_run(threadfn, NULL, "%s", "ima_bpf_thread");
+
+	return;
 }
 static int container_ima_init(void)
 {
 	pr_info("Starting container IMA\n");
 
 	/* Start container IMA */
+	struct file *file;
 	struct task_struct *task;
 	struct nsproxy *ns;
 
@@ -111,8 +210,12 @@ static int container_ima_init(void)
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
 
 	pr_info("Creating dir\n");
-	c_ima_dir = create_dir("container_ima", NULL);
-	if (IS_ERR(c_ima_dir)) {
+	
+	/*
+	file = NULL;
+	file = filp_open("/integrity/container-ima/", O_DIRECTORY|O_CREAT, 0755);
+	c_ima_dir = file->f_inode->i_sb->s_root;
+	if (!c_ima_dir) {
 		pr_err("create dir fails\n");
 		return -1;
 	}
@@ -124,8 +227,8 @@ static int container_ima_init(void)
 		//ret = PTR_ERR(c_ima_symlink);
 		return -1;
 	}*/
-
-	return collect_mmap_args();
+	init_bpf_thread();
+	return 0;
 }
 
 static void container_ima_exit(void)
@@ -134,7 +237,8 @@ static void container_ima_exit(void)
 	 * Free keyring and vTPMs
 	 */
 	int ret;
-
+	kthread_stop(thread);
+	pr_info("Exiting Container IMA\n");
 	//ret = container_ima_cleanup();
 	return;
 }

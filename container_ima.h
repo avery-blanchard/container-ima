@@ -190,8 +190,6 @@ struct evm_ima_xattr_data {
 
 #define IMA_TEMPLATE_FIELD_ID_MAX_LEN	16
 #define IMA_TEMPLATE_NUM_FIELDS_MAX	15
-
-#define IMA_TEMPLATE_IMA_NAME "ima"
 #define IMA_TEMPLATE_IMA_FMT "d|n"
 
 #define IMA_MAX_DIGEST_SIZE	64
@@ -206,7 +204,7 @@ enum policy_types { ORIGINAL_TCB = 1, DEFAULT_TCB };
 enum policy_rule_list { IMA_DEFAULT_POLICY = 1, IMA_CUSTOM_POLICY };
 
 extern struct tpm_chip *ima_tpm_chip;
-extern int host_inum;
+extern long host_inum;
 extern struct c_ima_data_hash_table *container_hash_table;
 extern int ima_hash_algo;
 extern struct dentry *c_ima_dir;
@@ -363,23 +361,8 @@ struct container_ima_data {
 	struct rb_root container_integrity_iint_tree;
 
 };
-struct bpf_create_map_attr {
-	const char *name;
-	enum bpf_map_type map_type;
-	__u32 map_flags;
-	__u32 key_size;
-	__u32 value_size;
-	__u32 max_entries;
-	__u32 numa_node;
-	__u32 btf_fd;
-	__u32 btf_key_type_id;
-	__u32 btf_value_type_id;
-	__u32 map_ifindex;
-	union {
-		__u32 inner_map_fd;
-		__u32 btf_vmlinux_value_type_id;
-	};
-};
+
+
 /* integrity data associated with an inode */
 struct integrity_iint_cache {
 	struct rb_node rb_node;	/* rooted in integrity_iint_tree */
@@ -455,8 +438,8 @@ static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *d
 static int container_ima_add_digest_entry(struct container_ima_data *data, struct ima_template_entry *entry);
 struct container_ima_data *ima_data_exists(unsigned int id);
 static int get_binary_runtime_size(struct ima_template_entry *entry);
-static int ima_get_verity_digest(struct integrity_iint_cache *iint,
-				 struct ima_max_digest_data *hash);
+//static int ima_get_verity_digest(struct integrity_iint_cache *iint,
+			//	 struct ima_max_digest_data *hash);
 void ima_audit_measurement(struct integrity_iint_cache *iint,
 			   const unsigned char *filename);
 const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf);
@@ -508,6 +491,7 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir);
 struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent, void *data, const struct file_operations *ops);
+//extern int process_mmap(struct mmap_args_t *args);
 static inline unsigned long ima_hash_key(u8 *digest)
 {
 	return hash_long(*digest, IMA_HASH_BITS);

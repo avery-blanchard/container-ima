@@ -6,7 +6,9 @@ prog = """
 #include <linux/fs.h>
 #include <linux/nsproxy.h>
 #include <linux/cgroup.h>
-
+#include <linux/security.h>
+#include <linux/integrity.h>
+#include "container_ima.h"
 struct mmap_args_t {
 	void *addr;
 	size_t length;
@@ -15,9 +17,8 @@ struct mmap_args_t {
 	int fd;
 	off_t offset;
     uint64_t id;
-    //uint64_t pad;
 };
-#define filename "/integrity/ima/mmap.txt"
+
 BPF_HASH(mmap_args, u32, struct mmap_args_t);
 
 int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int flags, int fd, off_t offset)  {
@@ -45,8 +46,8 @@ int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int 
     mmap.id = id;
 
     key = bpf_get_prandom_u32();
-    
-    mmap_args.insert(&key, &mmap);
+    if (prot == 0x04)
+        mmap_args.insert(&key, &mmap);
     
     
     return 0;
@@ -59,11 +60,11 @@ b.attach_kprobe(event=clone, fn_name="syscall__mmap")
 table = b.get_table("mmap_args")
 while 1:
         for key, value in table.items():
-            log = open("/home/avery/container-ima/log.txt", 'wb+')
+            log = open("/home/avery/container-ima/log.txt", 'ab+')
             cur_line = ""
-            #cur_line += "{0}, {1}, {2}, {3}, {4}, {5}, {6}\n".format(value.id, value.addr, value.length, value.prot, value.flags,value.flags, value.fd, value.offset)
-            cur_line += "{0}\n".format(value)
+            cur_line += "{0}, {1}, {2}, {3}, {4}, {5}, {6}\n".format(value.id, value.addr, value.length, value.prot, value.flags,value.flags, value.fd, value.offset)
+            #cur_line += "{0}\n".format(value)
             log.write(value)
             log.close()
-            print(key.value)
+            print(cur_line)
 
