@@ -349,8 +349,8 @@ struct container_ima_data {
 	struct mutex c_ima_write_mutex;
 	int c_ima_policy_flags;
 	struct dentry *container_dir;
-	struct dentry *binary_runtime_measurements;
-	struct dentry *ascii_runtime_measurements;
+	struct dentry *binary_runtime_measurements; // https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L362
+	struct dentry *ascii_runtime_measurements; // https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L363
 	struct dentry *violations_log;
 	struct rb_root container_integrity_iint_tree;
 
