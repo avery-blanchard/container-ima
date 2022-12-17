@@ -287,28 +287,9 @@ static int ima_ascii_measurements_open(struct inode *inode, struct file *file)
 {
 	return seq_open(file, &c_ima_ascii_measurements_seqops);
 }
-/* TO DO 
- * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L68
- */
-static ssize_t ima_show_measurements_count(struct file *filp,
-					   char __user *buf,
-					   size_t count, loff_t *ppos)
-{
-	unsigned int id;
-	struct container_ima_data *data;
-	struct task_struct *task = get_current();
-
-	data = ima_data_exists(id);
-	return ima_show_htable_value(buf, count, ppos, &data->hash_tbl->len);
-
-}
 
 static const struct file_operations c_ima_htable_violations_ops = {
 	.read = c_ima_show_htable_violations,
-	.llseek = generic_file_llseek,
-};
-static const struct file_operations ima_measurements_count_ops = {
-	.read = ima_show_measurements_count,
 	.llseek = generic_file_llseek,
 };
 static const struct file_operations c_ima_ascii_measurements_ops = {
@@ -384,13 +365,13 @@ struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir)
 int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_dir, struct dentry *c_ima_symlink) 
 {
 	int res;
-	char *dir_name = "integrity/ima/container/";
+	char *dir_name = "integrity/ima/containers/";
 	char *id;
 
 	sprintf(id, "%n", &data->container_id);
 	strcat(dir_name, id);
 
-	data->container_dir = create_dir("container_ima", c_ima_dir);
+	data->container_dir = create_dir(dir_name, c_ima_dir);
 	if (IS_ERR(data->container_dir))
 		return -1;
 
@@ -408,14 +389,6 @@ int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_
 				   &c_ima_ascii_measurements_ops);
 	if (IS_ERR(data->ascii_runtime_measurements)) {
 		res = PTR_ERR(data->ascii_runtime_measurements);
-		return -1;
-	}
-
-	data->runtime_measurements_count = create_file("runtime_measurements_count",
-				   S_IRUSR | S_IRGRP,data->container_dir, NULL,
-				   &ima_measurements_count_ops);
-	if (IS_ERR(data->runtime_measurements_count)) {
-		res = PTR_ERR(data->runtime_measurements_count);
 		return -1;
 	}
 

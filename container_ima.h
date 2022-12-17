@@ -334,7 +334,7 @@ struct hash {
 		struct ima_digest_data hdr;
 		char digest[IMA_MAX_DIGEST_SIZE];
 };
-/* TODO */
+/* TODO fix policy  */
 struct container_ima_data {
 	unsigned int container_id;  // inum of ns
 	atomic_long_t len; // number of digest
@@ -347,14 +347,11 @@ struct container_ima_data {
 	unsigned long binary_runtime_size;
 	struct ima_h_table *hash_tbl;  
 	struct mutex c_ima_write_mutex;
-	unsigned long c_ima_fs_flags;
 	int c_ima_policy_flags;
 	struct dentry *container_dir;
 	struct dentry *binary_runtime_measurements;
 	struct dentry *ascii_runtime_measurements;
-	struct dentry *runtime_measurements_count;
 	struct dentry *violations_log;
-	struct dentry *active;
 	struct rb_root container_integrity_iint_tree;
 
 };
