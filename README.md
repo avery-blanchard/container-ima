@@ -5,6 +5,3 @@ The goal of this project is to extend the Linux Integrity Measurement Architectu
 
 It uses eBPF to probe the mmap system call to measure executable files mapped in a container.
 
-To do: 
-    - clean up upon exit
-    - figure out how to check if containers still exist?
