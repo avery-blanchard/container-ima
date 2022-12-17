@@ -39,7 +39,9 @@ static int __init default_canonical_fmt_setup(char *str)
 __setup("ima_canonical_fmt", default_canonical_fmt_setup);
 
 static int valid_policy = 1;
-
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_fs.c#L212
+ */
 void ima_print_digest(struct seq_file *m, u8 *digest, u32 size)
 {
 	u32 i;
@@ -47,7 +49,9 @@ void ima_print_digest(struct seq_file *m, u8 *digest, u32 size)
 	for (i = 0; i < size; i++)
 		seq_printf(m, "%02x", *(digest + i));
 }
-
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_fs.c#L99
+ */
 static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos)
 {
     struct container_ima_data *data;
@@ -69,11 +73,17 @@ static const struct file_operations c_ima_measurements_ops = {
 	.llseek = seq_lseek,
 	.release = seq_release,
 }; 
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_fs.c#L118
+ */
 void ima_putc(struct seq_file *m, void *data, int datalen)
 {
 	while (datalen--)
 		seq_putc(m, *(char *)data++);
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_fs.c#L221
+ */
 static int ima_ascii_measurements_show(struct seq_file *m, void *v)
 {
 	/* the list never shrinks, so we don't need a lock here */
@@ -112,7 +122,10 @@ static int ima_ascii_measurements_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-/* returns pointer to hlist_node */
+/* 
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_fs.c#L82
+ * returns pointer to hlist_node 
+ */
 static void *ima_measurements_start(struct seq_file *m, loff_t *pos)
 {
 	loff_t l = *pos;
@@ -133,6 +146,9 @@ static void *ima_measurements_start(struct seq_file *m, loff_t *pos)
 	rcu_read_unlock();
 	return NULL;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_fs.c#L132
+ */
 int ima_measurements_show(struct seq_file *m, void *v)
 {
 	/* the list never shrinks, so we don't need a lock here */
@@ -214,6 +230,9 @@ static int c_ima_seq_open(struct inode *inode, struct file *file)
 {
 	return seq_open(file, &c_ima_measurments_seqops);
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L56
+ */
 static ssize_t c_ima_show_htable_violations(struct file *filp,
 					  char __user *buf,
 					  size_t count, loff_t *ppos) 
@@ -229,6 +248,9 @@ static ssize_t c_ima_show_htable_violations(struct file *filp,
 
     return  simple_read_from_buffer(buf, count, ppos, tmp, len);
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L46
+ */
 static ssize_t ima_show_htable_value(char __user *buf, size_t count,
 				     loff_t *ppos, atomic_long_t *val)
 {
@@ -237,7 +259,9 @@ static ssize_t ima_show_htable_value(char __user *buf, size_t count,
 	len = scnprintf(tmpbuf, sizeof(tmpbuf), "%li\n", atomic_long_read(val));
 	return simple_read_from_buffer(buf, count, ppos, tmpbuf, len);
 }
-
+/*
+ * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L56
+ */
 static ssize_t ima_show_htable_violations(struct file *filp,
 					  char __user *buf,
 					  size_t count, loff_t *ppos)
@@ -249,17 +273,23 @@ static ssize_t ima_show_htable_violations(struct file *filp,
 	data = ima_data_exists(id);
 	return ima_show_htable_value(buf, count, ppos, &data->hash_tbl->violations);
 }
-
+/*
+ * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L200
+ */
 static int ima_measurements_open(struct inode *inode, struct file *file)
 {
 	return seq_open(file, &c_ima_measurments_seqops);
 }
-
+/*
+ * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L266
+ */
 static int ima_ascii_measurements_open(struct inode *inode, struct file *file)
 {
 	return seq_open(file, &c_ima_ascii_measurements_seqops);
 }
-
+/* TO DO 
+ * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L68
+ */
 static ssize_t ima_show_measurements_count(struct file *filp,
 					   char __user *buf,
 					   size_t count, loff_t *ppos)
@@ -349,7 +379,7 @@ struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir)
  * container_ima_fs_init
  *      Create a secure place to store per container measurement logs
  * 		Idea: under /integrity/ima/containers/ have a directory per container named with container id
- *      	
+ *  https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L454    	
  */
 int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_dir, struct dentry *c_ima_symlink) 
 {

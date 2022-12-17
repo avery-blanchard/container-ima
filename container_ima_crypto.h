@@ -30,6 +30,9 @@ static unsigned long ima_ahash_minsize;
 module_param_named(ahash_minsize, ima_ahash_minsize, ulong, 0644);
 MODULE_PARM_DESC(ahash_minsize, "Minimum file size for ahash use");
 
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L39
+ */
 static int param_set_bufsize(const char *val, const struct kernel_param *kp)
 {
 	unsigned long long size;
@@ -53,22 +56,9 @@ static const struct kernel_param_ops param_ops_bufsize = {
 module_param_named(ahash_bufsize, ima_bufsize, bufsize, 0644);
 MODULE_PARM_DESC(ahash_bufsize, "Maximum ahash buffer size");
 
-int __init ima_init_crypto(void)
-{
-	long rc;
-
-	ima_shash_tfm = crypto_alloc_shash(hash_algo_name[ima_hash_algo], 0, 0);
-	if (IS_ERR(ima_shash_tfm)) {
-		rc = PTR_ERR(ima_shash_tfm);
-		pr_err("Can not allocate %s (reason: %ld)\n",
-		       hash_algo_name[ima_hash_algo], rc);
-		return rc;
-	}
-	pr_info("Allocated hash algorithm: %s\n",
-		hash_algo_name[ima_hash_algo]);
-	return 0;
-}
-
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L448
+ */
 static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
 					 struct ima_template_desc *td,
 					 int num_fields,
@@ -115,11 +105,17 @@ static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
 
 	return rc;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L100
+ */
 static void ima_free_tfm(struct crypto_shash *tfm)
 {
 	if (tfm != ima_shash_tfm)
 		crypto_free_shash(tfm);
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L81
+ */
 static struct crypto_shash *ima_alloc_tfm(enum hash_algo algo)
 {
 	struct crypto_shash *tfm = ima_shash_tfm;
@@ -138,6 +134,9 @@ static struct crypto_shash *ima_alloc_tfm(enum hash_algo algo)
 	}
 	return tfm;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L495
+ */
 int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
 			      struct ima_digest_data *hash)
@@ -156,6 +155,9 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 
 	return rc;
 }
+/* 
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L168
+ */
 static struct crypto_ahash *ima_alloc_atfm(enum hash_algo algo)
 {
 	struct crypto_ahash *tfm = ima_ahash_tfm;
@@ -177,6 +179,9 @@ static struct crypto_ahash *ima_alloc_atfm(enum hash_algo algo)
 	}
 	return tfm;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L196
+ */
 static inline int ahash_wait(int err, struct crypto_wait *wait)
 {
 	err = crypto_wait_req(err, wait);
@@ -186,6 +191,9 @@ static inline int ahash_wait(int err, struct crypto_wait *wait)
 
 	return err;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L106
+ */
 static void *ima_alloc_pages(loff_t max_size, size_t *allocated_size,
 			     int last_warn)
 {
@@ -220,12 +228,18 @@ static void *ima_alloc_pages(loff_t max_size, size_t *allocated_size,
 	*allocated_size = 0;
 	return NULL;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L156
+ */
 static void ima_free_pages(void *ptr, size_t size)
 {
 	if (!ptr)
 		return;
 	free_pages((unsigned long)ptr, get_order(size));
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L207
+ */
 static int ima_calc_file_hash_atfm(struct file *file,
 				   struct ima_digest_data *hash,
 				   struct crypto_ahash *tfm)
@@ -335,11 +349,17 @@ out1:
 	ahash_request_free(req);
 	return rc;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L190
+ */
 static void ima_free_atfm(struct crypto_ahash *tfm)
 {
 	if (tfm != ima_ahash_tfm)
 		crypto_free_ahash(tfm);
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L317
+ */
 static int ima_calc_file_ahash(struct file *file, struct ima_digest_data *hash)
 {
 	struct crypto_ahash *tfm;
@@ -355,6 +375,9 @@ static int ima_calc_file_ahash(struct file *file, struct ima_digest_data *hash)
 
 	return rc;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L333
+ */
 static int ima_calc_file_hash_tfm(struct file *file,
 				  struct ima_digest_data *hash,
 				  struct crypto_shash *tfm)
@@ -411,7 +434,9 @@ out:
 		rc = crypto_shash_final(shash, hash->digest);
 	return rc;
 }
-
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L390
+ */
 static int ima_calc_file_shash(struct file *file, struct ima_digest_data *hash)
 {
 	struct crypto_shash *tfm;
@@ -427,6 +452,9 @@ static int ima_calc_file_shash(struct file *file, struct ima_digest_data *hash)
 
 	return rc;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L419
+ */
 int ima_calc_file_hash(struct file *file, struct ima_digest_data *hash)
 {
 	loff_t i_size;
@@ -452,6 +480,9 @@ int ima_calc_file_hash(struct file *file, struct ima_digest_data *hash)
 
 	return ima_calc_file_shash(file, hash);
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L514
+ */
 static int calc_buffer_ahash_atfm(const void *buf, loff_t len,
 				  struct ima_digest_data *hash,
 				  struct crypto_ahash *tfm)
@@ -491,6 +522,9 @@ out:
 	ahash_request_free(req);
 	return rc;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L554
+ */
 static int calc_buffer_ahash(const void *buf, loff_t len,
 			     struct ima_digest_data *hash)
 {
@@ -507,6 +541,9 @@ static int calc_buffer_ahash(const void *buf, loff_t len,
 
 	return rc;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L571
+ */
 static int calc_buffer_shash_tfm(const void *buf, loff_t size,
 				struct ima_digest_data *hash,
 				struct crypto_shash *tfm)
@@ -537,6 +574,9 @@ static int calc_buffer_shash_tfm(const void *buf, loff_t size,
 		rc = crypto_shash_final(shash, hash->digest);
 	return rc;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L602
+ */
 static int calc_buffer_shash(const void *buf, loff_t len,
 			     struct ima_digest_data *hash)
 {
@@ -552,6 +592,9 @@ static int calc_buffer_shash(const void *buf, loff_t len,
 	ima_free_tfm(tfm);
 	return rc;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L618
+ */
 int ima_calc_buffer_hash(const void *buf, loff_t len,
 			 struct ima_digest_data *hash)
 {

@@ -79,6 +79,7 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
  /*
   * container_ima_collect_measurement
   *     Get file from mmap args and measure
+  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L198
   */
  int container_ima_collect_measurement(struct container_ima_data *data, struct mmap_args_t *args, unsigned int container_id, struct integrity_iint_cache *iint, enum hash_algo hash_algo, void *buf, loff_t size) 
  {
@@ -152,6 +153,7 @@ out:
  /*
   * container_integrity_inode_find
   *     Traverse rb_tree to see if the inode exists. If exits, return. Else, NULL.
+  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/iint.c#L98 
   */
  struct integrity_iint_cache *container_integrity_inode_find(struct container_ima_data *data, struct inode *inode, unsigned int container_id)
  {
@@ -474,7 +476,7 @@ out:
 /*
  * container_ima_add_digest_entry
  *		Helper for container_ima_add_template_entry
- *
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_queue.c#L96
  */
 static int container_ima_add_digest_entry(struct container_ima_data *data, struct ima_template_entry *entry)
 {
@@ -502,6 +504,7 @@ static int container_ima_add_digest_entry(struct container_ima_data *data, struc
 /*
  * container_ima_add_template_entry
  *      Add digest to the hashtable and extend PCR
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_queue.c#L162
  */
 int container_ima_add_template_entry(struct container_ima_data *data, struct ima_template_entry *entry, int violation,
 			   const char *op, struct inode *inode,
@@ -565,6 +568,7 @@ out:
 /*
  * container_ima_store_template
  *     Calculate hash, add to ML and extend to PCR
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L89
  */
 int container_ima_store_template(struct container_ima_data *data, struct ima_template_entry *entry,
 		       int violation, struct inode *inode,
@@ -716,6 +720,9 @@ struct container_ima_data *ima_data_exists(unsigned int id)
 	return entry->data;
 
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_queue.c#L77 
+ */
 static int get_binary_runtime_size(struct ima_template_entry *entry)
 {
 	int size = 0;
@@ -728,6 +735,10 @@ static int get_binary_runtime_size(struct ima_template_entry *entry)
 	size += entry->template_data_len;
 	return size;
 }
+/*
+ * TO DO
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L310 
+ */
 void ima_audit_measurement(struct integrity_iint_cache *iint,
 			   const unsigned char *filename)
 {
@@ -764,6 +775,9 @@ out:
 	kfree(hash);
 	return;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L357
+ */
 const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf)
 {
 	char *pathname = NULL;
@@ -772,6 +786,9 @@ const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf)
 
 	return pathname;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L41 
+ */
 int ima_alloc_init_template(struct ima_event_data *event_data,
 			    struct ima_template_entry **entry, struct ima_template_desc *template_desc)
 {
@@ -802,6 +819,9 @@ out:
 	*entry = NULL;
 	return result;
 }
+/* 
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L28 
+ */
 void ima_free_template_entry(struct ima_template_entry *entry)
 {
 	int i;
@@ -811,12 +831,17 @@ void ima_free_template_entry(struct ima_template_entry *entry)
 
 	kfree(entry);
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/fs/read_write.c#L412 
+ */
 ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
 		   loff_t *pos)
 {
 	return file->f_op->read(file, buf, count, pos);
 }
-/* https://elixir.bootlin.com/linux/v4.19/source/kernel/audit.c#L1937 
+/* 
+ TO DO
+ https://elixir.bootlin.com/linux/v4.19/source/kernel/audit.c#L1937 
 void audit_log_string(struct audit_buffer *ab, const char *string,
 			size_t slen)
 {
@@ -840,6 +865,9 @@ void audit_log_string(struct audit_buffer *ab, const char *string,
 	skb_put(skb, slen + 2);
 
 }*/
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/integrity_audit.c#L31 
+ */
 void integrity_audit_msg(int audit_msgno, struct inode *inode,
 			 const unsigned char *fname, const char *op,
 			 const char *cause, int result, int audit_info)
@@ -889,6 +917,9 @@ int integrity_kernel_read(struct file *file, loff_t offset,
 
 	return ret;
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_queue.c#L141
+ */
 int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
 {
     //return tpm_pcr_extend(ima_tpm_chip, IMA_PCR, digests_arg->digest); //until vTPM is fixed

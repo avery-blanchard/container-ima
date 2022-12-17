@@ -1,7 +1,8 @@
 /*
  * container_ima.h
  * 		- define structs and functions for container IMA
- * 
+ *  https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h
+ *
  */
 #ifndef __CONTAINER_IMA_H__
 #define __CONTAINER_IMA_H__
@@ -333,25 +334,21 @@ struct hash {
 		struct ima_digest_data hdr;
 		char digest[IMA_MAX_DIGEST_SIZE];
 };
+/* TODO */
 struct container_ima_data {
 	unsigned int container_id;  // inum of ns
-	atomic_long_t len;
-	atomic_long_t violations;
-	struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
-	struct vtpm_proxy_new_dev vtpm;
-	/* policy configurations */
+	atomic_long_t len; // number of digest
+	atomic_long_t violations; // violations count 
+	spinlock_t c_ima_queue_lock;
+	struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE]; // hash table queue
+	/* policy configurations TODO */
 	struct list_head c_ima_default_rules;
-	struct list_head c_ima_policy_rules;
-	struct list_head __rcu *c_ima_rules;
-	struct list_head c_ima_measurements;
+	struct list_head c_ima_measurements; // linked list of measurements 
 	unsigned long binary_runtime_size;
-	struct file *ml;
-	struct ima_h_table *hash_tbl; 
+	struct ima_h_table *hash_tbl;  
 	struct mutex c_ima_write_mutex;
 	unsigned long c_ima_fs_flags;
 	int c_ima_policy_flags;
-	int valid_policy;
-	spinlock_t c_ima_queue_lock;
 	struct dentry *container_dir;
 	struct dentry *binary_runtime_measurements;
 	struct dentry *ascii_runtime_measurements;
@@ -492,15 +489,25 @@ int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_a
 struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir);
 struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent, void *data, const struct file_operations *ops);
 //extern int process_mmap(struct mmap_args_t *args);
+/*
+ * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h#L170
+ */
 static inline unsigned long ima_hash_key(u8 *digest)
 {
 	return hash_long(*digest, IMA_HASH_BITS);
 }
+/*
+ * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h#L284
+ */
 static inline enum hash_algo
 ima_get_hash_algo(struct evm_ima_xattr_data *xattr_value, int xattr_len)
 {
 	return ima_hash_algo;
 }
+/* 
+ * TODO 
+ *  https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_appraise.c#L191 
+ */
 static inline int ima_read_xattr(struct dentry *dentry,
 				 struct evm_ima_xattr_data **xattr_value)
 {
