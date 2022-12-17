@@ -8,6 +8,7 @@ prog = """
 #include <linux/cgroup.h>
 #include <linux/security.h>
 #include <linux/integrity.h>
+
 struct mmap_args_t {
 	void *addr;
 	size_t length;
@@ -29,7 +30,6 @@ int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int 
     struct mmap_args_t  *value;
     struct file *file;
     struct mmap_args_t mmap;
-    
     // https://github.com/iovisor/bcc/issues/2623#issuecomment-560214481 
     __builtin_memset(&mmap, 0, sizeof(mmap));
     
@@ -58,11 +58,11 @@ b.attach_kprobe(event=clone, fn_name="syscall__mmap")
 table = b.get_table("mmap_args")
 while 1:
         for key, value in table.items():
-            log = open("/home/avery/container-ima/log.txt", 'ab+')
+            log = open("/home/avery/container-ima/log.txt", 'a+')
             cur_line = ""
             cur_line += "{0}, {1}, {2}, {3}, {4}, {5}, {6}\n".format(value.id, value.addr, value.length, value.prot, value.flags,value.flags, value.fd, value.offset)
             #cur_line += "{0}\n".format(value)
-            log.write(value)
+            log.write(cur_line)
             log.close()
             print(cur_line)
 
