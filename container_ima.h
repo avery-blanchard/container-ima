@@ -24,6 +24,8 @@
 #include <uapi/linux/bpf.h>
 #include <linux/ima.h>
 #include <linux/list.h>
+#include <linux/tpm.h>
+#include <linux/tpm_command.h>
 #include <linux/file.h>
 #include <linux/hash.h>
 #include <linux/vtpm_proxy.h>
@@ -215,12 +217,12 @@ extern bool ima_canonical_fmt;
 /* struct for BPF argument mappings */
 struct mmap_args_t {
 	void *addr;
-	size_t length;
+	int length;
 	int prot;
 	int flags;
 	int fd;
-	off_t offset;
-	uint64_t id;
+	int offset;
+	long id;
 };
 
 /* IMA event related data */

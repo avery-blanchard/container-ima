@@ -33,9 +33,7 @@ struct container_ima_data *init_container_ima_data(unsigned int container_id)
 
 	/* init policy lists */
 	INIT_LIST_HEAD(&data->c_ima_default_rules);
-	INIT_LIST_HEAD(&data->c_ima_policy_rules);
 
-	data->c_ima_rules = (struct list_head __rcu *)(&data->c_ima_rules);
 	data->container_id = container_id;
 
 	/* init hash table */
@@ -46,9 +44,6 @@ struct container_ima_data *init_container_ima_data(unsigned int container_id)
 	/* init ML */
 	INIT_LIST_HEAD(&data->c_ima_measurements);
 	mutex_init(&data->c_ima_write_mutex);
-	
-	data->valid_policy = 1;
-	data->c_ima_fs_flags = 0;
 
 	data->container_integrity_iint_tree = RB_ROOT;
 	//DEFINE_RWLOCK(data->container_integrity_iint_lock);

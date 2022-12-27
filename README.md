@@ -5,3 +5,14 @@ The goal of this project is to extend the Linux Integrity Measurement Architectu
 
 It uses eBPF to probe the mmap system call to measure executable files mapped in a container.
 
+## Usage 
+Insert tpm device driver \
+` sudo modprobe tpm`
+Install packages for kernel developement \
+`install sudo git build-essential net-tools linux-headers-`uname -r``
+Install BCC/BPF tools \
+`bpfcc-tools libbpfcc libbpfcc-dev`
+Build container IMA kernel module \
+`make`
+Insert module \
+`sudo insmod container-ima.ko`
