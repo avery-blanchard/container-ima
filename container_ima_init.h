@@ -79,9 +79,9 @@ struct container_ima_data *init_container_ima(unsigned int container_id, struct 
 	int ret;
 	struct container_ima_data *data;
 	/* check if container exist, then return container_data here */
-	data = ima_data_exists(container_id);
-	if (data)
-		return data;
+	//data = ima_data_exists(container_id);
+	//if (data)
+	//	return data;
 
 	data = init_container_ima_data(container_id);
 
@@ -97,9 +97,6 @@ struct container_ima_data *init_container_ima(unsigned int container_id, struct 
 
 	//data->keyring = INTEGRITY_KEYRING_IMA;
 
-	if (ret)
-		return ret;
-	
 	//ret = container_ima_crypto_init(data); // iterate over PCR banks and init the algorithms per bank  
 
 	return data;

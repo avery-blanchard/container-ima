@@ -27,6 +27,9 @@
 
 static DEFINE_MUTEX(ima_write_mutex);
 
+static struct vfsmount *mount;
+static int mount_count;
+
 bool ima_canonical_fmt;
 
 static int __init default_canonical_fmt_setup(char *str)
@@ -310,16 +313,19 @@ struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent
 	struct dentry *dentry;
 	int ret;
 
-
+	pr_info("In create file\n");
 	dir = d_inode(parent);
-
+	pr_info("check\n");
 	inode_lock(dir);
+
+	if (!parent) 
+		pr_info("NULL parent dentry\n");
 
 	inode = new_inode(dir->i_sb);
 	if (!inode) {
 		pr_err("Failed to create new inode\n");
 		inode_unlock(dir);
-		ret = -ENOMEM;
+		ret = ENOMEM;
 		return ERR_PTR(ret);
 	}
 
@@ -351,8 +357,8 @@ struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir)
 	umode_t mode;
 	struct dentry *dentry;
 	mode = S_IFDIR | 0755;
-
-	dentry = create_file(dir_name, mode , parent_dir, NULL, NULL);
+	pr_info("in create dir\n");
+	dentry = create_file(dir_name, mode, parent_dir, NULL, NULL);
 
 	return dentry;
 }

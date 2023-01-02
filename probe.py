@@ -45,7 +45,8 @@ int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int 
     mmap.id = id;
 
     key = bpf_get_prandom_u32();
-    mmap_args.insert(&key, &mmap);
+    if (prot == 0x04) 
+        mmap_args.insert(&key, &mmap);
     
     
     return 0;
@@ -60,7 +61,7 @@ while 1:
         for key, value in table.items():
             log = open("/home/avery/container-ima/log.txt", 'a+')
             cur_line = ""
-            cur_line += "{0}, {1}, {2}, {3}, {4}, {5}, {6}\n".format(value.id, value.addr, value.length, value.prot, value.flags,value.flags, value.fd, value.offset)
+            cur_line += "{0}, {1}, {2}, {3}, {4}, {5}\n".format(value.id, value.addr, value.length, value.flags, value.fd, value.offset)
             #cur_line += "{0}\n".format(value)
             log.write(cur_line)
             log.close()

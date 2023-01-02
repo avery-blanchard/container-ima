@@ -7,12 +7,12 @@ It uses eBPF to probe the mmap system call to measure executable files mapped in
 
 ## Usage 
 Insert tpm device driver \
-` sudo modprobe tpm`
+`sudo modprobe tpm` \
 Install packages for kernel developement \
-`install sudo git build-essential net-tools linux-headers-`uname -r``
+`install sudo git build-essential net-tools linux-headers-`uname -r`` \
 Install BCC/BPF tools \
-`bpfcc-tools libbpfcc libbpfcc-dev`
+`bpfcc-tools libbpfcc libbpfcc-dev` \
 Build container IMA kernel module \
-`make`
+`make` \
 Insert module \
-`sudo insmod container-ima.ko`
+`sudo insmod container-ima.ko` \

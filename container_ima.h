@@ -217,7 +217,7 @@ extern bool ima_canonical_fmt;
 /* struct for BPF argument mappings */
 struct mmap_args_t {
 	void *addr;
-	int length;
+	size_t length;
 	int prot;
 	int flags;
 	int fd;

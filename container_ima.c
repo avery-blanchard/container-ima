@@ -62,6 +62,7 @@ int collect_mmap_args(void * ptr)
 	char  *len;
 	char *fd;
 	char *off;
+	char *flags;
 	int i;
 	char *tmp;
 	int j;
@@ -70,6 +71,7 @@ int collect_mmap_args(void * ptr)
 	task = current;
 
 	memset(&args, 0, sizeof(args));
+	while (1) { //while (!kthread_should_stop()) {
 	for (j = 0; j <1 ;j++) {
 		file = filp_open(mmap_log, O_RDONLY, 0);
 		if (!file) {
@@ -110,47 +112,79 @@ int collect_mmap_args(void * ptr)
 			}
 			pr_info("ADDR AFTER\n");
 
-			
+			pr_info("cur updated: %s\n", cur);
 			len = strsep(&cur, ",");
 			if (strlen(len) <= 0)	{
 				pr_err("strsep returns NULL");
 				return -1;
 			}
 			pr_info("Len str %s\n", len);
-
-			if (kstrtoint(len, 0, &args->length) !=0)	{
-				pr_err("kstrtpint returns 0");
+			pr_info("cur updated: %s\n", cur);
+			pr_info("hello testing\n");
+			/*
+			if (kstrtoll(len, 0, &args->length) !=0) {
+				pr_err("kstrtoll returns an error\n");
+				return -1;
+			} */
+			if (sscanf(len, "%zu", &args->length) != 1) {
+				pr_err("sscanf fails for length\n");
 				return -1;
 			}
-			pr_info("Length: %d\n", args->length);
-
+			pr_info("Length: %zu\n", args->length);
+			pr_info("cur updated: %s\n", cur);
 			args->prot = PROT_EXEC;
 
-			fd = strsep(&cur, ",");
-			if (strlen(fd) <= 0)	{
-				pr_err("strsep returns NULL");
+			flags = strsep(&cur, ",");
+			pr_info("cur updated: %s\n", cur);
+			if (strlen(flags) <= 0) {
+				pr_err("strsep returns NULL\n");
 				return -1;
 			}
-			if (kstrtoint(fd, 0, &args->fd) !=0){
-				pr_err("kstrtpint returns 0");
+			/*
+			pr_info("flags str: %s\n", flags);
+			
+			if (sscanf(flags, "%ui", args->flags) != 1) {
+				pr_err("sscanf fails for flags\n");
+				return -1;
+			}
+			*/
+			args->flags = 4;
+			fd = strsep(&cur, ",");
+			if (strlen(fd) <= 0)	{
+				pr_err("strsep returns NULL\n");
+				return -1;
+			}
+			pr_info("fd string: %s\n", fd);
+			
+			if (sscanf(fd, "%d", &args->fd) != 1) {
+				pr_err("sscanf fails for fd\n");
 				return -1;
 			}
 			pr_info("FD: %d\n", args->fd);
-
+			
 
 			off = strsep(&cur, ",");
 			if (strlen(off) <= 0)	{
 				pr_err("strsep returns NULL");
 				return -1;
-			}
+			}/*
+			
 			if (kstrtoint(off, 0, &args->offset) !=0){
-				pr_err("kstrtpint returns 0");
+				pr_err("kstrtpint returns an error\n");
+				return -1;
+			}*/
+			if (sscanf(off, "%d", &args->offset) != 1) {
+				pr_err("sscanf fails for offset\n");
 				return -1;
 			}
+			pr_info("offset %d\n", args->offset);
+			
 			// check if container IMA data exist
 			// process measurement
+			pr_info("Initializing IMA data\n");
 			data = init_container_ima(args->id, c_ima_dir, c_ima_symlink);
-
+			return 0;
+			
 			cur_file = container_ima_retrieve_file(args);
 			if (!cur_file) {
 				pr_err("error retrieving file\n");
@@ -173,6 +207,7 @@ int collect_mmap_args(void * ptr)
 		}
 		filp_close(file, NULL);
 		return 1;
+	}
 	}
 	pr_info("Exiting read\n");
 	return 0;
@@ -211,24 +246,13 @@ static int container_ima_init(void)
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
 
 	pr_info("Creating dir\n");
-	
-	/*
-	file = NULL;
-	file = filp_open("/integrity/container-ima/", O_DIRECTORY|O_CREAT, 0755);
-	c_ima_dir = file->f_inode->i_sb->s_root;
-	if (!c_ima_dir) {
-		pr_err("create dir fails\n");
-		return -1;
+	c_ima_dir = create_dir("c_integrity", integrity_dir);
+	if (IS_ERR(c_ima_dir)) {
+		pr_err("Creation of container integrity dir fails\n");
+		return  -1;
 	}
-	pr_info("Collect\n");
-	/*
-	c_ima_symlink = create_file("container_ima", NULL, "container_ima",
-						NULL);
-	if (IS_ERR(c_ima_symlink)) {
-		//ret = PTR_ERR(c_ima_symlink);
-		return -1;
-	}*/
-	init_bpf_thread();
+	//init_bpf_thread();
+	collect_mmap_args(NULL);
 	return 0;
 }
 
@@ -238,8 +262,8 @@ static void container_ima_exit(void)
 	 * Free keyring and vTPMs
 	 */
 	int ret;
-	kthread_stop(thread);
 	pr_info("Exiting Container IMA\n");
+	//kthread_stop(thread);
 	//ret = container_ima_cleanup();
 	return;
 }
