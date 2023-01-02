@@ -9,10 +9,11 @@ It uses eBPF to probe the mmap system call to measure executable files mapped in
 Insert tpm device driver \
 `sudo modprobe tpm` \
 Install packages for kernel developement \
-`install sudo git build-essential net-tools linux-headers-`uname -r`` \
+`install sudo git build-essential net-tools` \
+Install kernel headers \
 Install BCC/BPF tools \
 `bpfcc-tools libbpfcc libbpfcc-dev` \
 Build container IMA kernel module \
 `make` \
 Insert module \
-`sudo insmod container-ima.ko` \
+`sudo insmod container-ima.ko`
