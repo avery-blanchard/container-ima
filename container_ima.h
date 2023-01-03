@@ -208,7 +208,7 @@ enum policy_rule_list { IMA_DEFAULT_POLICY = 1, IMA_CUSTOM_POLICY };
 
 extern struct tpm_chip *ima_tpm_chip;
 extern long host_inum;
-extern struct c_ima_data_hash_table *container_hash_table;
+extern struct c_ima_data_hash_table container_hash_table;
 extern int ima_hash_algo;
 extern struct dentry *c_ima_dir;
 extern struct dentry *c_ima_symlink;
@@ -318,6 +318,7 @@ struct c_ima_queue_entry {
 
 struct c_ima_data_hash_table {
     struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
+	atomic_long_t len;
 };
 
 /* Hash table for container data structs with the key id */
@@ -487,6 +488,7 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir);
 struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent, void *data, const struct file_operations *ops);
+static int container_ima_add_data_entry(struct container_ima_data *data, long id);
 //extern int process_mmap(struct mmap_args_t *args);
 /*
  * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h#L170
@@ -494,6 +496,13 @@ struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent
 static inline unsigned long ima_hash_key(u8 *digest)
 {
 	return hash_long(*digest, IMA_HASH_BITS);
+}
+/*
+ * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h#L170
+ */
+static inline unsigned long c_ima_hash_key(long *id)
+{
+	return hash_long(*id, IMA_HASH_BITS);
 }
 /*
  * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h#L284
@@ -512,4 +521,9 @@ static inline int ima_read_xattr(struct dentry *dentry,
 {
 	return 0;
 }
+struct c_ima_data_hash_table container_hash_table = {
+	.len = ATOMIC_LONG_INIT(0),
+	.queue[0 ... IMA_MEASURE_HTABLE_SIZE - 1] = HLIST_HEAD_INIT
+};
+
 #endif

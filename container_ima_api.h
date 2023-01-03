@@ -53,9 +53,10 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 
 	/* Get file from fd, len, and address for measurment */
 		//audit_mmap_fd(args->fd, args->flags);
+    pr_info("Retrieving file struct for FD %d\n", args->fd);
 	file = fget(args->fd);
 	if (!file) {
-		pr_err("fget fails\n");
+		return PTR_ERR(file);
 	}
 	/*
 	} else if (args->flags & MAP_HUGETLB) {
@@ -76,6 +77,8 @@ struct file *container_ima_retrieve_file(struct mmap_args_t *args)
 			return ret;
 		}
 	} */
+	if (file)
+		fput(file);
 	return file;
  }
  /*
@@ -375,6 +378,7 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	if (!data->c_ima_policy_flags || !S_ISREG(inode->i_mode))
 		return 0;
 
+	pr_info("IMA get action\n");
 	/* re-write for future use of different IMA polcies per container */
 	action  = container_ima_get_action(data, inode, cred, secid,
 				mask, IMA_PCR, &template_desc, NULL,
@@ -500,6 +504,19 @@ static int container_ima_add_digest_entry(struct container_ima_data *data, struc
 		data->binary_runtime_size = (data->binary_runtime_size < ULONG_MAX - size) ?
 		     data->binary_runtime_size + size : ULONG_MAX;
 	}
+	return 0;
+
+}
+static int container_ima_add_data_entry(struct container_ima_data *data, long id)
+{
+	struct c_ima_queue_entry *qe;
+	qe = kmalloc(sizeof(*qe),  GFP_KERNEL);
+
+	qe->data = data;
+
+	INIT_LIST_HEAD(&qe->later);
+	atomic_long_inc(&container_hash_table.len);
+	hlist_add_head_rcu(&qe->hnext, &container_hash_table.queue[id]);
 	return 0;
 
 }
@@ -649,7 +666,8 @@ static struct ima_queue_entry *container_ima_lookup_digest_entry(struct containe
 						       int pcr, unsigned int container_id)
 {
     struct ima_queue_entry *qe, *ret = NULL;
-    int key, tmp;
+    unsigned int key;
+	int tmp;
 
     key = ima_hash_key(digest_value);
     rcu_read_lock();
@@ -675,18 +693,25 @@ static struct ima_queue_entry *container_ima_lookup_digest_entry(struct containe
 static struct c_ima_queue_entry *container_ima_lookup_data_entry(unsigned int id)
 {
     struct c_ima_queue_entry *qe, *ret = NULL;
-    int key, tmp;
+    unsigned int key;
+	int tmp;
 
-    key = ima_hash_key(id);
+	pr_info("Pre hash key\n");
+   // key = ima_hash_key(id);
     rcu_read_lock();
 
-    hlist_for_each_entry_rcu(qe, &container_hash_table->queue[key], hnext) {
+	pr_info("Before for loop in check\n");
+    hlist_for_each_entry_rcu(qe, &container_hash_table.queue[id], hnext) {
+		if (!qe)
+			break;
 		if (qe->id == id){		
 			ret = qe;
 			break;
 		}
 	}
 	rcu_read_unlock();
+
+	pr_info("After check, returning\n");
 	return ret;
 
 }
@@ -713,6 +738,8 @@ static struct container_ima_data *ima_data_from_file(const struct file *filp)
 struct container_ima_data *ima_data_exists(unsigned int id) 
 {
 	struct c_ima_queue_entry *entry;
+
+	pr_info("Checking if data exists\n");
 	
 	entry = container_ima_lookup_data_entry(id);
 

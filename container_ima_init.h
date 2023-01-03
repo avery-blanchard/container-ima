@@ -30,18 +30,23 @@ static struct kmem_cache *c_ima_cache;
 struct container_ima_data *init_container_ima_data(unsigned int container_id) 
 {
 	struct container_ima_data *data;
-
+	pr_info("Creating container data for IMA\n");
+	data = create_container_ima_data();
+	
 	/* init policy lists */
+	pr_info("Init policy lists\n");
 	INIT_LIST_HEAD(&data->c_ima_default_rules);
 
 	data->container_id = container_id;
 
 	/* init hash table */
+	pr_info("Init hash table\n");
 	atomic_long_set(&data->c_ima_write_mutex.owner, 0);
-	atomic_long_set(&data->hash_tbl->violations, 0);
-	memset(&data->hash_tbl->queue, 0, sizeof(data->hash_tbl));
+	//atomic_long_set(&data->hash_tbl->violations, 0);
+	//memset(&data->hash_tbl->queue, 0, sizeof(data->hash_tbl->queue));
 
 	/* init ML */
+	pr_info("Init list of measurements\n");
 	INIT_LIST_HEAD(&data->c_ima_measurements);
 	mutex_init(&data->c_ima_write_mutex);
 
@@ -54,7 +59,8 @@ struct container_ima_data *create_container_ima_data(void)
 {
 	struct container_ima_data *data;
 
-	data = kmem_cache_zalloc(c_ima_cache, GFP_KERNEL);
+	//data = kmem_cache_zalloc(c_ima_cache, GFP_KERNEL);
+	data = kmalloc(sizeof(data), GFP_KERNEL);
 	if (!data) {
 		return ERR_PTR(-ENOMEM);
 		pr_err("Allocation failed in cache\n");
@@ -79,26 +85,26 @@ struct container_ima_data *init_container_ima(unsigned int container_id, struct 
 	int ret;
 	struct container_ima_data *data;
 	/* check if container exist, then return container_data here */
-	//data = ima_data_exists(container_id);
-	//if (data)
-	//	return data;
-
+	data = ima_data_exists(container_id);
+	if (data) {
+		pr_info("Data exists\n");
+		return data;
+	}
+	pr_info("Data does not exist, init\n");
 	data = init_container_ima_data(container_id);
 
-	ima_tpm_chip = NULL; //tpm_default_chip();
+	ima_tpm_chip = tpm_default_chip();
 	if (!ima_tpm_chip)
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
-
-	//ret = container_ima_vtpm_setup(data, container_id, ima_tpm_chip); // per container vTPM
-
-	ret = container_ima_fs_init(data, c_ima_dir, c_ima_symlink);
+	//ret = container_ima_fs_init(data, c_ima_dir, c_ima_symlink);
 	//ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
 
 	//data->keyring = INTEGRITY_KEYRING_IMA;
 
 	//ret = container_ima_crypto_init(data); // iterate over PCR banks and init the algorithms per bank  
 
+	container_ima_add_data_entry(data, id);
 	return data;
 }
 
