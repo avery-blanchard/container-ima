@@ -1,7 +1,3 @@
-#!/usr/bin/python3
-from bcc import BPF
-
-prog = """
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/nsproxy.h>
@@ -51,19 +47,3 @@ int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int 
     
     return 0;
 }
-"""
-
-b = BPF(text=prog)
-clone = b.get_syscall_fnname("mmap")
-b.attach_kprobe(event=clone, fn_name="syscall__mmap")
-table = b.get_table("mmap_args")
-while 1:
-        for key, value in table.items():
-            log = open("/home/avery/container-ima/log.txt", 'a+')
-            cur_line = ""
-            cur_line += "{0}, {1}, {2}, {3}, {4}, {5}\n".format(value.id, value.addr, value.length, value.flags, value.fd, value.offset)
-            #cur_line += "{0}\n".format(value)
-            log.write(cur_line)
-            log.close()
-            print(cur_line)
-

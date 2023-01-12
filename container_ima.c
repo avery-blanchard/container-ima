@@ -43,199 +43,17 @@ struct dentry *c_ima_symlink;
 int map_fd;
 struct task_struct *thread;
 struct c_ima_data_hash_table container_hash_table;
-/*
- * TODO
- */
-int collect_mmap_args(void * ptr) 
+
+static int init_mmap_probe(void) 
 {
-	pr_info("In collect map args\n");
-	struct file *file;
-	struct task_struct *task;
-	struct file *cur_file;
-	char *cur;
-	char buf[2048];
-	struct container_ima_data *data;
-	const struct cred *cred;
-	u32 sec_id;
-	int ret;
-	long res;
-	char  *len;
-	char *fd;
-	char *off;
-	char *flags;
-	int i;
-	char *tmp;
-	int j;
-	struct mmap_args_t *args;
-
-	task = current;
-
-	memset(&args, 0, sizeof(args));
-	while (1) { //while (!kthread_should_stop()) {
-		pr_info("Loop start\n");
-		for (j = 0; j < 1; j++) {
-			file = filp_open(mmap_log, O_RDONLY, 0);
-			if (!file) {
-				pr_err("Failed to open probe logs");
-				return -1;
-			}
-			args = kmalloc(sizeof(struct mmap_args_t),  GFP_KERNEL);
-			if (!args) {
-				pr_err("Kmalloc fails\n");
-				return -1;
-			}
-			pr_info("Starting loop\n");
-			ret = kernel_read(file, &buf, sizeof(buf), &file->f_pos);
-
-			if (ret == 0)
-				break;
-			char *tmp = &buf[0];
-			cur = strsep(&tmp, "\n");
-			pr_info("Cur %s\n", cur);
-				tmp = strsep(&cur, ",");
-				if (!tmp) {
-					pr_err("strsep returns NULL");
-					return -1;
-				}
-				pr_info("Log ID %s\n",tmp);
-
-				if (kstrtol(tmp, 0, &args->id) !=0)
-					return -1;
-				pr_info("check: %llu\n", args->id);
-				pr_info("host_inum %llu\n", host_inum);
-
-				pr_info("ADDR PRE\n");
-				args->addr = (void *) strsep(&cur, ",");
-				if (strlen(args->addr) <= 0)	{
-					pr_err("strsep returns NULL");
-					return -1;
-				}
-				pr_info("ADDR AFTER\n");
-
-				pr_info("cur updated: %s\n", cur);
-				len = strsep(&cur, ",");
-				if (strlen(len) <= 0)	{
-					pr_err("strsep returns NULL");
-					return -1;
-				}
-				pr_info("Len str %s\n", len);
-				pr_info("cur updated: %s\n", cur);
-				pr_info("hello testing\n");
-				/*
-				if (kstrtoll(len, 0, &args->length) !=0) {
-					pr_err("kstrtoll returns an error\n");
-					return -1;
-				} */
-				if (sscanf(len, "%zu", &args->length) != 1) {
-					pr_err("sscanf fails for length\n");
-					return -1;
-				}
-				pr_info("Length: %zu\n", args->length);
-				pr_info("cur updated: %s\n", cur);
-				args->prot = PROT_EXEC;
-
-				flags = strsep(&cur, ",");
-				pr_info("cur updated: %s\n", cur);
-				if (strlen(flags) <= 0) {
-					pr_err("strsep returns NULL\n");
-					return -1;
-				}
-				/*
-				pr_info("flags str: %s\n", flags);
-				
-				if (sscanf(flags, "%ui", args->flags) != 1) {
-					pr_err("sscanf fails for flags\n");
-					return -1;
-				}
-				*/
-				args->flags = 4;
-				fd = strsep(&cur, ",");
-				if (strlen(fd) <= 0)	{
-					pr_err("strsep returns NULL\n");
-					return -1;
-				}
-				pr_info("fd string: %s\n", fd);
-				
-				if (sscanf(fd, "%d", &args->fd) != 1) {
-					pr_err("sscanf fails for fd\n");
-					return -1;
-				}
-				pr_info("FD: %d\n", args->fd);
-				
-
-				off = strsep(&cur, ",");
-				if (strlen(off) <= 0)	{
-					pr_err("strsep returns NULL");
-					return -1;
-				}/*
-				
-				if (kstrtoint(off, 0, &args->offset) !=0){
-					pr_err("kstrtpint returns an error\n");
-					return -1;
-				}*/
-				if (sscanf(off, "%d", &args->offset) != 1) {
-					pr_err("sscanf fails for offset\n");
-					return -1;
-				}
-				pr_info("offset %d\n", args->offset);
-				
-				// check if container IMA data exist
-				// process measurement
-				pr_info("Initializing IMA data\n");
-				data = init_container_ima(args->id, c_ima_dir, c_ima_symlink);
-				
-				pr_info("Retrieving file\n");
-				cur_file = container_ima_retrieve_file(args);
-				if (!cur_file) {
-					pr_info("Bad FD, back to loop start\n");
-					break;
-				}		
-				cred = task->real_cred;
-				security_cred_getsecid(cred, &sec_id);
-
-				pr_info("Processing measurment\n");
-				ret = container_ima_process_measurement(data, cur_file, current_cred(), sec_id, NULL, 0, MAY_EXEC, args->id, args);
-				if (ret != 0) {
-					pr_err("measurement fails\n");
-					return ret;
-				}
-			kfree(args);
-			args = kmalloc(sizeof(struct mmap_args_t),  GFP_KERNEL);
-			if (!args) {
-				pr_err("Kmalloc fails\n");
-				return -1;
-			} 
-			filp_close(file, NULL);
-		}
-	}
-	pr_info("Exiting read\n");
-	return 0;
-}
-int process_mmap(struct mmap_args_t *args) 
-{
-	struct task_struct *task;
-	const struct cred *cred;
-	u32 sec_id;
-	int ret;
-
-	return 1;
-}
-EXPORT_SYMBOL(process_mmap);
-
-void init_bpf_thread(void)
-{
-	pr_info("Creating bpf thread\n");
-	int (*threadfn)(void *data) = &collect_mmap_args;
-	// https://elixir.bootlin.com/linux/v4.19/source/include/linux/kthread.h#L26 
-	thread = kthread_run(threadfn, NULL, "%s", "ima_bpf_thread");
-
-	return;
+	// using probe.c, init probe from kernelspace using kernel bpf hooks that are reached from userspace through syscall
 }
 static int container_ima_init(void)
 {
 	pr_info("Starting container IMA\n");
 
 	/* Start container IMA */
+	int ret;
 	struct file *file;
 	struct task_struct *task;
 	struct nsproxy *ns;
@@ -250,9 +68,9 @@ static int container_ima_init(void)
 		pr_err("Creation of container integrity dir fails\n");
 		return  -1;
 	}*/
-	//init_bpf_thread();
-	collect_mmap_args(NULL);
-	return 0;
+	ret = init_mmap_probe();
+
+	return ret;
 }
 
 static void container_ima_exit(void)
