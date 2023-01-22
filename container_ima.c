@@ -33,6 +33,7 @@
 #define MAX_ENTRIES 100
 #define MODULE_NAME "ContainerIMA"
 #define INTEGRITY_KEYRING_IMA 1
+#define LOG_BUF_SIZE 2048
 
 struct dentry *integrity_dir;
 struct tpm_chip *ima_tpm_chip;
@@ -51,13 +52,26 @@ static int init_mmap_probe(void)
 {
 	// using probe.c, init probe from kernelspace using kernel bpf hooks that are reached from userspace through syscall
 	int err;
+	int insn_cnt;
 	unsigned int prog_size;
-	union bpf_attr prog_attr = {};
+	char bpf_log_buf[LOG_BUF_SIZE];
+	struct bpf_insn isnsns; // https://elixir.bootlin.com/linux/v4.19.269/source/tools/include/uapi/linux/bpf.h#L64
+	// TODO: probe -> assembly instructions
+	union bpf_attr prog_attr = {
+		.prog_type = BPF_PROG_TYPE_KPROBE,
+        .insns     = ptr_to_u64(insns),
+        .insn_cnt  = insn_cnt,
+        .license   = ptr_to_u64("GPL"),
+        .log_buf   = ptr_to_u64(bpf_log_buf),
+        .log_size  = LOG_BUF_SIZE,
+    	.log_level = 1,
+	};
 	
 	// init bpf_attr for the probe
 	// https://elixir.bootlin.com/linux/v4.19.269/source/include/uapi/linux/bpf.h#L301
 	// for programs: https://elixir.bootlin.com/linux/v4.19.269/source/include/uapi/linux/bpf.h#L331 
-	
+
+
 	prog_size = sizeof(prg_attr);
 
 	err = security_bpf(cmd, &prog_attr, prog_size);
