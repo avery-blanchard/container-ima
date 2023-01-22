@@ -33,7 +33,6 @@
 #define MAX_ENTRIES 100
 #define MODULE_NAME "ContainerIMA"
 #define INTEGRITY_KEYRING_IMA 1
-#define mmap_log "/home/avery/container-ima/log.txt"
 
 struct dentry *integrity_dir;
 struct tpm_chip *ima_tpm_chip;
@@ -44,9 +43,30 @@ int map_fd;
 struct task_struct *thread;
 struct c_ima_data_hash_table container_hash_table;
 
+/*
+ * init_mmap_probe 
+ * https://elixir.bootlin.com/linux/v4.19/source/kernel/bpf/syscall.c#L2334 
+ */
 static int init_mmap_probe(void) 
 {
 	// using probe.c, init probe from kernelspace using kernel bpf hooks that are reached from userspace through syscall
+	int err;
+	unsigned int prog_size;
+	union bpf_attr prog_attr = {};
+	
+	// init bpf_attr for the probe
+	// https://elixir.bootlin.com/linux/v4.19.269/source/include/uapi/linux/bpf.h#L301
+	// for programs: https://elixir.bootlin.com/linux/v4.19.269/source/include/uapi/linux/bpf.h#L331 
+	
+	prog_size = sizeof(prg_attr);
+
+	err = security_bpf(cmd, &prog_attr, prog_size);
+	if (err < 0)
+		return err;
+
+	err = bpf_prog_load(&prog_attr);
+	
+	return err;
 }
 static int container_ima_init(void)
 {
