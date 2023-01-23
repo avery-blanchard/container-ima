@@ -15,35 +15,40 @@ struct mmap_args_t {
     uint64_t id;
 };
 
-BPF_HASH(mmap_args, u32, struct mmap_args_t);
-
 int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int flags, int fd, off_t offset)  {
     
     struct task_struct *task;
     u64 id;
-    u32 key;
-    int len;
-    struct mmap_args_t  *value;
+    int ret;
+    const struct cred *cred;
     struct file *file;
-    struct mmap_args_t mmap;
-    // https://github.com/iovisor/bcc/issues/2623#issuecomment-560214481 
-    __builtin_memset(&mmap, 0, sizeof(mmap));
-    
-    mmap.addr = addr;
-    mmap.length = length;
-    mmap.prot = prot;
-    mmap.flags = flags;
-    mmap.fd = fd;
-    mmap.offset = offset;
-    
+    struct mmap_args_t args = {
+        .addr = addr,
+        .length = length,
+        .prot = prot,
+        .flags = flags,
+        .fd = fd,
+        .offset = offset,
+        .id = 0
+    };
+
     task = (struct task_struct *)bpf_get_current_task();
     id =  task->nsproxy->cgroup_ns->ns.inum;
-    mmap.id = id;
+    ars.id = id;
 
-    key = bpf_get_prandom_u32();
-    if (prot == 0x04) 
-        mmap_args.insert(&key, &mmap);
-    
+    /* Check if file is executable */
+    if (prot == 0x04) {
+        data = init_container_ima(args->id, c_ima_dir, c_ima_symlink);
+				
+		file = container_ima_retrieve_file(args);
+		if (!file) 
+            return 0;		
+		cred = task->real_cred;
+		security_cred_getsecid(cred, &sec_id);
+		ret = container_ima_process_measurement(data, cur_file, current_cred(), sec_id, NULL, 0, MAY_EXEC, args->id, args);
+        return 0;
+    }
+           
     
     return 0;
 }
