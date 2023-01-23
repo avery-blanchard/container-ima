@@ -57,6 +57,7 @@ static int init_mmap_probe(void)
 	char bpf_log_buf[LOG_BUF_SIZE];
 	struct bpf_insn isnsns; // https://elixir.bootlin.com/linux/v4.19.269/source/tools/include/uapi/linux/bpf.h#L64
 	// TODO: probe -> assembly instructions
+	// https://github.com/iovisor/bcc/blob/a0fe2bc1c13f729b511d5607030ce40bb4b27c24/src/cc/libbpf.c#L991
 	union bpf_attr prog_attr = {
 		.prog_type = BPF_PROG_TYPE_KPROBE,
         .insns     = ptr_to_u64(insns),
@@ -114,7 +115,6 @@ static void container_ima_exit(void)
 	 */
 	int ret;
 	pr_info("Exiting Container IMA\n");
-	//kthread_stop(thread);
 	//ret = container_ima_cleanup();
 	return;
 }

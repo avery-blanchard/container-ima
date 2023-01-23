@@ -11,8 +11,6 @@ Insert tpm device driver \
 Install packages for kernel developement \
 `install sudo git build-essential net-tools` \
 Install kernel headers \
-Install BCC/BPF tools \
-`bpfcc-tools libbpfcc libbpfcc-dev` \
 Build container IMA kernel module \
 `make` \
 Insert module \
