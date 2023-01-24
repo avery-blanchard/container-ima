@@ -34,7 +34,7 @@ int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int 
 
     task = (struct task_struct *)bpf_get_current_task();
     id =  task->nsproxy->cgroup_ns->ns.inum;
-    ars.id = id;
+    args.id = id;
 
     /* Check if file is executable */
     if (prot == 0x04) {
