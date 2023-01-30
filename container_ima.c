@@ -56,17 +56,16 @@ static int init_mmap_probe(void)
 	// TODO: probe -> assembly instructions
 	// https://github.com/iovisor/bcc/blob/a0fe2bc1c13f729b511d5607030ce40bb4b27c24/src/cc/libbpf.c#L991
 	int probefd;
-	char *probe;
-	uint64_t fn_off;
 
 	struct perf_event_attr attr = {};
+
 
 	attr.sample_period = 1;
   	attr.wakeup_events = 1;
 	attr.size = sizeof(attr);
 	attr.type = "kprobe";
-	attr.config2 = fn_off;
-	attr.config1 = ptr_to_u64((void *)probe);
+	attr.config2 = 0;
+	attr.config1 = ptr_to_u64((void *)"syscall__mmap");
 
 	// init bpf_attr for the probe
 	// https://elixir.bootlin.com/linux/v4.19.269/source/include/uapi/linux/bpf.h#L301
