@@ -52,34 +52,32 @@ static int init_mmap_probe(void)
 {
 	// using probe.c, init probe from kernelspace using kernel bpf hooks that are reached from userspace through syscall
 	int err;
-	int insn_cnt;
-	unsigned int prog_size;
-	char bpf_log_buf[LOG_BUF_SIZE];
-	struct bpf_insn isnsns; // https://elixir.bootlin.com/linux/v4.19.269/source/tools/include/uapi/linux/bpf.h#L64
+	// https://elixir.bootlin.com/linux/v4.19.269/source/tools/include/uapi/linux/bpf.h#L64
 	// TODO: probe -> assembly instructions
 	// https://github.com/iovisor/bcc/blob/a0fe2bc1c13f729b511d5607030ce40bb4b27c24/src/cc/libbpf.c#L991
-	union bpf_attr prog_attr = {
-		.prog_type = BPF_PROG_TYPE_KPROBE,
-        .insns     = ptr_to_u64(insns),
-        .insn_cnt  = insn_cnt,
-        .license   = ptr_to_u64("GPL"),
-        .log_buf   = ptr_to_u64(bpf_log_buf),
-        .log_size  = LOG_BUF_SIZE,
-    	.log_level = 1,
-	};
-	
+	int probefd;
+	char *probe;
+	uint64_t fn_off;
+
+	struct perf_event_attr attr = {};
+
+	attr.sample_period = 1;
+  	attr.wakeup_events = 1;
+	attr.size = sizeof(attr);
+	attr.type = "kprobe";
+	attr.config2 = fn_off;
+	attr.config1 = ptr_to_u64((void *)probe);
+
 	// init bpf_attr for the probe
 	// https://elixir.bootlin.com/linux/v4.19.269/source/include/uapi/linux/bpf.h#L301
 	// for programs: https://elixir.bootlin.com/linux/v4.19.269/source/include/uapi/linux/bpf.h#L331 
 
 
-	prog_size = sizeof(prg_attr);
-
-	err = security_bpf(cmd, &prog_attr, prog_size);
+	err = security_bpf(cmd, &attr, attr.size);
 	if (err < 0)
 		return err;
 
-	err = bpf_prog_load(&prog_attr);
+	err = bpf_prog_load(&attr);
 	
 	return err;
 }
