@@ -56,19 +56,38 @@ static int init_mmap_probe(void)
 	// TODO: probe -> assembly instructions
 	// https://github.com/iovisor/bcc/blob/a0fe2bc1c13f729b511d5607030ce40bb4b27c24/src/cc/libbpf.c#L991
 	// https://github.com/iovisor/bcc/blob/2b203ea20d5db4d36e16c07592eb8cc5e919e46c/src/python/bcc/__init__.py#L502 
+	// https://github.com/iovisor/bcc/blob/815d1b84828c02ce10e1ea5163aede6b5786ba38/src/cc/bpf_module.cc#L977
 	int fd;
-	char *probe_file = "probe.c";
+	struct file *file;
+	char *probe_file = "probe";
 	char *fn_name;
+	char *func;
+	struct bpf_load_program_attr prog_attr = {};
 	struct perf_event_attr attr = {};
 
-	fd = filp_open(probe_file, O_RDONLY, 0);
+	file = filp_open(probe_file, O_RDONLY, 0);
 
-	// idea: from FD, read in function as binary, attr.config2 as pointer to probe function in memory
+	err = kernel_read(file, func, sizeof(func), &file->f_pos);
+	if (err ==  0) {
+		pr_err("Failed to read probe\n");
+		return -1;
+	}
+
+	prog_attr.name = "mmap_probe";
+	prog_attr.insns = ptr_to_u64((void *)func); // insns is an array of struct bpf_insn instructions
+	prog_attr.license = ptr_to_u64("GPL");
+	prog_attr.log_level = 0;
+	prog_attr.kern_version = ;
+	prog_attr.prog_flags = ;
+	prog_attr.prog_type = (enum bpf_prog_type) BPF_PROG_TYPE_KPROBE;
+
+
+	// idea: from FD, read in function as compiled binary, attr.config2 as pointer to probe function in memory
 
 	attr.sample_period = 1;
   	attr.wakeup_events = 1;
 	attr.size = sizeof(attr);
-	attr.type = "kprobe";
+	attr.type = (enum bpf_prog_type) BPF_PROG_TYPE_KPROBE;
 	attr.config2 = 0; // offset 
 	attr.config1 = ptr_to_u64((void *)fn_name); 
 
