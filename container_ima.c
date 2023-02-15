@@ -66,7 +66,7 @@ static int init_mmap_probe(void)
 	/* approach: userspace subprocess to insert the probe */
 	struct subprocess_info *subprocess_info; //https://elixir.bootlin.com/linux/v4.19/source/include/linux/umh.h#L19
 	// https://developer.ibm.com/articles/l-user-space-apps/
-	char *argv[] = {"./test.o", "NULL"};
+	char *argv[] = {"./format.o", "NULL"};
 	static char *envp[] = {
 		"HOME=/",
 		"TERM=linux",
