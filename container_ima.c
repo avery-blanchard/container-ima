@@ -66,13 +66,13 @@ static int init_mmap_probe(void)
 	/* approach: userspace subprocess to insert the probe */
 	struct subprocess_info *subprocess_info; //https://elixir.bootlin.com/linux/v4.19/source/include/linux/umh.h#L19
 	// https://developer.ibm.com/articles/l-user-space-apps/
-	char *argv = "./test.o";
+	char *argv[] = {"./test.o", "NULL"};
 	static char *envp[] = {
 		"HOME=/",
 		"TERM=linux",
 		"PATH=/sbin:/bin:/usr/sbin:/usr/bin", NULL};
 
-	return call_usermodhelper(argv[0], argv, envp, UHM_WAIT_PROC);
+	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 }
 static int container_ima_init(void)

@@ -3,7 +3,7 @@
 # https://elixir.bootlin.com/linux/latest/source/Documentation/kbuild/modules.rst
 #
 obj-m += container_ima.o 
-all: kmod probe.bpf.o test.o format.o
+all: kmod test.o format.o
 
 PHONY += kmod
 kmod:
@@ -12,6 +12,5 @@ kmod:
 PHONY += clean
 clean:
 		make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
-		rm -r *.o 
 
 .PHONY: $(PHONY)
