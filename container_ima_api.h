@@ -479,6 +479,7 @@ out:
 
 
 }
+EXPORT_SYMBOL(container_ima_process_measurement);
 /*
  * container_ima_add_digest_entry
  *		Helper for container_ima_add_template_entry
@@ -513,10 +514,11 @@ static int container_ima_add_data_entry(struct container_ima_data *data, long id
 	qe = kmalloc(sizeof(*qe),  GFP_KERNEL);
 
 	qe->data = data;
-
-	INIT_LIST_HEAD(&qe->later);
+/*
+	INIT_LIST_HEAD(&qe->hnext);
 	atomic_long_inc(&container_hash_table.len);
 	hlist_add_head_rcu(&qe->hnext, &container_hash_table.queue[id]);
+	*/
 	return 0;
 
 }

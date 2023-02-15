@@ -104,7 +104,7 @@ struct container_ima_data *init_container_ima(unsigned int container_id, struct 
 
 	//ret = container_ima_crypto_init(data); // iterate over PCR banks and init the algorithms per bank  
 
-	container_ima_add_data_entry(data, id);
+	container_ima_add_data_entry(data, container_id);
 	return data;
 }
 

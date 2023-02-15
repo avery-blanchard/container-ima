@@ -20,6 +20,11 @@
 #include <linux/shm.h>
 #include <linux/fcntl.h>
 #include <linux/kthread.h>
+#include <linux/bpf_trace.h>
+#include <uapi/linux/bpf.h>
+#include <linux/bpf_lirc.h>
+#include <linux/security.h>
+#include <linux/lsm_hooks.h>
 
 #include "container_ima.h"
 #include "container_ima_crypto.h"
@@ -51,58 +56,24 @@ struct c_ima_data_hash_table container_hash_table;
 static int init_mmap_probe(void) 
 {
 	// using probe.c, init probe from kernelspace using kernel bpf hooks that are reached from userspace through syscall
-	int err;
+	int ret;
 	// https://elixir.bootlin.com/linux/v4.19.269/source/tools/include/uapi/linux/bpf.h#L64
 	// TODO: probe -> assembly instructions
 	// https://github.com/iovisor/bcc/blob/a0fe2bc1c13f729b511d5607030ce40bb4b27c24/src/cc/libbpf.c#L991
 	// https://github.com/iovisor/bcc/blob/2b203ea20d5db4d36e16c07592eb8cc5e919e46c/src/python/bcc/__init__.py#L502 
 	// https://github.com/iovisor/bcc/blob/815d1b84828c02ce10e1ea5163aede6b5786ba38/src/cc/bpf_module.cc#L977
-	int fd;
-	struct file *file;
-	char *probe_file = "probe";
-	char *fn_name;
-	char *func;
-	struct bpf_load_program_attr prog_attr = {};
-	struct perf_event_attr attr = {};
 
-	file = filp_open(probe_file, O_RDONLY, 0);
+	/* approach: userspace subprocess to insert the probe */
+	struct subprocess_info *subprocess_info; //https://elixir.bootlin.com/linux/v4.19/source/include/linux/umh.h#L19
+	// https://developer.ibm.com/articles/l-user-space-apps/
+	char *argv = "./test.o";
+	static char *envp[] = {
+		"HOME=/",
+		"TERM=linux",
+		"PATH=/sbin:/bin:/usr/sbin:/usr/bin", NULL};
 
-	err = kernel_read(file, func, sizeof(func), &file->f_pos);
-	if (err ==  0) {
-		pr_err("Failed to read probe\n");
-		return -1;
-	}
+	return call_usermodhelper(argv[0], argv, envp, UHM_WAIT_PROC);
 
-	prog_attr.name = "mmap_probe";
-	prog_attr.insns = ptr_to_u64((void *)func); // insns is an array of struct bpf_insn instructions
-	prog_attr.license = ptr_to_u64("GPL");
-	prog_attr.log_level = 0;
-	prog_attr.kern_version = ;
-	prog_attr.prog_flags = ;
-	prog_attr.prog_type = (enum bpf_prog_type) BPF_PROG_TYPE_KPROBE;
-
-
-	// idea: from FD, read in function as compiled binary, attr.config2 as pointer to probe function in memory
-
-	attr.sample_period = 1;
-  	attr.wakeup_events = 1;
-	attr.size = sizeof(attr);
-	attr.type = (enum bpf_prog_type) BPF_PROG_TYPE_KPROBE;
-	attr.config2 = 0; // offset 
-	attr.config1 = ptr_to_u64((void *)fn_name); 
-
-	// init bpf_attr for the probe
-	// https://elixir.bootlin.com/linux/v4.19.269/source/include/uapi/linux/bpf.h#L301
-	// for programs: https://elixir.bootlin.com/linux/v4.19.269/source/include/uapi/linux/bpf.h#L331 
-
-
-	err = security_bpf(cmd, &attr, attr.size);
-	if (err < 0)
-		return err;
-
-	err = bpf_prog_load(&attr);
-	
-	return err;
 }
 static int container_ima_init(void)
 {
