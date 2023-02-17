@@ -75,6 +75,11 @@ static int init_mmap_probe(void)
 	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 }
+int testing(void)
+{
+	pr_info("Testing container ima\n");
+	return 0;
+}
 static int container_ima_init(void)
 {
 	pr_info("Starting container IMA\n");
@@ -95,7 +100,6 @@ static int container_ima_init(void)
 		pr_err("Creation of container integrity dir fails\n");
 		return  -1;
 	}*/
-	ret = init_mmap_probe();
 
 	return ret;
 }

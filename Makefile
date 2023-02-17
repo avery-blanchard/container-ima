@@ -3,7 +3,7 @@
 # https://elixir.bootlin.com/linux/latest/source/Documentation/kbuild/modules.rst
 #
 obj-m += container_ima.o 
-all: kmod test.o format.o
+all: kmod 
 
 PHONY += kmod
 kmod:
