@@ -5,18 +5,22 @@ The goal of this project is to extend the Linux Integrity Measurement Architectu
 
 It uses eBPF to probe the mmap system call to measure executable files mapped in a container.
 ## Usage 
+Note: These are instructions for a Fedora 37 machine running kernel 6.0
+Update \
+`sudo dnf update` \
+Install dependencies \
+`sudo dnf install  kernel-devel-$(uname -r) bcc git libbpf clang` \
+Installl developement tools \
+`sudo dnf groupinstall "Development Tools" "Development Libraries"` \
+Clone repository \
+`git clone https://github.com/avery-blanchard/container-ima/`
 Insert tpm device driver \
 `sudo modprobe tpm` \
-Install packages for kernel developement \
-`install sudo git build-essential net-tools` \
-Install kernel headers \
 Build container IMA kernel module \
 `make` \
 Insert module \
 `sudo insmod container-ima.ko`
 ## Notes
-### Current
-- Kernelspace probe: Access mmap BPF hook from kernel space to use arguments for integrity measurments. What is the best way to do this?
 ### Todo
 - Complete FS
 - IMA Apprasial 
