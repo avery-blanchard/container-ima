@@ -479,6 +479,7 @@ out:
 
 
 }
+EXPORT_SYMBOL(container_ima_process_measurement);
 /*
  * container_ima_add_digest_entry
  *		Helper for container_ima_add_template_entry
@@ -513,10 +514,11 @@ static int container_ima_add_data_entry(struct container_ima_data *data, long id
 	qe = kmalloc(sizeof(*qe),  GFP_KERNEL);
 
 	qe->data = data;
-
-	INIT_LIST_HEAD(&qe->later);
+/*
+	INIT_LIST_HEAD(&qe->hnext);
 	atomic_long_inc(&container_hash_table.len);
 	hlist_add_head_rcu(&qe->hnext, &container_hash_table.queue[id]);
+	*/
 	return 0;
 
 }
@@ -796,7 +798,7 @@ void ima_audit_measurement(struct integrity_iint_cache *iint,
 	//audit_log_untrustedstring(ab, filename);
 	audit_log_format(ab, " hash=\"%s:%s\"", algo_name, hash);
 
-	audit_log_task_info(ab, current);
+	audit_log_task_info(ab);
 	audit_log_end(ab);
 
 	iint->flags |= IMA_AUDITED;
@@ -932,26 +934,14 @@ void integrity_audit_msg(int audit_msgno, struct inode *inode,
 int integrity_kernel_read(struct file *file, loff_t offset,
 			  void *addr, unsigned long count)
 {
-	mm_segment_t old_fs;
-	char __user *buf = (char __user *)addr;
-	ssize_t ret;
-
-	if (!(file->f_mode & FMODE_READ))
-		return -EBADF;
-
-	old_fs = get_fs();
-	set_fs(get_ds());
-	ret = __vfs_read(file, buf, count, &offset);
-	set_fs(old_fs);
-
-	return ret;
+	return kernel_read(file, addr, count, &offset);
 }
 /*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_queue.c#L141
  */
 int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
 {
-    return tpm_pcr_extend(ima_tpm_chip, IMA_PCR, digests_arg->digest); //until vTPM is fixed
+    return tpm_pcr_extend(ima_tpm_chip, IMA_PCR, digests_arg); //until vTPM is fixed
 	//return 0;
 }
 #endif
