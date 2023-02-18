@@ -5,7 +5,7 @@ The goal of this project is to extend the Linux Integrity Measurement Architectu
 
 It uses eBPF to probe the mmap system call to measure executable files mapped in a container.
 ## Usage 
-Note: These are instructions for a Fedora 37 machine running kernel 6.0
+Note: These are instructions for a Fedora 37 machine running kernel 6.0 \
 Update \
 `sudo dnf update` \
 Install dependencies \
@@ -13,7 +13,7 @@ Install dependencies \
 Installl developement tools \
 `sudo dnf groupinstall "Development Tools" "Development Libraries"` \
 Clone repository \
-`git clone https://github.com/avery-blanchard/container-ima/`
+`git clone https://github.com/avery-blanchard/container-ima/` \
 Insert tpm device driver \
 `sudo modprobe tpm` \
 Build container IMA kernel module \
