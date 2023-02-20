@@ -75,12 +75,21 @@ static int init_mmap_probe(void)
 	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 }
-int testing(void)
+noinline int testing(void)
 {
 	pr_info("Testing container ima\n");
 	return 0;
 }
 EXPORT_SYMBOL(testing);
+
+BTF_SET8_START(container_ima_kfunc_ids)
+BTF_ID_FLAGS(func, testing)
+BTF_SET8_END(conntainer_ima_check_kfunc_ids)
+
+static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {
+	.owner = THIS_MODULE,
+	.set   = &container_ima_check_kfunc_ids,
+};
 static int container_ima_init(void)
 {
 	pr_info("Starting container IMA\n");
@@ -94,6 +103,14 @@ static int container_ima_init(void)
 	task = current;
 	pr_info("Getting host task\n");
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
+	
+
+	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_KPROBE, &bpf_container_ima_kfunc_set);
+	if (ret < 0)
+		return ret;
+	if (bpf_fentry_test1(0) < 0)
+		return -EINVAL;
+	//return sysfs_create_bin_file(kernel_kobj, &bin_attr_bpf_testmod_file);
 	/*
 	pr_info("Creating dir\n");
 	c_ima_dir = create_dir("c_integrity", integrity_dir);

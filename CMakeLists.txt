@@ -29,8 +29,7 @@ ELSE (LIBBCC_LIB)
 ENDIF (LIBBCC_LIB)
 
 SET(SOURCE_FILES
-    ./probe.cpp
-    ./container_ima.h)
+    ./probe.cpp)
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR} "${PROJECT_BINARY_DIR}")
 

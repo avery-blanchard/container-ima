@@ -12,6 +12,8 @@ const std::string BPF_PROGRAM = R"(#include <linux/sched.h>
 #include <linux/integrity.h>
 #include <container_ima.h>
 
+extern int testing(void) __ksym;
+
 int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int flags, int fd, off_t offset)  {
     
     struct task_struct *task;
