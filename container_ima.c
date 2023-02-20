@@ -25,6 +25,9 @@
 #include <linux/bpf_lirc.h>
 #include <linux/security.h>
 #include <linux/lsm_hooks.h>
+#include <linux/btf.h>
+#include <linux/btf_ids.h>
+#include <linux/sysfs.h>
 
 #include "container_ima.h"
 #include "container_ima_crypto.h"
@@ -80,11 +83,10 @@ noinline int testing(void)
 	pr_info("Testing container ima\n");
 	return 0;
 }
-EXPORT_SYMBOL(testing);
 
-BTF_SET8_START(container_ima_kfunc_ids)
+BTF_SET8_START(container_ima_check_kfunc_ids)
 BTF_ID_FLAGS(func, testing)
-BTF_SET8_END(conntainer_ima_check_kfunc_ids)
+BTF_SET8_END(container_ima_check_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {
 	.owner = THIS_MODULE,
@@ -105,11 +107,9 @@ static int container_ima_init(void)
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
 	
 
-	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_KPROBE, &bpf_container_ima_kfunc_set);
+	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_SYSCALL, &bpf_container_ima_kfunc_set);
 	if (ret < 0)
 		return ret;
-	if (bpf_fentry_test1(0) < 0)
-		return -EINVAL;
 	//return sysfs_create_bin_file(kernel_kobj, &bin_attr_bpf_testmod_file);
 	/*
 	pr_info("Creating dir\n");
