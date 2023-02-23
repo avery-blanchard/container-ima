@@ -1,5 +1,4 @@
 #define _GNU_SOURCE
-#include <linux/module.h>
 #include <linux/unistd.h>
 #include <linux/slab.h>
 #include <linux/string.h>
@@ -25,9 +24,14 @@
 #include <linux/bpf_lirc.h>
 #include <linux/security.h>
 #include <linux/lsm_hooks.h>
-#include <linux/btf.h>
+//#include <linux/btf.h>
 #include <linux/btf_ids.h>
 #include <linux/sysfs.h>
+#include <linux/bpfptr.h>
+#include <linux/bsearch.h>
+#include <linux/btf_ids.h>
+#include <uapi/linux/btf.h>
+#include <uapi/linux/bpf.h>
 
 #include "container_ima.h"
 #include "container_ima_crypto.h"
@@ -52,6 +56,8 @@ int map_fd;
 struct task_struct *thread;
 struct c_ima_data_hash_table container_hash_table;
 
+extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
+			      const struct btf_kfunc_id_set *kset);
 /*
  * init_mmap_probe 
  * https://elixir.bootlin.com/linux/v4.19/source/kernel/bpf/syscall.c#L2334 
@@ -107,9 +113,13 @@ static int container_ima_init(void)
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
 	
 
-	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_SYSCALL, &bpf_container_ima_kfunc_set);
+	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_UNSPEC, &bpf_container_ima_kfunc_set);
 	if (ret < 0)
 		return ret;
+	if (ret + 1 < 0)
+		return -EINVAL;
+	
+	pr_info("Return val of registration %d\n", ret);
 	//return sysfs_create_bin_file(kernel_kobj, &bin_attr_bpf_testmod_file);
 	/*
 	pr_info("Creating dir\n");
@@ -133,9 +143,9 @@ static void container_ima_exit(void)
 	return;
 }
 
-
 module_init(container_ima_init);
 module_exit(container_ima_exit);
+
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION(MODULE_NAME);

@@ -6,12 +6,21 @@
 
 const std::string BPF_PROGRAM = R"(#include <linux/sched.h>
 #include <linux/fs.h>
+#include <linux/bpf.h>
 #include <linux/nsproxy.h>
 #include <linux/cgroup.h>
 #include <linux/security.h>
 #include <linux/integrity.h>
-#include <container_ima.h>
 
+struct mmap_args_t {
+	void *addr;
+	size_t length;
+	int prot;
+	int flags;
+	int fd;
+	int offset;
+	long id;
+};
 extern int testing(void) __ksym;
 
 int syscall__mmap(struct pt_regs *ctx, void *addr, size_t length, int prot, int flags, int fd, off_t offset)  {
