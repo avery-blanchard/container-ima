@@ -31,3 +31,4 @@ Insert module \
 ## Resources
 [BPF manual](https://man7.org/linux/man-pages/man2/bpf.2.html) \
 [[net-next,v7,3/5] security: bpf: Add LSM hooks for bpf object related syscall](https://patchwork.kernel.org/project/linux-security-module/patch/20171018200026.146093-4-chenbofeng.kernel@gmail.com/)
+[ kernel-patches/bpf: Merge branch 'libbpf: Add syscall-specific variant of BPF_KPROBE'](https://github.com/kernel-patches/bpf/commit/3caa7d2e2e9b69bf294b55c4a5a0b6673fdf5b00)

@@ -114,6 +114,7 @@ static int container_ima_init(void)
 	
 
 	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_UNSPEC, &bpf_container_ima_kfunc_set);
+	pr_info("Return val of registration %d\n", ret);
 	if (ret < 0)
 		return ret;
 	if (ret + 1 < 0)
