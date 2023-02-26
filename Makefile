@@ -28,7 +28,7 @@ $(OUTPUT):
 $(OUTPUT)/%.bpf.o: %.bpf.c $(wildcard %.h) | $(OUTPUT)
 	$(call msg,BPF,$@)
 	$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > $(OUTPUT)/vmlinux.h
-	$(CLANG) -g -O2 -target bpf $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) -g -O2 -march=x86-64 -target bpf $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 # Generate BPF skeletons

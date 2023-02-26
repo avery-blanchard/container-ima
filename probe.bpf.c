@@ -2,6 +2,9 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
+#define bpf_target_x86
+#define bpf_target_defined
+
 char _license[] SEC("license") = "GPL";
 
 struct mmap_args_t {
@@ -38,7 +41,6 @@ int mmap_probe(struct pt_regs *ctx) {
     //mmap.id = id;
     if (mmap.prot == 0x04)
         testing();
-    */
 
     return 0;
 
