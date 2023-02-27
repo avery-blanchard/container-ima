@@ -9,6 +9,7 @@ OUTPUT ?= ./output
 CLANG ?= clang
 LLVM_STRIP ?= llvm-strip
 BPFTOOL ?= bpftool
+ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/' | sed 's/ppc64le/powerpc/' | sed 's/mips.*/mips/')
 
 INCLUDES := -I$(OUTPUT)
 CFLAGS := -g -Wall -lbpf
@@ -28,7 +29,7 @@ $(OUTPUT):
 $(OUTPUT)/%.bpf.o: %.bpf.c $(wildcard %.h) | $(OUTPUT)
 	$(call msg,BPF,$@)
 	$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > $(OUTPUT)/vmlinux.h
-	$(CLANG) -g -O2 -march=x86-64 -target bpf $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) -g -O2 -D__TARGET_ARCH_$(ARCH) -target bpf $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 # Generate BPF skeletons
@@ -52,5 +53,6 @@ $(APPS): %: $(OUTPUT)/%.o | $(OUTPUT)
 PHONY += clean
 clean:
 		make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+		rm -rf $(OUTPUT)
 
 .PHONY: $(PHONY)

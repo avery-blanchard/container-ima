@@ -7,22 +7,22 @@
 #include <bpf/libbpf.h>
 #include "probe.skel.h"
 
-int cleanup(struct kprobe_bpf *skel)
+int cleanup(struct probe_bpf *skel)
 {
-    kprobe_bpf__destroy(skel);
+    probe_bpf__destroy(skel);
     return -1;
 }
 
 int main(int argc, char **argv)
 {
-    struct kprobe_bpf *skel;
+    struct probe_bpf *skel;
     int ret;
 
-    skel = kprobe_bpf__open_and_load();
+    skel = probe_bpf__open_and_load();
     if (!skel)
         return -1;
 
-    ret = kprobe_bpf__attach(skel);
+    ret = probe_bpf__attach(skel);
     if (ret)
         return cleanup(skel);
 
