@@ -20,6 +20,9 @@ Build container IMA kernel module \
 `make` \
 Insert module \
 `sudo insmod container-ima.ko`
+Insert eBPF probe \
+`sudo ./probe`
+
 ## Notes
 ### Todo
 - Complete FS
