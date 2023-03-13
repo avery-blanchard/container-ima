@@ -24,7 +24,7 @@
 #include <linux/bpf_lirc.h>
 #include <linux/security.h>
 #include <linux/lsm_hooks.h>
-//#include <linux/btf.h>
+#include <linux/btf.h>
 #include <linux/btf_ids.h>
 #include <linux/sysfs.h>
 #include <linux/bpfptr.h>
@@ -68,10 +68,7 @@ static int init_mmap_probe(void)
 	int ret;
 	// https://elixir.bootlin.com/linux/v4.19.269/source/tools/include/uapi/linux/bpf.h#L64
 	// TODO: probe -> assembly instructions
-	// https://github.com/iovisor/bcc/blob/a0fe2bc1c13f729b511d5607030ce40bb4b27c24/src/cc/libbpf.c#L991
-	// https://github.com/iovisor/bcc/blob/2b203ea20d5db4d36e16c07592eb8cc5e919e46c/src/python/bcc/__init__.py#L502 
-	// https://github.com/iovisor/bcc/blob/815d1b84828c02ce10e1ea5163aede6b5786ba38/src/cc/bpf_module.cc#L977
-
+	
 	/* approach: userspace subprocess to insert the probe */
 	struct subprocess_info *subprocess_info; //https://elixir.bootlin.com/linux/v4.19/source/include/linux/umh.h#L19
 	// https://developer.ibm.com/articles/l-user-space-apps/
