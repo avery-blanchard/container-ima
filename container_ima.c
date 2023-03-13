@@ -59,16 +59,14 @@ struct c_ima_data_hash_table container_hash_table;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
 /*
- * init_mmap_probe 
+ * init_mmap_probe, TO DO
  * https://elixir.bootlin.com/linux/v4.19/source/kernel/bpf/syscall.c#L2334 
  */
 static int init_mmap_probe(void) 
 {
 	// using probe.c, init probe from kernelspace using kernel bpf hooks that are reached from userspace through syscall
 	int ret;
-	// https://elixir.bootlin.com/linux/v4.19.269/source/tools/include/uapi/linux/bpf.h#L64
-	// TODO: probe -> assembly instructions
-	
+
 	/* approach: userspace subprocess to insert the probe */
 	struct subprocess_info *subprocess_info; //https://elixir.bootlin.com/linux/v4.19/source/include/linux/umh.h#L19
 	// https://developer.ibm.com/articles/l-user-space-apps/
