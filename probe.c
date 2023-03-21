@@ -19,12 +19,19 @@ int main(int argc, char **argv)
     int ret;
 
     skel = probe_bpf__open_and_load();
-    if (!skel)
+    if (!skel) {
+	    fprintf(stderr, "Failed to open BPF skeleton\n");
         return -1;
-
+    }
     ret = probe_bpf__attach(skel);
-    if (ret)
-        return cleanup(skel);
+    if (ret) {
+	fprintf(stderr, "Failed to attach BPF skeleton\n");
+	goto cleanup;
+    }
 
+    while(1)
+	    sleep(1);
+cleanup:
+    cleanup(skel);
     return 0;
 }

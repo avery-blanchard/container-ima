@@ -15,11 +15,11 @@ struct mmap_args_t {
 	int fd;
 	int offset;
 };
-extern int testing(void) __ksym;
+extern int testing(int i) __ksym;
 
 // int mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-SEC("kprobe/__x64_sys_mmap")
-int mmap_probe(struct pt_regs *ctx) {
+SEC("kprobe/sys_mmap")
+int kprobe__sys_mmap(struct pt_regs *ctx) {
     
     int len;
     struct mmap_args_t  *value;
@@ -29,19 +29,20 @@ int mmap_probe(struct pt_regs *ctx) {
     __builtin_memset(&mmap, 0, sizeof(mmap));
     
 
-    mmap.addr = (void *)PT_REGS_PARM1(ctx);
-    mmap.length = (int)PT_REGS_PARM2(ctx);
-    mmap.prot = (int) PT_REGS_PARM3(ctx);
-    mmap.flags = (int) PT_REGS_PARM4(ctx);
-    mmap.fd = (int) PT_REGS_PARM5(ctx);
+   // mmap.addr = (void *)PT_REGS_PARM1(ctx);
+   // mmap.length = (int)PT_REGS_PARM2(ctx);
+   // mmap.prot = (int) PT_REGS_PARM3(ctx);
+   // mmap.flags = (int) PT_REGS_PARM4(ctx);
+   // mmap.fd = (int) PT_REGS_PARM5(ctx);
     //mmap.offset = (int)offset; //(int) __bpf_syscall_args5(ctx);
     
     //task = (struct task_struct *)bpf_get_current_task();
     //id =  task->nsproxy->cgroup_ns->ns.inum;
     //mmap.id = id;
-    if (mmap.prot == 0x04)
-        testing();
+    //if (mmap.prot == 0x04)
+    //    testing(0);
 
+    testing(0);
     return 0;
 
 }
