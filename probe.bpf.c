@@ -18,7 +18,7 @@ struct mmap_args_t {
 extern int testing(int i) __ksym;
 
 // int mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-SEC("kprobe/sys_mmap")
+SEC("kprobe/__x64_sys_mmap")
 int kprobe__sys_mmap(struct pt_regs *ctx) {
     
     int len;
@@ -42,7 +42,7 @@ int kprobe__sys_mmap(struct pt_regs *ctx) {
     //if (mmap.prot == 0x04)
     //    testing(0);
 
-    testing(0);
+    //testing(0);
     return 0;
 
 }
