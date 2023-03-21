@@ -19,6 +19,8 @@ APPS = probe
 PHONY += kmod
 kmod:
 		make COPTS=-g -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+		LLVM_OBJCOPY=llvm-objcopy pahole -J --btf_gen_floats -j --btf_base /sys/kernel/btf/vmlinux container_ima.ko; \
+		/usr/lib/modules/$(shell uname -r)/build/tools/bpf/resolve_btfids/resolve_btfids -b /sys/kernel/btf/vmlinux container_ima.ko;
 
 PHONY += probe
 $(OUTPUT):
