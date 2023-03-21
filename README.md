@@ -19,7 +19,7 @@ Insert tpm device driver \
 Build container IMA kernel module \
 `make` \
 Insert module \
-`sudo insmod container-ima.ko` \
+`sudo insmod container_ima.ko` \
 Insert eBPF probe \
 `sudo ./probe`
 
