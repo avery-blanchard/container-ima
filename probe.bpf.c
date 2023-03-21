@@ -42,7 +42,7 @@ int kprobe__sys_mmap(struct pt_regs *ctx) {
     //if (mmap.prot == 0x04)
     //    testing(0);
 
-    //testing(0);
+    testing(0);
     return 0;
 
 }
