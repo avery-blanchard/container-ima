@@ -5,7 +5,7 @@ The goal of this project is to extend the Linux Integrity Measurement Architectu
 
 It uses eBPF to probe the mmap system call to measure executable files mapped in a container.
 ## Usage 
-Note: These are instructions for a Fedora 37 machine running kernel 6.0 \
+Note: These are instructions for a Fedora 37 machine running kernel 6.2 \
 Update \
 `sudo dnf update` \
 Install dependencies \
