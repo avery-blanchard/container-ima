@@ -79,10 +79,9 @@ static int init_mmap_probe(void)
 	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 }
-noinline int testing(void)
+noinline int testing(int i)
 {
-	pr_info("Testing container ima\n");
-	return 0;
+	return i;
 }
 
 BTF_SET8_START(container_ima_check_kfunc_ids)
