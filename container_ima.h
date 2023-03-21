@@ -375,7 +375,7 @@ struct integrity_iint_cache {
 int container_keyring_init(void);
 int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_dir, struct dentry *c_ima_symlink);
 long container_ima_vtpm_setup(struct container_ima_data *, unsigned int, struct tpm_chip *);
-struct file *container_ima_retrieve_file(struct mmap_args_t *);
+struct file *container_ima_retrieve_file(int);
 struct container_ima_inode_data *container_ima_retrieve_inode_data(struct container_ima_data *, int, struct file *);
 int container_ima_collect_measurement(struct container_ima_data *, struct mmap_args_t *, unsigned int, struct integrity_iint_cache *, enum hash_algo, void *, loff_t );
 struct integrity_iint_cache *container_integrity_inode_find(struct container_ima_data *, struct inode *, unsigned int);
@@ -481,7 +481,7 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir);
 struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent, void *data, const struct file_operations *ops);
-int testing(int);
+int process_measurement(void *addr, size_t length, int fd, int flags, unsigned int ns);
 static int container_ima_add_data_entry(struct container_ima_data *data, long id);
 //extern int process_mmap(struct mmap_args_t *args);
 /*

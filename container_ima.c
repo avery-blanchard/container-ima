@@ -79,13 +79,32 @@ static int init_mmap_probe(void)
 	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 }
-noinline int testing(int i)
+noinline int process_measurement(void *addr, size_t length, int fd, int flags, unsigned int ns)
 {
-	return i;
+	struct container_ima_data *data;
+	struct file *file;
+	struct mmap_args_t *args;
+	u32 sec_id;
+
+	args->addr = addr;
+	args->fd = fd;
+	args->length = length;
+	args->flags = flags;
+	args->prot = PROT_EXEC;
+	args->offset = 0;
+
+
+	data = init_container_ima(ns, c_ima_dir, c_ima_symlink);
+	file = container_ima_retrieve_file(args->fd); 
+	if (file) {
+		security_current_getsecid_subj(&sec_id);
+		return container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, ns, args);
+	}
+	return 0;
 }
 
 BTF_SET8_START(container_ima_check_kfunc_ids)
-BTF_ID_FLAGS(func, testing)
+BTF_ID_FLAGS(func, process_measurement)
 BTF_SET8_END(container_ima_check_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {
@@ -111,8 +130,6 @@ static int container_ima_init(void)
 	pr_info("Return val of registration %d\n", ret);
 	if (ret < 0)
 		return ret;
-	if (ret + 1 < 0)
-		return -EINVAL;
 	
 	pr_info("Return val of registration %d\n", ret);
 	//return sysfs_create_bin_file(kernel_kobj, &bin_attr_bpf_testmod_file);
@@ -130,7 +147,6 @@ static int container_ima_init(void)
 static void container_ima_exit(void)
 {
 	/* Clean up 
-	 * Free keyring and vTPMs
 	 */
 	int ret;
 	pr_info("Exiting Container IMA\n");

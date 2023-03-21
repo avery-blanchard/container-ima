@@ -16,6 +16,8 @@ Clone repository \
 `git clone https://github.com/avery-blanchard/container-ima/` \
 Insert tpm device driver \
 `sudo modprobe tpm` \
+Initialize submodule \
+`git submodule update --init --recursive` \
 Build container IMA kernel module \
 `make` \
 Insert module \
@@ -25,13 +27,8 @@ Insert eBPF probe \
 
 ## Notes
 ### Todo
-- Complete FS
 - IMA Apprasial 
 - Allow for multiple policies
 - Debug multiple containers
 - Reduce complexity for scale
 
-## Resources
-[BPF manual](https://man7.org/linux/man-pages/man2/bpf.2.html) \
-[[net-next,v7,3/5] security: bpf: Add LSM hooks for bpf object related syscall](https://patchwork.kernel.org/project/linux-security-module/patch/20171018200026.146093-4-chenbofeng.kernel@gmail.com/)
-[ kernel-patches/bpf: Merge branch 'libbpf: Add syscall-specific variant of BPF_KPROBE'](https://github.com/kernel-patches/bpf/commit/3caa7d2e2e9b69bf294b55c4a5a0b6673fdf5b00)

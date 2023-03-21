@@ -46,15 +46,15 @@ static struct tpm_digest *digests;
  *
  * https://elixir.bootlin.com/linux/v6.0.9/source/mm/mmap.c#L1586 
  */
-struct file *container_ima_retrieve_file(struct mmap_args_t *args) 
+struct file *container_ima_retrieve_file(int fd) 
 {
 	int ret;
 	struct file *file;
 
 	/* Get file from fd, len, and address for measurment */
 		//audit_mmap_fd(args->fd, args->flags);
-    pr_info("Retrieving file struct for FD %d\n", args->fd);
-	file = fget(args->fd);
+    pr_info("Retrieving file struct for FD %d\n", fd);
+	file = fget(fd);
 	if (!file) {
 		return PTR_ERR(file);
 	}
@@ -479,7 +479,6 @@ out:
 
 
 }
-EXPORT_SYMBOL(container_ima_process_measurement);
 /*
  * container_ima_add_digest_entry
  *		Helper for container_ima_add_template_entry
