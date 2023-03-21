@@ -13,10 +13,17 @@ int cleanup(struct probe_bpf *skel)
     return -1;
 }
 
+static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
+{
+	return vfprintf(stderr, format, args);
+}
+
 int main(int argc, char **argv)
 {
     struct probe_bpf *skel;
     int ret;
+
+    libbpf_set_print(libbpf_print_fn);
 
     skel = probe_bpf__open_and_load();
     if (!skel) {
