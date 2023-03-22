@@ -16,7 +16,8 @@ struct mmap_args_t {
 };
 //extern int bpfmeasurement(void *addr, size_t length, int fd, int flags, unsigned int ns) __ksym;
 //extern int bpfmeasurement(void) __ksym;
-extern int bpfmeasurement(size_t length, int fd, int flags, unsigned int ns) __ksym;
+//extern int bpfmeasurement(size_t length, int fd, int flags, unsigned int ns) __ksym;
+extern int bpfmeasurement(size_t length, int fd, int flags) __ksym;
 
 // int mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 SEC("kprobe/__x64_sys_mmap")
@@ -45,7 +46,7 @@ int kprobe__sys_mmap(struct pt_regs *ctx) {
     if (mmap.prot == 0x04)
 	  //ret = bpfmeasurement(mmap.addr, mmap.length, mmap.fd, mmap.flags, id);
 	  //ret = bpfmeasurement();
-          ret = bpfmeasurement(4, 4, 4, 4);
+          ret = bpfmeasurement(mmap.length, mmap.fd, mmap.flags);
 
     return 0;
 
