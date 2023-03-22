@@ -81,7 +81,8 @@ static int init_mmap_probe(void)
 }
 //noinline int bpfmeasurement(void *addr, size_t length, int fd, int flags, unsigned int ns) {
 //noinline int bpfmeasurement(void) {
-noinline int bpfmeasurement(size_t length, int fd, int flags, unsigned int ns) {
+//noinline int bpfmeasurement(size_t length, int fd, int flags, unsigned int ns) {
+noinline int bpfmeasurement(size_t length, int fd, int flags) {
 
 	struct container_ima_data *data;
 	struct file *file;
@@ -96,7 +97,7 @@ noinline int bpfmeasurement(size_t length, int fd, int flags, unsigned int ns) {
 	args->offset = 0;
 
 
-	data = init_container_ima(ns, c_ima_dir, c_ima_symlink);
+	//data = init_container_ima(ns, c_ima_dir, c_ima_symlink);
 	file = container_ima_retrieve_file(args->fd); 
 	if (file) {
 		security_current_getsecid_subj(&sec_id);
