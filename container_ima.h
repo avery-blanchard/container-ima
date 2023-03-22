@@ -481,7 +481,9 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
 struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir);
 struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent, void *data, const struct file_operations *ops);
-int process_measurement(void *addr, size_t length, int fd, int flags, unsigned int ns);
+//int bpfmeasurement(void *addr, size_t length, int fd, int flags, unsigned int ns);
+//int bpfmeasurement(void);
+int bpfmeasurement(size_t length, int fd, int flags, unsigned int ns);
 static int container_ima_add_data_entry(struct container_ima_data *data, long id);
 //extern int process_mmap(struct mmap_args_t *args);
 /*

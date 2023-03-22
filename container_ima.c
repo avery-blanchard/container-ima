@@ -79,14 +79,16 @@ static int init_mmap_probe(void)
 	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 }
-noinline int process_measurement(void *addr, size_t length, int fd, int flags, unsigned int ns)
-{
+//noinline int bpfmeasurement(void *addr, size_t length, int fd, int flags, unsigned int ns) {
+//noinline int bpfmeasurement(void) {
+noinline int bpfmeasurement(size_t length, int fd, int flags, unsigned int ns) {
+
 	struct container_ima_data *data;
 	struct file *file;
 	struct mmap_args_t *args;
 	u32 sec_id;
 
-	args->addr = addr;
+	//args->addr = addr;
 	args->fd = fd;
 	args->length = length;
 	args->flags = flags;
@@ -98,13 +100,14 @@ noinline int process_measurement(void *addr, size_t length, int fd, int flags, u
 	file = container_ima_retrieve_file(args->fd); 
 	if (file) {
 		security_current_getsecid_subj(&sec_id);
-		return container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, ns, args);
+		// Note: do not call below function with args->addr set as it will freeze the machine
+		//return container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, ns, args);
 	}
 	return 0;
 }
 
 BTF_SET8_START(container_ima_check_kfunc_ids)
-BTF_ID_FLAGS(func, process_measurement)
+BTF_ID_FLAGS(func, bpfmeasurement)
 BTF_SET8_END(container_ima_check_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {
