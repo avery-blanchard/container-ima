@@ -395,9 +395,7 @@ int container_ima_store_template(struct container_ima_data *, struct ima_templat
 		       const char *, unsigned int);
 int container_ima_store_measurement(struct container_ima_data *, struct mmap_args_t *, unsigned int, struct integrity_iint_cache *, 
                 struct file *, struct ima_template_desc *, const char *); 
-struct container_ima_data *init_container_ima(unsigned int container_id, struct dentry *c_ima_dir, struct dentry *c_ima_symlink);
-int syscall__probe_entry_mmap(struct pt_regs *, void *, size_t, int, int, int, off_t);
-int syscall__probe_ret_mmap(struct pt_regs *);
+struct container_ima_data *init_container_ima(unsigned int container_id, struct dentry *c_ima_dir);
 int container_ima_cleanup(void);
 static int container_ima_init(void);
 static void container_ima_exit(void);
@@ -479,8 +477,6 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
 			      struct ima_digest_data *hash); 
 int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
-struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir);
-struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent, void *data, const struct file_operations *ops);
 int bpfmeasurement(size_t length, int fd, int flags);
 static int container_ima_add_data_entry(struct container_ima_data *data, long id);
 //extern int process_mmap(struct mmap_args_t *args);

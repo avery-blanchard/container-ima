@@ -76,21 +76,19 @@ void container_ima_free_data(struct container_ima_data *data)
 /*
  * container_ima_init
  * 		Initalize container IMA
- * 		Create vTPM proxy using container_id as its number
  *		Create measurment log 
- * 		Default policy
  */
-struct container_ima_data *init_container_ima(unsigned int container_id, struct dentry *c_ima_dir, struct dentry *c_ima_symlink) 
+struct container_ima_data *init_container_ima(unsigned int container_id, struct dentry *c_ima_dir) 
 {
 	int ret;
 	struct container_ima_data *data;
 	/* check if container exist, then return container_data here */
-	data = ima_data_exists(container_id);
+	/*data = ima_data_exists(container_id);
 	if (data) {
 		pr_info("Data exists\n");
 		return data;
 	}
-	pr_info("Data does not exist, init\n");
+	pr_info("Data does not exist, init\n");*/
 	data = init_container_ima_data(container_id);
 
 	ima_tpm_chip = tpm_default_chip();
@@ -98,13 +96,7 @@ struct container_ima_data *init_container_ima(unsigned int container_id, struct 
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
 	//ret = container_ima_fs_init(data, c_ima_dir, c_ima_symlink);
-	//ret = integrity_init_keyring(INTEGRITY_KEYRING_IMA); // per container key ring
 
-	//data->keyring = INTEGRITY_KEYRING_IMA;
-
-	//ret = container_ima_crypto_init(data); // iterate over PCR banks and init the algorithms per bank  
-
-	container_ima_add_data_entry(data, container_id);
 	return data;
 }
 

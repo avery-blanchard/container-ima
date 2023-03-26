@@ -91,7 +91,6 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 	task = current;
 	inum = task->nsproxy->cgroup_ns->ns.inum;
 	
-	//args->addr = addr;
 	args->fd = fd;
 	args->length = length;
 	args->flags = flags;
@@ -99,11 +98,11 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 	args->offset = 0;
 
 
-	//data = init_container_ima(ns, c_ima_dir, c_ima_symlink);
+	data = init_container_ima(inum, c_ima_dir);
 	file = container_ima_retrieve_file(args->fd); 
 	if (file) {
 		security_current_getsecid_subj(&sec_id);
-		//return container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, ns, args);
+		return container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
 	}
 	return 0;
 }
@@ -137,15 +136,14 @@ static int container_ima_init(void)
 		return ret;
 	
 	pr_info("Return val of registration %d\n", ret);
-	//return sysfs_create_bin_file(kernel_kobj, &bin_attr_bpf_testmod_file);
-	/*
+	
 	pr_info("Creating dir\n");
-	c_ima_dir = create_dir("c_integrity", integrity_dir);
+	/*c_ima_dir = create_dir("c_integrity", NULL);
 	if (IS_ERR(c_ima_dir)) {
 		pr_err("Creation of container integrity dir fails\n");
 		return  -1;
 	}*/
-
+	c_ima_dir = securityfs_create_dir("c_integrity", NULL);
 	return ret;
 }
 

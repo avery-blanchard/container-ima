@@ -302,67 +302,6 @@ static const struct file_operations c_ima_ascii_measurements_ops = {
 	.release = seq_release,
 };
 /*
- *
- * https://elixir.bootlin.com/linux/v4.19/source/security/inode.c#L70
- *
- */
-struct dentry *create_file(const char *name, umode_t mode, struct dentry *parent, void *data, const struct file_operations *ops) 
-{
-	struct inode *inode;
-	struct inode *dir;
-	struct dentry *dentry;
-	int ret;
-
-	pr_info("In create file\n");
-	dir = d_inode(parent);
-	pr_info("check\n");
-	inode_lock(dir);
-
-	if (!parent) 
-		pr_info("NULL parent dentry\n");
-
-	inode = new_inode(dir->i_sb);
-	if (!inode) {
-		pr_err("Failed to create new inode\n");
-		inode_unlock(dir);
-		ret = ENOMEM;
-		return ERR_PTR(ret);
-	}
-
-	/* init inode data */
-	inode->i_ino = get_next_ino();
-	inode->i_private = data;
-	inode->i_mode = mode;
-
-	// check mode for correct ops
-	if (S_ISDIR(mode)) {
-		inode->i_op = &simple_dir_inode_operations;
-		inode->i_fop = &simple_dir_operations;
-		inc_nlink(inode);
-		inc_nlink(dir);
-	} else if (S_ISLNK(mode)) {
-		inode->i_op = &simple_symlink_inode_operations;
-		inode->i_link = data;
-	} else 
-		inode->i_fop = ops;
-	
-	  d_instantiate(dentry, inode);
-	dget(dentry);
-	inode_unlock(dir);
-
-	return dentry;
-}
-struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir)
-{
-	umode_t mode;
-	struct dentry *dentry;
-	mode = S_IFDIR | 0755;
-	pr_info("in create dir\n");
-	dentry = create_file(dir_name, mode, parent_dir, NULL, NULL);
-
-	return dentry;
-}
-/*
  * container_ima_fs_init
  *      Create a secure place to store per container measurement logs
  * 		Idea: under /integrity/ima/containers/ have a directory per container named with container id
@@ -371,17 +310,17 @@ struct dentry *create_dir(const char *dir_name, struct dentry *parent_dir)
 int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_dir, struct dentry *c_ima_symlink) 
 {
 	int res;
-	char *dir_name = "integrity/ima/containers/";
+	char *dir_name = "";
 	char *id;
 
 	sprintf(id, "%n", &data->container_id);
 	strcat(dir_name, id);
 
-	data->container_dir = create_dir(dir_name, c_ima_dir);
+	data->container_dir = securityfs_create_dir(dir_name, c_ima_dir);
 	if (IS_ERR(data->container_dir))
 		return -1;
 
-	data->binary_runtime_measurements = create_file("binary_runtime_measurements",
+	data->binary_runtime_measurements = securityfs_create_file("binary_runtime_measurements",
 				   S_IRUSR | S_IRGRP, data->container_dir, NULL,
 				   &c_ima_measurements_ops);
 
@@ -390,7 +329,7 @@ int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_
 		return -1;
 	}
 
-	data->ascii_runtime_measurements = create_file("ascii_runtime_measurements",
+	data->ascii_runtime_measurements = securityfs_create_file("ascii_runtime_measurements",
 				   S_IRUSR | S_IRGRP, data->container_dir, NULL,
 				   &c_ima_ascii_measurements_ops);
 	if (IS_ERR(data->ascii_runtime_measurements)) {
@@ -398,7 +337,7 @@ int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_
 		return -1;
 	}
 
-	data->violations_log = create_file("violations", S_IRUSR | S_IRGRP,
+	data->violations_log = securityfs_create_file("violations", S_IRUSR | S_IRGRP,
 				   data->container_dir, NULL, &c_ima_htable_violations_ops);
 	if (IS_ERR(data->violations_log)) {
 		res = PTR_ERR(data->violations_log);
