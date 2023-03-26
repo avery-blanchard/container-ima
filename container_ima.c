@@ -79,16 +79,18 @@ static int init_mmap_probe(void)
 	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 }
-//noinline int bpfmeasurement(void *addr, size_t length, int fd, int flags, unsigned int ns) {
-//noinline int bpfmeasurement(void) {
-//noinline int bpfmeasurement(size_t length, int fd, int flags, unsigned int ns) {
 noinline int bpfmeasurement(size_t length, int fd, int flags) {
 
 	struct container_ima_data *data;
 	struct file *file;
+	struct task_struct *task;
 	struct mmap_args_t *args;
+	unsigned int inum;
 	u32 sec_id;
 
+	task = current;
+	inum = task->nsproxy->cgroup_ns->ns.inum;
+	
 	//args->addr = addr;
 	args->fd = fd;
 	args->length = length;
@@ -101,7 +103,6 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 	file = container_ima_retrieve_file(args->fd); 
 	if (file) {
 		security_current_getsecid_subj(&sec_id);
-		// Note: do not call below function with args->addr set as it will freeze the machine
 		//return container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, ns, args);
 	}
 	return 0;
