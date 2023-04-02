@@ -23,6 +23,7 @@
 struct tpm_chip *ima_tpm_chip;
 static struct kmem_cache *c_ima_cache;
 struct ima_rule_entry container_ima_rules = {.action = MEASURE, .mask = MAY_EXEC, .flags = IMA_FUNC | IMA_MASK};
+int ima_hash_algo;
 
 /*
  * init_container_ima_data
@@ -94,7 +95,12 @@ struct container_ima_data *init_container_ima(unsigned int container_id)
 
 	return data;
 }
+int container_ima_crypto_init(void) {
 
+	ima_hash_algo = ima_tpm_chip->allocated_banks[10].crypto_id;
+
+	return 0;
+}
 /*
  * TODO
  */

@@ -35,10 +35,9 @@
 
 static struct kmem_cache *c_ima_iint_cache;
 static DEFINE_MUTEX(ima_extend_list_mutex);
-int ima_hash_algo = HASH_ALGO_SHA1;
 int ima_policy = ORIGINAL_TCB;
 
-
+extern struct ima_rule_entry container_ima_rules;
 /* pre-allocated array of tpm_digest structures to extend a PCR */
 static struct tpm_digest *digests;
 
@@ -342,8 +341,7 @@ int container_ima_get_action(struct container_ima_data *data, struct inode *inod
 	int flag;
 	
 	flag = IMA_MEASURE | IMA_AUDIT | IMA_APPRAISE | IMA_HASH; // not implementing appraisal currently, maybe exclude
-	flag &= data->c_ima_policy_flags;
-
+	flag &= container_ima_rules.flags;
 	/* ima_match policy reads IMA tmp rules list, which for container IMA is per
 	 * container and in struct container_data, re-write for different policies (later on)
 	 */ 
@@ -387,12 +385,13 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 				&allowed_algos);
 	
 	pr_info("Got action\n");
-	violation_check = ((data->c_ima_policy_flags & IMA_MEASURE));
+	violation_check = ((container_ima_rules.flags & IMA_MEASURE));
 	if (!action && !violation_check)
 		return 0;
 	
 	//appraisal = action & IMA_APPRAISE; // implement apprasial in future
-	
+
+
 	inode_lock(inode);
 
 	if (action) {

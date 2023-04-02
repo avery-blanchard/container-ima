@@ -458,7 +458,7 @@ void integrity_audit_msg(int audit_msgno, struct inode *inode,
 //static void ima_free_pages(void *ptr, size_t size);
 int integrity_kernel_read(struct file *file, loff_t offset,
 			  void *addr, unsigned long count);
-
+int container_ima_crypto_init(void);
 //static void *ima_alloc_pages(loff_t max_size, size_t *allocated_size,int last_warn);
 //static inline int ahash_wait(int err, struct crypto_wait *wait);
 //static int param_set_bufsize(const char *val, const struct kernel_param *kp);

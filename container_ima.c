@@ -124,6 +124,9 @@ static int container_ima_init(void)
 	if (ret < 0)
 		return ret;
 	
+	/* Initialize IMA crypto */
+	ret = container_ima_crypto_init();
+
 	/* Register kfunc for eBPF */
 	task = current;
 	pr_info("Getting host task\n");
