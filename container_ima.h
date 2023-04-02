@@ -216,11 +216,6 @@ extern struct dentry *ascii_runtime_measurements;
 extern struct dentry *violations;
 extern struct dentry *policy;
 
-const char *binary_path = "/sys/kernel/security/ima/binary_runtime_measurements";
-const char *ascii_path = "/sys/kernel/security/ima/ascii_runtime_measurements";
-const char *violations_path = "sys/kernel/security/ima/violations";
-const char *policy_path = "sys/kernel/security/ima/policy"; 
-const char *runtime_count_path = "sys/kernel/security/ima/runtime_measurements_count";
 
 struct ima_rule_entry {
 	struct list_head list;

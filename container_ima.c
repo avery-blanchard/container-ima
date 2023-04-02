@@ -120,11 +120,13 @@ static int container_ima_init(void)
 	
 
 	/* Initialize global/shared IMA data */
+	pr_info("FS INIT\n");
 	ret = container_ima_fs_init();
 	if (ret < 0)
 		return ret;
 	
 	/* Initialize IMA crypto */
+	pr_info("CRYPTO INIT\n");
 	ret = container_ima_crypto_init();
 
 	/* Register kfunc for eBPF */

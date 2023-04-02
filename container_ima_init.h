@@ -97,6 +97,13 @@ struct container_ima_data *init_container_ima(unsigned int container_id)
 }
 int container_ima_crypto_init(void) {
 
+	ima_tpm_chip = tpm_default_chip();
+        
+	if (!ima_tpm_chip) {
+                pr_info("No TPM chip found, activating TPM-bypass!\n");
+		return 0;
+	}
+
 	ima_hash_algo = ima_tpm_chip->allocated_banks[10].crypto_id;
 
 	return 0;

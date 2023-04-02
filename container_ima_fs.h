@@ -317,8 +317,16 @@ int container_ima_fs_init(void)
         struct file *violate_fp;
 	int ret; 
 
+
+	char *binary_path = "/sys/kernel/security/ima/binary_runtime_measurements";
+	char *ascii_path = "/sys/kernel/security/ima/ascii_runtime_measurements";
+	char *violations_path = "/sys/kernel/security/ima/violations";
+	char *policy_path = "/sys/kernel/security/ima/policy";
+	char *runtime_count_path = "/sys/kernel/security/ima/runtime_measurements_count";
+
         /* Set global logging location */
-        binary_fp = filp_open(binary_path, 0, 0);
+        pr_info("BINARY\n");
+	binary_fp = filp_open(binary_path, O_RDONLY, 0);
         if (!binary_fp) {
                 pr_err("Unable to open IMA binary measurment log\n");
                 return -1;
@@ -326,7 +334,8 @@ int container_ima_fs_init(void)
         binary_runtime_measurements = binary_fp->f_path.dentry;
         ret = filp_close(binary_fp, NULL);
 
-        ascii_fp = filp_open(ascii_path, 0, 0);
+	pr_info("ASCII\n");
+        ascii_fp = filp_open(ascii_path, O_RDONLY, 0);
         if (!ascii_fp) {
                 pr_err("Unable to open IMA ascii measurment log\n");
                 return -1;
@@ -334,16 +343,17 @@ int container_ima_fs_init(void)
         ascii_runtime_measurements = ascii_fp->f_path.dentry;
         ret = filp_close(ascii_fp, NULL);
 
-        policy_fp = filp_open(policy_path, 0, 0);
+	pr_info("POLICY\n");
+        policy_fp = filp_open(policy_path, O_RDONLY, 0);
         if (!policy_fp) {
                 pr_err("Unable to open IMA policy\n");
                 return -1;
         }
         policy = policy_fp->f_path.dentry;
         ret = filp_close(policy_fp, NULL);
-
-
-        violate_fp = filp_open(violations_path, 0, 0);
+	
+	pr_info("VIOLATIONS\n");
+        violate_fp = filp_open(violations_path, O_RDONLY, 0);
         if (!violate_fp) {
                 pr_err("Unable to open IMA violations log\n");
                 return -1;
@@ -351,6 +361,7 @@ int container_ima_fs_init(void)
         violations = violate_fp->f_path.dentry;
         ret = filp_close(violate_fp, NULL);
 
+	pr_info("Exitting with ret val: %d\n", ret);
 	return ret;
 
 }
