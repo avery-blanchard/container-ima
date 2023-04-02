@@ -22,10 +22,11 @@
 
 struct tpm_chip *ima_tpm_chip;
 static struct kmem_cache *c_ima_cache;
+struct ima_rule_entry container_ima_rules = {.action = MEASURE, .mask = MAY_EXEC, .flags = IMA_FUNC | IMA_MASK};
 
 /*
  * init_container_ima_data
- * 	
+ * 	Initialize per container data structure
  */
 struct container_ima_data *init_container_ima_data(unsigned int container_id) 
 {
@@ -33,17 +34,14 @@ struct container_ima_data *init_container_ima_data(unsigned int container_id)
 	pr_info("Creating container data for IMA\n");
 	data = create_container_ima_data();
 	
-	/* init policy lists */
-	pr_info("Init policy lists\n");
-	INIT_LIST_HEAD(&data->c_ima_default_rules);
-
+	data->c_ima_default_rules = &container_ima_rules;
 	data->container_id = container_id;
 
 	/* init hash table */
 	pr_info("Init hash table\n");
 	atomic_long_set(&data->c_ima_write_mutex.owner, 0);
-	//atomic_long_set(&data->hash_tbl->violations, 0);
-	//memset(&data->hash_tbl->queue, 0, sizeof(data->hash_tbl->queue));
+	atomic_long_set(&data->hash_tbl->violations, 0);
+	memset(&data->hash_tbl->queue, 0, sizeof(data->hash_tbl->queue));
 
 	/* init ML */
 	pr_info("Init list of measurements\n");
@@ -51,7 +49,7 @@ struct container_ima_data *init_container_ima_data(unsigned int container_id)
 	mutex_init(&data->c_ima_write_mutex);
 
 	data->container_integrity_iint_tree = RB_ROOT;
-	//DEFINE_RWLOCK(data->container_integrity_iint_lock);
+	//DEFINE_RWLOCK(&data->container_integrity_iint_lock);
 
 	return data;
 }
@@ -95,40 +93,15 @@ struct container_ima_data *init_container_ima(unsigned int container_id, struct 
 	if (!ima_tpm_chip)
 		pr_info("No TPM chip found, activating TPM-bypass!\n");
 
-	//ret = container_ima_fs_init(data, c_ima_dir, c_ima_symlink);
 
 	return data;
 }
 
-/*
- * container_keyring_init 
- *  TODO 
- * https://man7.org/linux/man-pages/man7/keyrings.7.html
- * https://man7.org/linux/man-pages/man2/add_key.2.html 
- */
-int container_keyring_init()
-{
-	return 0;
-}
 /*
  * TODO
  */
 int container_ima_cleanup() {
 	
 	return 0;
-}
-/*
- * container_ima_crypto_init
- * 
- * Iterate over PCRs, check algorithm for PCR10 and record
- */
-int container_ima_crypto_init(struct container_ima_data *data)
-{
-	int ret;
-	int i;
-
-
-	return 0;
-
 }
 #endif

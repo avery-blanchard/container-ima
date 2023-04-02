@@ -32,10 +32,12 @@
 #include "container_ima_crypto.h"
 
 #define IMA_PCR 10
+
 static struct kmem_cache *c_ima_iint_cache;
 static DEFINE_MUTEX(ima_extend_list_mutex);
 int ima_hash_algo = HASH_ALGO_SHA1;
 int ima_policy = ORIGINAL_TCB;
+
 
 /* pre-allocated array of tpm_digest structures to extend a PCR */
 static struct tpm_digest *digests;
@@ -272,6 +274,7 @@ static void container_ima_rdwr_violation_check(struct container_ima_data *data, 
 				     const char **pathname,
 				     char *filename, unsigned int container_id)
 {
+	return;
 	struct inode *inode = file_inode(file);
 	fmode_t mode = file->f_mode;
 	bool send_t = false;
@@ -321,8 +324,7 @@ int container_ima_match_policy(struct container_ima_data *data, struct inode *in
 
 	action_mask = flags | (flags << 1);
 	/* TODO edit this for future use with different policies per container */
-
-	return ima_policy;
+	return MEASURE;
 
 }
 /*

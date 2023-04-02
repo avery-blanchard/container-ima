@@ -213,6 +213,19 @@ extern struct dentry *c_ima_dir;
 extern struct dentry *c_ima_symlink;
 extern bool ima_canonical_fmt;
 
+struct dentry *integrity_dir;
+struct dentry *binary_runtime_measurements; // https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L362
+struct dentry *ascii_runtime_measurements; // https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L363
+struct dentry *violations_log;
+
+struct ima_rule_entry {
+	struct list_head list;
+	int action;
+	int flags;
+	int pcr;
+	int mask;
+}; // add to this as needed
+
 /* struct for BPF argument mappings */
 struct mmap_args_t {
 	void *addr;
@@ -338,16 +351,12 @@ struct container_ima_data {
 	spinlock_t c_ima_queue_lock;
 	struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE]; // hash table queue
 	/* policy configurations TODO */
-	struct list_head c_ima_default_rules;
+	struct ima_policy_rules *c_ima_default_rules;
 	struct list_head c_ima_measurements; // linked list of measurements 
 	unsigned long binary_runtime_size;
 	struct ima_h_table *hash_tbl;  
 	struct mutex c_ima_write_mutex;
 	int c_ima_policy_flags;
-	struct dentry *container_dir;
-	struct dentry *binary_runtime_measurements; // https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L362
-	struct dentry *ascii_runtime_measurements; // https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L363
-	struct dentry *violations_log;
 	struct rb_root container_integrity_iint_tree;
 
 };
