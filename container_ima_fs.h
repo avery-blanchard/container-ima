@@ -25,6 +25,11 @@
 #include "container_ima_api.h"
 #include "container_ima.h"
 
+struct dentry *binary_runtime_measurements;
+struct dentry *ascii_runtime_measurements;
+struct dentry *violations;
+struct dentry *policy;
+
 static DEFINE_MUTEX(ima_write_mutex);
 
 static struct vfsmount *mount;
@@ -303,55 +308,50 @@ static const struct file_operations c_ima_ascii_measurements_ops = {
 };
 /*
  * container_ima_fs_init
- *      Create a secure place to store per container measurement logs
- * 		Idea: under /integrity/ima/containers/ have a directory per container named with container id
- *  https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L454    	
  */
-int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_dir, struct dentry *c_ima_symlink) 
+int container_ima_fs_init(void) 
 {
-	int res;
-	char *dir_name = "";
-	char *id;
+	struct file *binary_fp;
+        struct file *ascii_fp;
+        struct file *policy_fp;
+        struct file *violate_fp;
+	int ret; 
 
-	sprintf(id, "%n", &data->container_id);
-	strcat(dir_name, id);
+        /* Set global logging location */
+        binary_fp = filp_open(binary_path, 0, 0);
+        if (!binary_fp) {
+                pr_err("Unable to open IMA binary measurment log\n");
+                return -1;
+        }
+        binary_runtime_measurements = binary_fp->f_path.dentry;
+        ret = filp_close(binary_fp, NULL);
 
-	data->container_dir = securityfs_create_dir(dir_name, c_ima_dir);
-	if (IS_ERR(data->container_dir))
-		return -1;
+        ascii_fp = filp_open(ascii_path, 0, 0);
+        if (!ascii_fp) {
+                pr_err("Unable to open IMA ascii measurment log\n");
+                return -1;
+        }
+        ascii_runtime_measurements = ascii_fp->f_path.dentry;
+        ret = filp_close(ascii_fp, NULL);
 
-	data->binary_runtime_measurements = securityfs_create_file("binary_runtime_measurements",
-				   S_IRUSR | S_IRGRP, data->container_dir, NULL,
-				   &c_ima_measurements_ops);
+        policy_fp = filp_open(policy_path, 0, 0);
+        if (!policy_fp) {
+                pr_err("Unable to open IMA policy\n");
+                return -1;
+        }
+        policy = policy_fp->f_path.dentry;
+        ret = filp_close(policy_fp, NULL);
 
-	if (IS_ERR(data->binary_runtime_measurements)) {
-		res = PTR_ERR(data->binary_runtime_measurements);
-		return -1;
-	}
 
-	data->ascii_runtime_measurements = securityfs_create_file("ascii_runtime_measurements",
-				   S_IRUSR | S_IRGRP, data->container_dir, NULL,
-				   &c_ima_ascii_measurements_ops);
-	if (IS_ERR(data->ascii_runtime_measurements)) {
-		res = PTR_ERR(data->ascii_runtime_measurements);
-		return -1;
-	}
+        violate_fp = filp_open(violations_path, 0, 0);
+        if (!violate_fp) {
+                pr_err("Unable to open IMA violations log\n");
+                return -1;
+        }
+        violations = violate_fp->f_path.dentry;
+        ret = filp_close(violate_fp, NULL);
 
-	data->violations_log = securityfs_create_file("violations", S_IRUSR | S_IRGRP,
-				   data->container_dir, NULL, &c_ima_htable_violations_ops);
-	if (IS_ERR(data->violations_log)) {
-		res = PTR_ERR(data->violations_log);
-		return -1;
-    }
-    /*
-	data->c_ima_policy = securityfs_create_file("policy", POLICY_FILE_FLAGS,
-					    data->container_dir, NULL,
-					    &ima_measure_policy_ops);
-	if (IS_ERR(data->c_ima_policy)) {
-		res = PTR_ERR(data->c_ima_policy);
-		goto out;
-	}
-    */
-	return 0;
+	return ret;
+
 }
 #endif

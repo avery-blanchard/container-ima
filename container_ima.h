@@ -206,17 +206,21 @@ enum policy_types { ORIGINAL_TCB = 1, DEFAULT_TCB };
 enum policy_rule_list { IMA_DEFAULT_POLICY = 1, IMA_CUSTOM_POLICY };
 
 extern struct tpm_chip *ima_tpm_chip;
-extern long host_inum;
 extern struct c_ima_data_hash_table container_hash_table;
 extern int ima_hash_algo;
-extern struct dentry *c_ima_dir;
-extern struct dentry *c_ima_symlink;
 extern bool ima_canonical_fmt;
 
-struct dentry *integrity_dir;
-struct dentry *binary_runtime_measurements; // https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L362
-struct dentry *ascii_runtime_measurements; // https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L363
-struct dentry *violations_log;
+/* Dentry for IMA measurment logs, policies, violations */
+extern struct dentry *binary_runtime_measurements; 
+extern struct dentry *ascii_runtime_measurements;
+extern struct dentry *violations;
+extern struct dentry *policy;
+
+const char *binary_path = "/sys/kernel/security/ima/binary_runtime_measurements";
+const char *ascii_path = "/sys/kernel/security/ima/ascii_runtime_measurements";
+const char *violations_path = "sys/kernel/security/ima/violations";
+const char *policy_path = "sys/kernel/security/ima/policy"; 
+const char *runtime_count_path = "sys/kernel/security/ima/runtime_measurements_count";
 
 struct ima_rule_entry {
 	struct list_head list;
@@ -351,7 +355,6 @@ struct container_ima_data {
 	spinlock_t c_ima_queue_lock;
 	struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE]; // hash table queue
 	/* policy configurations TODO */
-	struct ima_policy_rules *c_ima_default_rules;
 	struct list_head c_ima_measurements; // linked list of measurements 
 	unsigned long binary_runtime_size;
 	struct ima_h_table *hash_tbl;  
@@ -381,8 +384,7 @@ struct integrity_iint_cache {
 };
 
 /* Internal container IMA function definitions */
-int container_keyring_init(void);
-int container_ima_fs_init(struct container_ima_data *data, struct dentry *c_ima_dir, struct dentry *c_ima_symlink);
+int container_ima_fs_init(void);
 long container_ima_vtpm_setup(struct container_ima_data *, unsigned int, struct tpm_chip *);
 struct file *container_ima_retrieve_file(int);
 struct container_ima_inode_data *container_ima_retrieve_inode_data(struct container_ima_data *, int, struct file *);
@@ -404,7 +406,7 @@ int container_ima_store_template(struct container_ima_data *, struct ima_templat
 		       const char *, unsigned int);
 int container_ima_store_measurement(struct container_ima_data *, struct mmap_args_t *, unsigned int, struct integrity_iint_cache *, 
                 struct file *, struct ima_template_desc *, const char *); 
-struct container_ima_data *init_container_ima(unsigned int container_id, struct dentry *c_ima_dir);
+struct container_ima_data *init_container_ima(unsigned int container_id);
 int container_ima_cleanup(void);
 static int container_ima_init(void);
 static void container_ima_exit(void);

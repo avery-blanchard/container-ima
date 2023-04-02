@@ -47,20 +47,12 @@
 #define INTEGRITY_KEYRING_IMA 1
 #define LOG_BUF_SIZE 2048
 
-struct dentry *integrity_dir;
-struct tpm_chip *ima_tpm_chip;
-long host_inum;
-struct dentry *c_ima_dir;
-struct dentry *c_ima_symlink;
-int map_fd;
-struct task_struct *thread;
-struct c_ima_data_hash_table container_hash_table;
 
+unsigned int host_inum;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
 /*
  * init_mmap_probe, TO DO
- * https://elixir.bootlin.com/linux/v4.19/source/kernel/bpf/syscall.c#L2334 
  */
 static int init_mmap_probe(void) 
 {
@@ -91,18 +83,20 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 	task = current;
 	inum = task->nsproxy->cgroup_ns->ns.inum;
 	
-	args->fd = fd;
-	args->length = length;
-	args->flags = flags;
-	args->prot = PROT_EXEC;
-	args->offset = 0;
+	if (inum  != host_inum) {
+		args->fd = fd;
+		args->length = length;
+		args->flags = flags;
+		args->prot = PROT_EXEC;
+		args->offset = 0;
 
 
-	data = init_container_ima(inum, c_ima_dir);
-	file = container_ima_retrieve_file(args->fd); 
-	if (file) {
-		security_current_getsecid_subj(&sec_id);
-		return container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
+		data = init_container_ima(inum);
+		file = container_ima_retrieve_file(args->fd); 
+		if (file) {
+			security_current_getsecid_subj(&sec_id);
+			return container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
+		}
 	}
 	return 0;
 }
@@ -121,10 +115,16 @@ static int container_ima_init(void)
 
 	/* Start container IMA */
 	int ret;
-	struct file *file;
 	struct task_struct *task;
 	struct nsproxy *ns;
+	
 
+	/* Initialize global/shared IMA data */
+	ret = container_ima_fs_init();
+	if (ret < 0)
+		return ret;
+	
+	/* Register kfunc for eBPF */
 	task = current;
 	pr_info("Getting host task\n");
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
@@ -137,13 +137,7 @@ static int container_ima_init(void)
 	
 	pr_info("Return val of registration %d\n", ret);
 	
-	pr_info("Creating dir\n");
-	/*c_ima_dir = create_dir("c_integrity", NULL);
-	if (IS_ERR(c_ima_dir)) {
-		pr_err("Creation of container integrity dir fails\n");
-		return  -1;
-	}*/
-	c_ima_dir = securityfs_create_dir("c_integrity", NULL);
+	
 	return ret;
 }
 
