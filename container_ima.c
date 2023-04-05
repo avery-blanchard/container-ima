@@ -32,7 +32,7 @@
 #include <linux/btf_ids.h>
 #include <uapi/linux/btf.h>
 #include <uapi/linux/bpf.h>
-
+#include <crypto/hash.h>
 #include "container_ima.h"
 #include "container_ima_crypto.h"
 #include "container_ima_init.h"
@@ -87,6 +87,7 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 	u64 i_version;
 	loff_t i_size;
 	struct crypto_shash *ftm;
+	struct shash_desc *shash;
 	struct {
 		struct ima_digest_data hdr;
 		char digest[IMA_MAX_DIGEST_SIZE];
@@ -94,7 +95,7 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 
 	task = current;
 	inum = task->nsproxy->cgroup_ns->ns.inum;
-	
+
 	if (inum  == host_inum) {
 		pr_err("inum  == host_inum check\n");
 		args->fd = fd;
@@ -103,29 +104,34 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 		args->prot = PROT_EXEC;
 		args->offset = 0;
 
-		file = container_ima_retrieve_file(args->fd); 
+		file = container_ima_retrieve_file(args->fd);
 		if (file) {
 			pr_err("FILE\n");
 			inode = file_inode(file);
 			action = MEASURE;
 			filename = file->f_path.dentry->d_name.name;
 			i_version = &inode->i_version;
-			
+
 			hash.hdr.algo = ima_hash_algo;
-			hash.hdr.length = hash_digest_size[ima_hash_algo];	
+			hash.hdr.length = hash_digest_size[ima_hash_algo];
 			/* eBPF does not like these
 			if (file->f_flags & O_DIRECT) {
 				return 0;
-			} 
+			}
 			if (!(file->f_mode & FMODE_READ)) {
 				return 0;
 			}*/
 
 			i_size = inode->i_size;
-			ftm = crypto_alloc_shash(hash_algo_name[hash.hdr.algo], 0, 0);
+			if (!i_size) {
+				pr_err("panic\n");
+				return 0;
+			}	
+			ftm = ima_shash_tfm;
+
+			//ftm = ftm->base.__crt_algo->cra_init(&ftm->base);
 
 			return 0;
-			
 		}
 	}
 	return 0;
