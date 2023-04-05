@@ -39,9 +39,8 @@ struct container_ima_data *init_container_ima_data(unsigned int container_id)
 
 	/* init hash table */
 	pr_info("Init hash table\n");
-	atomic_long_set(&data->c_ima_write_mutex.owner, 0);
-	atomic_long_set(&data->hash_tbl->violations, 0);
-	memset(&data->hash_tbl->queue, 0, sizeof(data->hash_tbl->queue));
+	//atomic_long_set(&data->hash_tbl->violations, 0);
+	//memset(&data->hash_tbl->queue, 0, sizeof(data->hash_tbl->queue));
 
 	/* init ML */
 	pr_info("Init list of measurements\n");
@@ -86,12 +85,8 @@ struct container_ima_data *init_container_ima(unsigned int container_id)
 		return data;
 	}
 	pr_info("Data does not exist, init\n");*/
+	pr_info("INIT CONTAINER IMA\N");
 	data = init_container_ima_data(container_id);
-
-	ima_tpm_chip = tpm_default_chip();
-	if (!ima_tpm_chip)
-		pr_info("No TPM chip found, activating TPM-bypass!\n");
-
 
 	return data;
 }
@@ -101,6 +96,7 @@ int container_ima_crypto_init(void) {
         
 	if (!ima_tpm_chip) {
                 pr_info("No TPM chip found, activating TPM-bypass!\n");
+		ima_hash_algo = 0x1;
 		return 0;
 	}
 

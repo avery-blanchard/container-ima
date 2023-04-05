@@ -57,6 +57,7 @@ struct file *container_ima_retrieve_file(int fd)
     pr_info("Retrieving file struct for FD %d\n", fd);
 	file = fget(fd);
 	if (!file) {
+		pr_info("F get fails\n");
 		return PTR_ERR(file);
 	}
 	/*
@@ -78,6 +79,7 @@ struct file *container_ima_retrieve_file(int fd)
 			return ret;
 		}
 	} */
+	pr_info("F get works\n");
 	if (file)
 		fput(file);
 	return file;
@@ -313,16 +315,13 @@ static void container_ima_rdwr_violation_check(struct container_ima_data *data, 
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_policy.c#L690
  */
 int container_ima_match_policy(struct container_ima_data *data, struct inode *inode,
-		     const struct cred *cred, u32 secid,
-		     int mask, int flags, int *pcr,
-		     struct ima_template_desc **template_desc,
-		     const char *func_data, unsigned int *allowed_algos)
+		     int mask, int flags)
 {
-	int action;
-	int action_mask;
+	int action; int action_mask;
 
 	action_mask = flags | (flags << 1);
 	/* TODO edit this for future use with different policies per container */
+	pr_err("RETURN MEASURE\n");
 	return MEASURE;
 
 }
@@ -333,20 +332,20 @@ int container_ima_match_policy(struct container_ima_data *data, struct inode *in
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_policy.c#L690 
  */
 int container_ima_get_action(struct container_ima_data *data, struct inode *inode,
-		   const struct cred *cred, u32 secid, int mask, int *pcr,
-		   struct ima_template_desc **template_desc,
-		   const char *func_data, unsigned int *allowed_algos) 
+		   int mask) 
 {
 	int action;
 	int flag;
-	
+
+	pr_err("IMA GET ACTION\n");	
 	flag = IMA_MEASURE | IMA_AUDIT | IMA_APPRAISE | IMA_HASH; // not implementing appraisal currently, maybe exclude
 	flag &= container_ima_rules.flags;
 	/* ima_match policy reads IMA tmp rules list, which for container IMA is per
 	 * container and in struct container_data, re-write for different policies (later on)
 	 */ 
-	action = container_ima_match_policy(data, inode, cred, secid, mask,
-				flag, pcr, template_desc, func_data, allowed_algos);
+	pr_err("MATCHING POLICY\n");
+	action = container_ima_match_policy(data, inode, mask,
+				flag);
 
 	return action;
 }
@@ -354,14 +353,14 @@ int container_ima_get_action(struct container_ima_data *data, struct inode *inod
  * container_ima_process_measurement
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_main.c#L201
  */
-int container_ima_process_measurement(struct container_ima_data *data, struct file *file, const struct cred *cred,
-			       u32 secid, void *buf, loff_t size, int mask, unsigned int container_id, struct mmap_args_t *args) 
+ int container_ima_process_measurement(struct container_ima_data *data, struct file *file,
+			       void *buf, loff_t size, int mask, unsigned int container_id, struct mmap_args_t *args) 
 {
-	struct inode *inode;
 	struct integrity_iint_cache *iint = NULL;
 	struct ima_template_desc *template_desc = NULL;
 	char filename[NAME_MAX];
 	char *pathbuf = NULL;
+	struct inode *inode;
 	const char *pathname = NULL;
 	int ret, action, appraisal; 
 	struct evm_ima_xattr_data *xattr_value = NULL;
@@ -369,21 +368,15 @@ int container_ima_process_measurement(struct container_ima_data *data, struct fi
 	bool violation_check;
 	enum hash_algo hash_algo;
 	unsigned int allowed_algos = 0;
-
-	pr_info("In process measurment\n");
-
 	inode = file_inode(file);
 
-
-	if (!data->c_ima_policy_flags || !S_ISREG(inode->i_mode))
+	/*if (!data->c_ima_policy_flags || !S_ISREG(inode->i_mode))
 		return 0;
-
-	pr_info("IMA get action\n");
+	*/
+	pr_err("IMA get action\n");
 	/* re-write for future use of different IMA polcies per container */
-	action  = container_ima_get_action(data, inode, cred, secid,
-				mask, IMA_PCR, &template_desc, NULL,
-				&allowed_algos);
-	
+	action  = container_ima_get_action(data, inode, mask);
+
 	pr_info("Got action\n");
 	violation_check = ((container_ima_rules.flags & IMA_MEASURE));
 	if (!action && !violation_check)

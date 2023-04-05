@@ -216,7 +216,7 @@ extern struct dentry *ascii_runtime_measurements;
 extern struct dentry *violations;
 extern struct dentry *policy;
 
-
+extern struct container_ima_data *data;
 struct ima_rule_entry {
 	struct list_head list;
 	int action;
@@ -391,8 +391,8 @@ void container_ima_add_violation(struct container_ima_data *, struct file *, con
 		       const char *, const char *, unsigned int);
 static void container_ima_rdwr_violation_check(struct container_ima_data *, struct file *, struct integrity_iint_cache *,
 				     int, char **, const char **, char *, unsigned int);
-int container_ima_process_measurement(struct container_ima_data *, struct file *, const struct cred *,
-			       u32, void *, loff_t, int, unsigned int, struct mmap_args_t *);
+int container_ima_process_measurement(struct container_ima_data *, struct file *,
+			       void *, loff_t, int, unsigned int, struct mmap_args_t *);
 int container_ima_add_template_entry(struct container_ima_data *data, struct ima_template_entry *entry, int violation,
 			   const char *op, struct inode *inode,
 			   const unsigned char *filename, unsigned int container_id);
@@ -408,14 +408,9 @@ static void container_ima_exit(void);
 struct container_ima_data *create_container_ima_data(void);
 void container_ima_free_data(struct container_ima_data *);
 int container_ima_get_action(struct container_ima_data *, struct inode *,
-		   const struct cred *, u32, int, int *,
-		   struct ima_template_desc **,
-		   const char *, unsigned int *);
+		   int);
 int container_ima_match_policy(struct container_ima_data *, struct inode *,
-		     const struct cred *, u32,
-		     int, int, int *,
-		     struct ima_template_desc **,
-		     const char *, unsigned int *);
+		     int, int);
 static int c_ima_seq_open(struct inode *, struct file *);
 static struct container_ima_data *ima_data_from_file(const struct file *filp);
 static struct c_ima_queue_entry *container_ima_lookup_data_entry(unsigned int id);

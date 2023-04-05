@@ -49,6 +49,8 @@
 
 
 unsigned int host_inum;
+extern int ima_hash_algo;
+struct container_ima_data *data;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
 /*
@@ -77,25 +79,53 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 	struct file *file;
 	struct task_struct *task;
 	struct mmap_args_t *args;
+	struct inode *inode;
 	unsigned int inum;
-	u32 sec_id;
+	const char *filename;
+	int ret, action, len;
+	void *buf;
+	u64 i_version;
+	loff_t i_size;
+	struct crypto_shash *ftm;
+	struct {
+		struct ima_digest_data hdr;
+		char digest[IMA_MAX_DIGEST_SIZE];
+	} hash;
 
 	task = current;
 	inum = task->nsproxy->cgroup_ns->ns.inum;
 	
-	if (inum  != host_inum) {
+	if (inum  == host_inum) {
+		pr_err("inum  == host_inum check\n");
 		args->fd = fd;
 		args->length = length;
 		args->flags = flags;
 		args->prot = PROT_EXEC;
 		args->offset = 0;
 
-
-		data = init_container_ima(inum);
 		file = container_ima_retrieve_file(args->fd); 
 		if (file) {
-			security_current_getsecid_subj(&sec_id);
-			return container_ima_process_measurement(data, file, current_cred(), sec_id, NULL, 0, MAY_EXEC, inum, args);
+			pr_err("FILE\n");
+			inode = file_inode(file);
+			action = MEASURE;
+			filename = file->f_path.dentry->d_name.name;
+			i_version = &inode->i_version;
+			
+			hash.hdr.algo = ima_hash_algo;
+			hash.hdr.length = hash_digest_size[ima_hash_algo];	
+			/* eBPF does not like these
+			if (file->f_flags & O_DIRECT) {
+				return 0;
+			} 
+			if (!(file->f_mode & FMODE_READ)) {
+				return 0;
+			}*/
+
+			i_size = inode->i_size;
+			ftm = crypto_alloc_shash(hash_algo_name[hash.hdr.algo], 0, 0);
+
+			return 0;
+			
 		}
 	}
 	return 0;
@@ -124,6 +154,9 @@ static int container_ima_init(void)
 	ret = container_ima_fs_init();
 	if (ret < 0)
 		return ret;
+
+	pr_info("DATA INIT\n");
+	data = init_container_ima(host_inum);
 	
 	/* Initialize IMA crypto */
 	pr_info("CRYPTO INIT\n");
@@ -152,6 +185,7 @@ static void container_ima_exit(void)
 	 */
 	int ret;
 	pr_info("Exiting Container IMA\n");
+	kfree(data);
 	//ret = container_ima_cleanup();
 	return;
 }
