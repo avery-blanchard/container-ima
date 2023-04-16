@@ -73,14 +73,18 @@ static int init_mmap_probe(void)
 	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 }
-noinline int bpfmeasurement(size_t length, int fd, int flags) {
+noinline int bpfmeasurement(unsigned int inum ) {
 
+	if (inum == host_inum)
+		return -1;
+	return 1;
+/*
 	struct container_ima_data *data;
-	struct file *file;
-	struct task_struct *task;
 	struct mmap_args_t *args;
-	struct inode *inode;
+	struct task_struct *task;
 	unsigned int inum;
+	struct file *file;
+	struct inode *inode;
 	const char *filename;
 	int ret, action, len;
 	void *buf;
@@ -88,13 +92,17 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 	loff_t i_size;
 	struct crypto_shash *ftm;
 	struct shash_desc *shash;
+	unsigned int flags;
+	fmode_t mode;
+
 	struct {
 		struct ima_digest_data hdr;
 		char digest[IMA_MAX_DIGEST_SIZE];
 	} hash;
+	
+	task = (void *) bpf_get_current_task();
 
-	task = current;
-	inum = task->nsproxy->cgroup_ns->ns.inum;
+	inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
 
 	if (inum  == host_inum) {
 		pr_err("inum  == host_inum check\n");
@@ -109,24 +117,26 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 			pr_err("FILE\n");
 			inode = file_inode(file);
 			action = MEASURE;
-			filename = file->f_path.dentry->d_name.name;
-			i_version = &inode->i_version;
+			filename = BPF_CORE_READ(file, f_path.dentry, d_name.name);
+			i_version = &(BPF_CORE_READ(inode, i_version));
 
 			hash.hdr.algo = ima_hash_algo;
 			hash.hdr.length = hash_digest_size[ima_hash_algo];
-			/* eBPF does not like these
+			
+			flags = BPF_CORE_READ(file, f_flags);
 			if (file->f_flags & O_DIRECT) {
 				return 0;
 			}
+			mode = BPF_CORE_READ(file, f_mode);
 			if (!(file->f_mode & FMODE_READ)) {
 				return 0;
-			}*/
+			}
 
-			i_size = inode->i_size;
+			i_size = BPF_CORE_READ(inode, i_size);
 			if (!i_size) {
 				pr_err("panic\n");
 				return 0;
-			}	
+			}
 			ftm = ima_shash_tfm;
 
 			//ftm = ftm->base.__crt_algo->cra_init(&ftm->base);
@@ -134,11 +144,12 @@ noinline int bpfmeasurement(size_t length, int fd, int flags) {
 			return 0;
 		}
 	}
-	return 0;
+	return 0;*/
 }
 
 BTF_SET8_START(container_ima_check_kfunc_ids)
 BTF_ID_FLAGS(func, bpfmeasurement)
+BTF_ID_FLAGS(func, container_ima_retrieve_file)
 BTF_SET8_END(container_ima_check_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {

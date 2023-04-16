@@ -47,7 +47,7 @@ static struct tpm_digest *digests;
  *
  * https://elixir.bootlin.com/linux/v6.0.9/source/mm/mmap.c#L1586 
  */
-struct file *container_ima_retrieve_file(int fd) 
+noinline struct file *container_ima_retrieve_file(int fd) 
 {
 	int ret;
 	struct file *file;

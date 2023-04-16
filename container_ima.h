@@ -478,7 +478,7 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
 			      struct ima_digest_data *hash); 
 int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
-int bpfmeasurement(size_t length, int fd, int flags);
+int bpfmeasurement(unsigned int inum);
 static int container_ima_add_data_entry(struct container_ima_data *data, long id);
 //extern int process_mmap(struct mmap_args_t *args);
 /*
