@@ -50,11 +50,11 @@ static struct tpm_digest *digests;
 noinline struct file *container_ima_retrieve_file(int fd) 
 {
 	int ret;
+	ssize_t len;
 	struct file *file;
-
+	void *buf;
 	/* Get file from fd, len, and address for measurment */
-		//audit_mmap_fd(args->fd, args->flags);
-    pr_info("Retrieving file struct for FD %d\n", fd);
+   	pr_info("Retrieving file struct for FD %d\n", fd);
 	file = fget(fd);
 	if (!file) {
 		pr_info("F get fails\n");
@@ -79,6 +79,11 @@ noinline struct file *container_ima_retrieve_file(int fd)
 			return ret;
 		}
 	} */
+	len = kernel_read(file, buf, 0, NULL);
+	if (len >= 0) {
+		pr_info("Kernel Read fails\n");
+		return (struct file *) NULL;
+	}
 	pr_info("F get works\n");
 	if (file)
 		fput(file);
