@@ -2,19 +2,21 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
+
 #define bpf_target_x86
 #define bpf_target_defined
 
 char _license[] SEC("license") = "GPL";
 
+
+extern int bpfmeasurement(unsigned int inum) __ksym;
+extern struct file *container_ima_retrieve_file(int fd) __ksym;
+extern struct ima_hash ima_hash_setup(void) __ksym;
+
 struct ima_hash {
             struct ima_digest_data hdr;
             char digest[2048];
 };
-
-extern int bpfmeasurement(unsigned int inum) __ksym;
-extern struct file *container_ima_retrieve_file(int fd) __ksym;
-//extern struct ima_hash ima_hash_setup(void) __ksym;
 
 struct ima_data {
 	unsigned int inum;
@@ -26,8 +28,9 @@ struct ima_data {
 	unsigned int f_flags;
 	const unsigned char *f_name;
 };
+
 struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+	__uint(type, BPF_MAP_TYPE_HASH);
 	__type(key, u32);
 	__type(value, struct ima_data);
 	__uint(max_entries, 256);
@@ -39,7 +42,7 @@ int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned lon
 
     int ret, len;
     u32 key;
-    struct ima_data data;
+    struct ima_data *data;
     struct task_struct *task;
 
     bpf_printk("Integrity measurement for fd %d\n", fd);
@@ -50,34 +53,34 @@ int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned lon
     task = (void *) bpf_get_current_task();
 
     key = bpf_get_prandom_u32();
-    ret = bpf_map_update_elem(&map, &key, &data, BPF_ANY);
+    data = (struct ima_data *) bpf_map_lookup_elem(&map, &key);
 
     if (ret) {
          bpf_printk("ERROR: Could not update map element");
 	 return 0;
     }
 
-    data.inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
-    ret = bpfmeasurement(data.inum);
+    data->inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
+    ret = bpfmeasurement(data->inum);
 
     if (ret < 0) {
 
 	    bpf_printk("PRE RETRIEVE FILE\n");
-	    data.file = container_ima_retrieve_file(fd);
+	    data->file = container_ima_retrieve_file(fd);
 	   	    
-	    if (data.file) {
+	    if (data->file) {
 
-                        data.inode = BPF_CORE_READ(data.file, f_inode);
-                        data.f_name = BPF_CORE_READ(data.file, f_path.dentry, d_name.name);
+                        data->inode = BPF_CORE_READ(data->file, f_inode);
+                        data->f_name = BPF_CORE_READ(data->file, f_path.dentry, d_name.name);
 
 
 			//data.hash = ima_hash_setup();
 
-                        data.f_flags = BPF_CORE_READ(data.file, f_flags); /*
+                        data->f_flags = BPF_CORE_READ(data->file, f_flags); /*
 			if (file->f_flags & O_DIRECT) {
                                 return 0;
                         }*/
-                        data.f_mode = BPF_CORE_READ(data.file, f_mode);
+                        data->f_mode = BPF_CORE_READ(data->file, f_mode);
 			/*
                         if (!(file->f_mode & FMODE_READ)) {
                                 return 0;
