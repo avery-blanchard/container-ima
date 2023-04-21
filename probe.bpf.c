@@ -7,71 +7,93 @@
 
 char _license[] SEC("license") = "GPL";
 
+struct ima_hash {
+            struct ima_digest_data hdr;
+            char digest[2048];
+};
+
 extern int bpfmeasurement(unsigned int inum) __ksym;
 extern struct file *container_ima_retrieve_file(int fd) __ksym;
+//extern struct ima_hash ima_hash_setup(void) __ksym;
+
+struct ima_data {
+	unsigned int inum;
+	struct ima_hash hash;
+	struct file *file;
+	struct inode *inode;
+	void *f_buf;
+	fmode_t f_mode;
+	unsigned int f_flags;
+	const unsigned char *f_name;
+};
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+	__type(key, u32);
+	__type(value, struct ima_data);
+	__uint(max_entries, 256);
+} map SEC(".maps");
 
 // int mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 SEC("kprobe/__x64_sys_mmap")
 int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned long prot, unsigned long flags, unsigned long fd) {
 
+    int ret, len;
+    u32 key;
+    struct ima_data data;
     struct task_struct *task;
-    unsigned int inum;
-    struct file *file;
-    struct mmap_args_t mmap;
-    struct inode *inode;
-    const unsigned char *filename;
-    int ret, action, len;
-    void *buf;
-    atomic64_t i_version;
-    loff_t i_size;
-    struct crypto_shash *ftm;
-    struct shash_desc *shash;
-    unsigned int file_flags;
-    fmode_t mode;
-    struct {
-	    struct ima_digest_data hdr;
-	    char digest[2048];
-    } hash;
-
 
     bpf_printk("Integrity measurement for fd %d\n", fd);
+    
+    if (prot != 0x04)
+	    return 0;
+    
     task = (void *) bpf_get_current_task();
 
-    inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
-    ret = bpfmeasurement(inum);
+    key = bpf_get_prandom_u32();
+    ret = bpf_map_update_elem(&map, &key, &data, BPF_ANY);
+
+    if (ret) {
+         bpf_printk("ERROR: Could not update map element");
+	 return 0;
+    }
+
+    data.inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
+    ret = bpfmeasurement(data.inum);
 
     if (ret < 0) {
 
 	    bpf_printk("PRE RETRIEVE FILE\n");
-	    file = container_ima_retrieve_file(fd);
+	    data.file = container_ima_retrieve_file(fd);
 	   	    
-	    if (file) {
+	    if (data.file) {
 
-                        inode = BPF_CORE_READ(file, f_inode);
-                        filename = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-                        i_version = BPF_CORE_READ(inode, i_version);
+                        data.inode = BPF_CORE_READ(data.file, f_inode);
+                        data.f_name = BPF_CORE_READ(data.file, f_path.dentry, d_name.name);
 
-                        //hash.hdr.algo = ima_hash_algo;
-                        //hash.hdr.length = hash_digest_size[ima_hash_algo];
 
-                        flags = BPF_CORE_READ(file, f_flags); /*
+			//data.hash = ima_hash_setup();
+
+                        data.f_flags = BPF_CORE_READ(data.file, f_flags); /*
 			if (file->f_flags & O_DIRECT) {
                                 return 0;
                         }*/
-                        mode = BPF_CORE_READ(file, f_mode);/*
+                        data.f_mode = BPF_CORE_READ(data.file, f_mode);
+			/*
                         if (!(file->f_mode & FMODE_READ)) {
                                 return 0;
                         }*/
 
-                        i_size = BPF_CORE_READ(inode, i_size);
-                        if (!i_size) {
-                                return 0;
-                        }
+
+			//ftm = ima_shash_ftm(buf);
                         //ftm = ima_shash_tfm;
 
                         //ftm = BPF_CORE_READ(ftm,base.__crt_alg, cra_init(&ftm->base));
-
-                        return 0;
+                        ret = bpf_map_update_elem(&map, &key, &data, BPF_ANY);
+			
+			if (ret) 	
+				bpf_printk("ERROR: Could not update map element");
+	   		
+			return 0;
 
 	    }
 

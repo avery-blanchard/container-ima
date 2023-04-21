@@ -195,7 +195,27 @@ struct evm_ima_xattr_data {
 #define IMA_TEMPLATE_IMA_FMT "d|n"
 
 #define IMA_MAX_DIGEST_SIZE	64
+struct ima_digest_data {
+	u8 algo;
+	u8 length;
+	union {
+		struct {
+			u8 unused;
+			u8 type;
+		} sha1;
+		struct {
+			u8 type;
+			u8 algo;
+		} ng;
+		u8 data[2];
+	} xattr;
+	u8 digest[];
+} __packed;
 
+struct ima_hash {
+	    struct ima_digest_data hdr;
+	    char digest[2048];
+};
 static DEFINE_RWLOCK(container_integrity_iint_lock);
 
 #define INVALID_PCR(a) (((a) < 0) || \
@@ -285,23 +305,6 @@ struct ima_queue_entry {
 	struct list_head later;		/* place in ima_measurements list */
 	struct ima_template_entry *entry;
 };
-
-struct ima_digest_data {
-	u8 algo;
-	u8 length;
-	union {
-		struct {
-			u8 unused;
-			u8 type;
-		} sha1;
-		struct {
-			u8 type;
-			u8 algo;
-		} ng;
-		u8 data[2];
-	} xattr;
-	u8 digest[0];
-} __packed;
 
 
 struct c_ima_hash_table {

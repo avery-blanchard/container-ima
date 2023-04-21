@@ -147,9 +147,21 @@ noinline int bpfmeasurement(unsigned int inum ) {
 	return 0;*/
 }
 
+noinline struct ima_hash ima_hash_setup(void) 
+{
+	struct ima_hash hash;
+
+        hash.hdr.algo = ima_hash_algo;
+        hash.hdr.length = hash_digest_size[ima_hash_algo];
+
+	return hash;
+
+}
+
 BTF_SET8_START(container_ima_check_kfunc_ids)
 BTF_ID_FLAGS(func, bpfmeasurement)
 BTF_ID_FLAGS(func, container_ima_retrieve_file)
+BTF_ID_FLAGS(func, ima_hash_setup)
 BTF_SET8_END(container_ima_check_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {
