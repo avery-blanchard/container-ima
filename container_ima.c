@@ -169,11 +169,46 @@ noinline void *ima_buffer_read(struct file *filp)
 	return NULL;
        	       
 }
+noinline int ima_crypto(void *buf, int size, struct crypto_shash *tfm, struct crypto_tfm base, int (*cra_init)(struct crypto_tfm *tfm), u8 digest[])
+{
+	int ret;
+	unsigned int len;
+	struct shash_desc *shash;
+
+	shash->tfm = tfm;
+
+	ret = cra_init(&base);
+	if (ret != 0) {
+		return ret;
+	}
+
+	while (size) {
+		len = size < PAGE_SIZE ? size : PAGE_SIZE;
+		ret = crypto_shash_update(shash, buf, len);
+		if (ret)
+			break;
+		buf += len;
+		size -= len;
+	}
+
+	if (!ret) {
+		ret = crypto_shash_final(shash, digest);
+	}
+
+	return ret;
+
+}
+noinline struct crypto_shash *ima_shash_init(void) 
+{
+	return ima_shash_tfm;
+}
 BTF_SET8_START(container_ima_check_kfunc_ids)
 BTF_ID_FLAGS(func, bpfmeasurement)
 BTF_ID_FLAGS(func, container_ima_retrieve_file)
 BTF_ID_FLAGS(func, ima_hash_setup)
 BTF_ID_FLAGS(func, ima_buffer_read)
+BTF_ID_FLAGS(func, ima_crypto)
+BTF_ID_FLAGS(func, ima_shash_init)
 BTF_SET8_END(container_ima_check_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {

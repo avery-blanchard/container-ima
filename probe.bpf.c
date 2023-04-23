@@ -11,28 +11,37 @@
 
 char _license[] SEC("license") = "GPL";
 
-
-extern int bpfmeasurement(unsigned int inum) __ksym;
-extern struct file *container_ima_retrieve_file(int fd) __ksym;
-extern struct ima_hash ima_hash_setup(void) __ksym;
-extern void *ima_buffer_read(struct file *file) __ksym;
-extern int ima_crypto(void *buf) __ksym;
-
 struct ima_hash {
             struct ima_digest_data hdr;
             char digest[2048];
 };
 
 struct ima_data {
-	unsigned int inum;
-	struct ima_hash hash;
-	struct file *file;
-	struct inode *inode;
-	void *f_buf;
-	fmode_t f_mode;
-	unsigned int f_flags;
-	const unsigned char *f_name;
+        unsigned int inum;
+        struct ima_hash hash;
+        struct file *file;
+        struct inode *inode;
+        void *f_buf;
+        fmode_t f_mode;
+        unsigned int f_flags;
+        const unsigned char *f_name;
+        int (*cra_init)(struct crypto_tfm *tfm);
+        struct crypto_shash *shash;
+        struct crypto_tfm base;
+	int size;
 };
+/*
+struct crypto_shash {
+	unsigned int descsize;
+	struct crypto_tfm base;
+};*/
+
+extern int bpfmeasurement(unsigned int inum) __ksym;
+extern struct file *container_ima_retrieve_file(int fd) __ksym;
+extern struct ima_hash ima_hash_setup(void) __ksym;
+extern void *ima_buffer_read(struct file *file) __ksym;
+extern struct *crypto_shash ima_shash_init(void) __ksym;
+extern int ima_crypto(void *buf, int size, struct crypto_shash *shash, struct crypto_tfm base, int (*cra_init)(struct crypto_tfm *tfm), u8 digest[]) __ksym;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -95,10 +104,14 @@ int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned lon
 			if (!data->f_buf) {
 				return 0;
 			}
+			data->shash = ima_shash_init();
 
-			ret = ima_shash_ftm(data->f_buf);
+			data->cra_init = BPF_CORE_READ(data->shash,base.__crt_alg, cra_init);
+			data->base = BPF_CORE_READ(data->shash, base);
+			data->size = 0; // to do
+			
+			ret = ima_crypto(data->f_buf, data->size, data->shash, data->base, data->cra_init, data->hash.hdr.digest);
 
-                        //ftm = BPF_CORE_READ(ftm,base.__crt_alg, cra_init(&ftm->base));
                         ret = bpf_map_update_elem(&map, &key, &data, BPF_ANY);
 			
 			if (ret) 	
