@@ -2,12 +2,15 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
+#include <string.h>
 
 #define bpf_target_x86
 #define bpf_target_defined
 
 #define FMODE_READ	0x1
 #define O_DIRECT	00040000
+#define TPM_ALG_SHA256	0x000B
+#define TPM_ALG_SHA1	0x0004 //to do
 
 char _license[] SEC("license") = "GPL";
 
@@ -29,19 +32,16 @@ struct ima_data {
         struct crypto_shash *shash;
         struct crypto_tfm base;
 	int size;
+	struct tpm_digest *tpm_digest;
 };
-/*
-struct crypto_shash {
-	unsigned int descsize;
-	struct crypto_tfm base;
-};*/
 
 extern int bpfmeasurement(unsigned int inum) __ksym;
 extern struct file *container_ima_retrieve_file(int fd) __ksym;
 extern struct ima_hash ima_hash_setup(void) __ksym;
 extern void *ima_buffer_read(struct file *file) __ksym;
-extern struct *crypto_shash ima_shash_init(void) __ksym;
+extern struct crypto_shash *ima_shash_init(void) __ksym;
 extern int ima_crypto(void *buf, int size, struct crypto_shash *shash, struct crypto_tfm base, int (*cra_init)(struct crypto_tfm *tfm), u8 digest[]) __ksym;
+extern int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr) __ksym;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -104,6 +104,7 @@ int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned lon
 			if (!data->f_buf) {
 				return 0;
 			}
+
 			data->shash = ima_shash_init();
 
 			data->cra_init = BPF_CORE_READ(data->shash,base.__crt_alg, cra_init);
@@ -111,6 +112,12 @@ int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned lon
 			data->size = 0; // to do
 			
 			ret = ima_crypto(data->f_buf, data->size, data->shash, data->base, data->cra_init, data->hash.hdr.digest);
+
+			strncpy(&data->tpm_digest->digest[0], &data->hash.hdr.digest[0], sizeof(data->hash.hdr.digest));
+			
+			data->tpm_digest->alg_id = TPM_ALG_SHA256;
+			
+			ret = ima_pcr_extend(data->tpm_digest, 10);
 
                         ret = bpf_map_update_elem(&map, &key, &data, BPF_ANY);
 			

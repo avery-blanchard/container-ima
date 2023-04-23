@@ -202,6 +202,7 @@ noinline struct crypto_shash *ima_shash_init(void)
 {
 	return ima_shash_tfm;
 }
+
 BTF_SET8_START(container_ima_check_kfunc_ids)
 BTF_ID_FLAGS(func, bpfmeasurement)
 BTF_ID_FLAGS(func, container_ima_retrieve_file)
@@ -209,6 +210,7 @@ BTF_ID_FLAGS(func, ima_hash_setup)
 BTF_ID_FLAGS(func, ima_buffer_read)
 BTF_ID_FLAGS(func, ima_crypto)
 BTF_ID_FLAGS(func, ima_shash_init)
+BTF_ID_FLAGS(func, ima_pcr_extend)
 BTF_SET8_END(container_ima_check_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {

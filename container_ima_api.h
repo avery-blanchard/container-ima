@@ -569,12 +569,12 @@ int container_ima_add_template_entry(struct container_ima_data *data, struct ima
 	/* 
 	 * extend PCR of container's vTPM, figure out functions for extending vTPM 
 	 * https://elixir.bootlin.com/linux/latest/source/drivers/char/tpm/tpm-interface.c#L314 
-	 */
+	 *
 	res = ima_pcr_extend(data, digests_arg, entry->pcr);
 	if (res != 0) {
 		pr_err("vTPM failed\n");
 		audit_info = 0;
-	}
+	}*/
 out:
 	// unlock ml mutex here
 	mutex_lock(&ima_extend_list_mutex);
@@ -934,12 +934,15 @@ int integrity_kernel_read(struct file *file, loff_t offset,
 {
 	return kernel_read(file, addr, count, &offset);
 }
-/*
- * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_queue.c#L141
- */
-int ima_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr)
+
+noinline int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr)
 {
-    return tpm_pcr_extend(ima_tpm_chip, IMA_PCR, digests_arg); //until vTPM is fixed
+    int ret = 0;
+    
+    if (!ima_tpm_chip) {
+	    return ret;
+    }
+    return tpm_pcr_extend(ima_tpm_chip, pcr, digests_arg); //until vTPM is fixed
 	//return 0;
 }
 #endif
