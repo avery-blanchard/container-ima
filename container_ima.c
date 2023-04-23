@@ -157,11 +157,23 @@ noinline struct ima_hash ima_hash_setup(void)
 	return hash;
 
 }
+noinline void *ima_buffer_read(struct file *filp) 
+{
+	ssize_t ret;
+	void *buf;
 
+	ret = kernel_read(filp, buf, 0, NULL);
+        if (ret) {
+		return buf;
+	}
+	return NULL;
+       	       
+}
 BTF_SET8_START(container_ima_check_kfunc_ids)
 BTF_ID_FLAGS(func, bpfmeasurement)
 BTF_ID_FLAGS(func, container_ima_retrieve_file)
 BTF_ID_FLAGS(func, ima_hash_setup)
+BTF_ID_FLAGS(func, ima_buffer_read)
 BTF_SET8_END(container_ima_check_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {
