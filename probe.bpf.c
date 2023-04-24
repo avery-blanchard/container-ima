@@ -11,7 +11,7 @@
 #define O_DIRECT	00040000
 #define TPM_ALG_SHA256	0x000B
 #define TPM_ALG_SHA1	0x0004 //to do
-
+#define MAP_ANONYMOUS	0x20	
 char _license[] SEC("license") = "GPL";
 
 struct ima_hash {
@@ -32,6 +32,7 @@ struct ima_data {
         struct crypto_shash *shash;
         struct crypto_tfm base;
 	int size;
+	int host;
 	struct tpm_digest *tpm_digest;
 };
 
@@ -59,54 +60,53 @@ int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned lon
     struct ima_data *data;
     struct task_struct *task;
 
-    bpf_printk("Integrity measurement for fd %d\n", fd);
     
-    if (prot != 0x04)
-	    return 0;
+    if (prot & 0x04) {
     
+	    if (flags & MAP_ANONYMOUS)
+		    return 0;
     task = (void *) bpf_get_current_task();
+
+    bpf_printk("Integrity measurement for fd %d\n", fd);
 
     key = bpf_get_prandom_u32();
     data = (struct ima_data *) bpf_map_lookup_elem(&map, &key);
 
-    if (ret) {
-         bpf_printk("ERROR: Could not update map element");
-	 return 0;
-    }
 
     data->inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
-    ret = bpfmeasurement(data->inum);
-
-    if (ret < 0) {
+    data->host = bpfmeasurement(data->inum);
+    if (data->host >= 0) {
 
 	    bpf_printk("PRE RETRIEVE FILE\n");
 	    data->file = container_ima_retrieve_file(fd);
 	   	    
 	    if (data->file) {
 
-                        data->inode = BPF_CORE_READ(data->file, f_inode);
+                        bpf_printk("FILE RETRIEVED\n");
+		        data->inode = BPF_CORE_READ(data->file, f_inode);
                         data->f_name = BPF_CORE_READ(data->file, f_path.dentry, d_name.name);
 
+			bpf_printk("FILE INODE AND DENTRY NAME\n");
+			//data->hash = ima_hash_setup();
 
-			data->hash = ima_hash_setup();
-
+			bpf_printk("HASH SET UP\n");
                         data->f_flags = BPF_CORE_READ(data->file, f_flags); 
 			if (data->f_flags & O_DIRECT) {
                                 return 0;
                         }
-                        
+                        bpf_printk("FLAGS \n");
 			data->f_mode = BPF_CORE_READ(data->file, f_mode);
                         if (!(data->f_mode & FMODE_READ)) {
                                 return 0;
                         }
-
+			bpf_printk("MODE\n");
 			data->f_buf = ima_buffer_read(data->file);
 			if (!data->f_buf) {
 				return 0;
 			}
-
+			bpf_printk("POST IMA BUFFER READ\n");
 			data->shash = ima_shash_init();
-
+			bpf_printk("SHASH INIT\n");
 			data->cra_init = BPF_CORE_READ(data->shash,base.__crt_alg, cra_init);
 			data->base = BPF_CORE_READ(data->shash, base);
 			data->size = 0; // to do
@@ -123,11 +123,11 @@ int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned lon
 			
 			if (ret) 	
 				bpf_printk("ERROR: Could not update map element");
-	   		
 			return 0;
 
 	    }
 
+    }
     }
     return 0;
 
