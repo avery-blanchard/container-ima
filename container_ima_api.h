@@ -79,11 +79,6 @@ noinline struct file *container_ima_retrieve_file(int fd)
 			return ret;
 		}
 	} */
-	len = kernel_read(file, buf, 0, NULL);
-	if (len >= 0) {
-		pr_info("Kernel Read fails\n");
-		return (struct file *) NULL;
-	}
 	pr_info("F get works\n");
 	if (file)
 		fput(file);

@@ -78,11 +78,9 @@ static int init_mmap_probe(void)
 	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 
 }
-noinline int bpfmeasurement(unsigned int inum ) {
+noinline unsigned int bpfmeasurement(unsigned int inum ) {
 
-	if (inum == host_inum)
-		return -1;
-	return 1;
+	return host_inum;
 /*
 	struct container_ima_data *data;
 	struct mmap_args_t *args;

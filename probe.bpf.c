@@ -33,12 +33,12 @@ struct ima_data {
         struct crypto_tfm base;
 	struct shash_desc *desc;
 	int size;
-	int host;
+	unsigned int host;
 	void *digest;
 	struct tpm_digest *tpm_digest;
 };
 
-extern int bpfmeasurement(unsigned int inum) __ksym;
+extern unsigned int bpfmeasurement(unsigned int inum) __ksym;
 extern struct file *container_ima_retrieve_file(int fd) __ksym;
 extern struct ima_hash ima_hash_setup(void) __ksym;
 extern struct crypto_shash *ima_shash_init(void) __ksym;
@@ -81,12 +81,15 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
     }
 
     data->inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
+    bpf_printk("BPF INUM %d\n", data->inum);
     data->host = bpfmeasurement(data->inum);
-    if (data->host >= 0) {
+
+    bpf_printk("INUM comparision returns %d\n", data->host);
+    if (data->host == data->inum) {
 
 	    bpf_printk("PRE RETRIEVE FILE\n");
 	    file = container_ima_retrieve_file(fd);
-	   	    
+	   bpf_printk("POST CHECK\n"); 	    
 	    if (file) {
 
                         bpf_printk("FILE RETRIEVED\n");
@@ -113,7 +116,6 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 			
 			data->cra_init = BPF_CORE_READ(shash,base.__crt_alg, cra_init);
 			data->base = BPF_CORE_READ(shash, base);
-			
 			data->digest = ima_crypto(file, &data->base, data->cra_init);
 
 			strncpy(&data->tpm_digest->digest[0], &data->hash.hdr.digest[0], sizeof(data->hash.hdr.digest));
