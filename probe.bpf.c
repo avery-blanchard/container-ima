@@ -110,7 +110,7 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 			
 			shash = ima_shash_init();
 			bpf_printk("SHASH INIT\n");
-			/*	
+			
 			data->cra_init = BPF_CORE_READ(shash,base.__crt_alg, cra_init);
 			data->base = BPF_CORE_READ(shash, base);
 			
@@ -121,8 +121,6 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 			data->tpm_digest->alg_id = TPM_ALG_SHA256;
 			
 			ret = ima_pcr_extend(data->tpm_digest, 10);
-			*/
-                        //ret = bpf_map_update_elem(&map, &key, &data, BPF_ANY);
 			
 			return 0;
 
