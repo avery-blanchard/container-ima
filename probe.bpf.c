@@ -46,7 +46,7 @@ extern void *ima_crypto(struct file *filp, struct crypto_tfm *base, int (*cra_in
 extern int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr) __ksym;
 
 struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
+	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 	__type(key, u32);
 	__type(value, struct ima_data);
 	__uint(max_entries, 256);
@@ -73,7 +73,7 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 
     bpf_printk("Integrity measurement for fd %d\n", fd);
 
-    key = bpf_get_prandom_u32();
+    key = 0; 
     data = (struct ima_data *) bpf_map_lookup_elem(&map, &key);
     if (!data) {
 	    bpf_printk("Map element lookup failed\n");
@@ -110,6 +110,7 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 			
 			shash = ima_shash_init();
 			bpf_printk("SHASH INIT\n");
+			/*	
 			data->cra_init = BPF_CORE_READ(shash,base.__crt_alg, cra_init);
 			data->base = BPF_CORE_READ(shash, base);
 			
@@ -120,11 +121,9 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 			data->tpm_digest->alg_id = TPM_ALG_SHA256;
 			
 			ret = ima_pcr_extend(data->tpm_digest, 10);
-
-                        ret = bpf_map_update_elem(&map, &key, &data, BPF_ANY);
+			*/
+                        //ret = bpf_map_update_elem(&map, &key, &data, BPF_ANY);
 			
-			if (ret) 	
-				bpf_printk("ERROR: Could not update map element");
 			return 0;
 
 	    }
