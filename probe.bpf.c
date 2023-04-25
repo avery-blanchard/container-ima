@@ -31,8 +31,10 @@ struct ima_data {
         int (*cra_init)(struct crypto_tfm *tfm);
         struct crypto_shash *shash;
         struct crypto_tfm base;
+	struct shash_desc *desc;
 	int size;
 	int host;
+	void *digest;
 	struct tpm_digest *tpm_digest;
 };
 
@@ -41,7 +43,7 @@ extern struct file *container_ima_retrieve_file(int fd) __ksym;
 extern struct ima_hash ima_hash_setup(void) __ksym;
 extern void *ima_buffer_read(struct file *file) __ksym;
 extern struct crypto_shash *ima_shash_init(void) __ksym;
-extern int ima_crypto(void *buf, int size, struct crypto_shash *shash, struct crypto_tfm base, int (*cra_init)(struct crypto_tfm *tfm), u8 digest[]) __ksym;
+extern void *ima_crypto(void *buf, int size, struct crypto_tfm *base, int (*cra_init)(struct crypto_tfm *tfm)) __ksym;
 extern int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr) __ksym;
 
 struct {
@@ -53,12 +55,13 @@ struct {
 
 // int mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 SEC("kprobe/__x64_sys_mmap")
-int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned long prot, unsigned long flags, unsigned long fd) {
+int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsigned long prot, unsigned long flags, unsigned long fd) {
 
     int ret, len;
     u32 key;
     struct ima_data *data;
     struct task_struct *task;
+    struct file *file;
 
     
     if (prot & 0x04) {
@@ -71,36 +74,39 @@ int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned lon
 
     key = bpf_get_prandom_u32();
     data = (struct ima_data *) bpf_map_lookup_elem(&map, &key);
-
+    if (!data) {
+	    bpf_printk("Map element lookup failed\n");
+	    return 0;
+    }
 
     data->inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
     data->host = bpfmeasurement(data->inum);
     if (data->host >= 0) {
 
 	    bpf_printk("PRE RETRIEVE FILE\n");
-	    data->file = container_ima_retrieve_file(fd);
+	    file = container_ima_retrieve_file(fd);
 	   	    
-	    if (data->file) {
+	    if (file) {
 
                         bpf_printk("FILE RETRIEVED\n");
-		        data->inode = BPF_CORE_READ(data->file, f_inode);
-                        data->f_name = BPF_CORE_READ(data->file, f_path.dentry, d_name.name);
+		        data->inode = BPF_CORE_READ(file, f_inode);
+                        data->f_name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
 
 			bpf_printk("FILE INODE AND DENTRY NAME\n");
 			//data->hash = ima_hash_setup();
 
 			bpf_printk("HASH SET UP\n");
-                        data->f_flags = BPF_CORE_READ(data->file, f_flags); 
+                        data->f_flags = BPF_CORE_READ(file, f_flags); 
 			if (data->f_flags & O_DIRECT) {
                                 return 0;
                         }
                         bpf_printk("FLAGS \n");
-			data->f_mode = BPF_CORE_READ(data->file, f_mode);
+			data->f_mode = BPF_CORE_READ(file, f_mode);
                         if (!(data->f_mode & FMODE_READ)) {
                                 return 0;
                         }
 			bpf_printk("MODE\n");
-			data->f_buf = ima_buffer_read(data->file);
+			data->f_buf = ima_buffer_read(file);
 			if (!data->f_buf) {
 				return 0;
 			}
@@ -111,7 +117,7 @@ int BPF_KPROBE(kprobe___sys_mmap, void *addr, unsigned long length, unsigned lon
 			data->base = BPF_CORE_READ(data->shash, base);
 			data->size = 0; // to do
 			
-			ret = ima_crypto(data->f_buf, data->size, data->shash, data->base, data->cra_init, data->hash.hdr.digest);
+			data->digest = ima_crypto(data->f_buf, data->size, &data->base, data->cra_init);
 
 			strncpy(&data->tpm_digest->digest[0], &data->hash.hdr.digest[0], sizeof(data->hash.hdr.digest));
 			

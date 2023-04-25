@@ -169,15 +169,15 @@ noinline void *ima_buffer_read(struct file *filp)
 	return NULL;
        	       
 }
-noinline int ima_crypto(void *buf, int size, struct crypto_shash *tfm, struct crypto_tfm base, int (*cra_init)(struct crypto_tfm *tfm), u8 digest[])
+noinline void *ima_crypto(void *buf, int size, struct crypto_tfm *base, int (*cra_init)(struct crypto_tfm *tfm))
 {
 	int ret;
 	unsigned int len;
 	struct shash_desc *shash;
 
-	shash->tfm = tfm;
+	shash->tfm = ima_shash_tfm;
 
-	ret = cra_init(&base);
+	ret = cra_init(base);
 	if (ret != 0) {
 		return ret;
 	}
@@ -191,11 +191,7 @@ noinline int ima_crypto(void *buf, int size, struct crypto_shash *tfm, struct cr
 		size -= len;
 	}
 
-	if (!ret) {
-		ret = crypto_shash_final(shash, digest);
-	}
-
-	return ret;
+	return buf;
 
 }
 noinline struct crypto_shash *ima_shash_init(void) 
