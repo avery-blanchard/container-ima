@@ -171,11 +171,18 @@ noinline struct ima_file_buffer *ima_buffer_read(struct file *filp)
 	return f_buf;
        	       
 }
-noinline void *ima_crypto(void *buf, int size, struct crypto_tfm *base, int (*cra_init)(struct crypto_tfm *tfm))
+noinline void *ima_crypto(struct file *filp, struct crypto_tfm *base, int (*cra_init)(struct crypto_tfm *tfm))
 {
 	int ret;
 	unsigned int len;
 	struct shash_desc *shash;
+	void *buf;
+	ssize_t size;
+
+
+	size = kernel_read(filp, buf, 0, NULL);
+	if (!size)
+		return NULL;
 
 	shash->tfm = ima_shash_tfm;
 
