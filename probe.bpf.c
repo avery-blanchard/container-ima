@@ -45,7 +45,7 @@ struct ima_file_buffer {
 extern int bpfmeasurement(unsigned int inum) __ksym;
 extern struct file *container_ima_retrieve_file(int fd) __ksym;
 extern struct ima_hash ima_hash_setup(void) __ksym;
-extern struct ima_file_star *ima_buffer_read(struct file *file) __ksym;
+extern struct ima_file_buffer *ima_buffer_read(struct file *file) __ksym;
 extern struct crypto_shash *ima_shash_init(void) __ksym;
 extern void *ima_crypto(void *buf, int size, struct crypto_tfm *base, int (*cra_init)(struct crypto_tfm *tfm)) __ksym;
 extern int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr) __ksym;
@@ -66,6 +66,7 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
     struct ima_data *data;
     struct task_struct *task;
     struct file *file;
+    struct crypto_shash *shash;
     struct ima_file_buffer *f_buf;
 
     
@@ -116,10 +117,11 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 				return 0;
 			}
 			bpf_printk("POST IMA BUFFER READ\n");
-			data->shash = ima_shash_init();
+			
+			shash = ima_shash_init();
 			bpf_printk("SHASH INIT\n");
-			data->cra_init = BPF_CORE_READ(data->shash,base.__crt_alg, cra_init);
-			data->base = BPF_CORE_READ(data->shash, base);
+			data->cra_init = BPF_CORE_READ(shash,base.__crt_alg, cra_init);
+			data->base = BPF_CORE_READ(shash, base);
 			
 			data->digest = ima_crypto(f_buf->buffer, data->size, &data->base, data->cra_init);
 

@@ -164,7 +164,6 @@ noinline struct ima_hash ima_hash_setup(void)
 }
 noinline struct ima_file_buffer *ima_buffer_read(struct file *filp) 
 {
-	ssize_t ret;
 	struct ima_file_buffer *f_buf;
 
 	f_buf->size = kernel_read(filp, f_buf->buffer, 0, NULL);
