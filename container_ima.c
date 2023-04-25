@@ -53,6 +53,11 @@ extern int ima_hash_algo;
 struct container_ima_data *data;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
+
+struct ima_file_buffer {
+        void *buffer;
+        ssize_t size;
+};
 /*
  * init_mmap_probe, TO DO
  */
@@ -157,16 +162,14 @@ noinline struct ima_hash ima_hash_setup(void)
 	return hash;
 
 }
-noinline void *ima_buffer_read(struct file *filp) 
+noinline struct ima_file_buffer *ima_buffer_read(struct file *filp) 
 {
 	ssize_t ret;
-	void *buf;
+	struct ima_file_buffer *f_buf;
 
-	ret = kernel_read(filp, buf, 0, NULL);
-        if (ret) {
-		return buf;
-	}
-	return NULL;
+	f_buf->size = kernel_read(filp, f_buf->buffer, 0, NULL);
+        
+	return f_buf;
        	       
 }
 noinline void *ima_crypto(void *buf, int size, struct crypto_tfm *base, int (*cra_init)(struct crypto_tfm *tfm))

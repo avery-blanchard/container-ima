@@ -24,7 +24,7 @@ struct ima_data {
         struct ima_hash hash;
         struct file *file;
         struct inode *inode;
-        void *f_buf;
+        char *f_buf;
         fmode_t f_mode;
         unsigned int f_flags;
         const unsigned char *f_name;
@@ -37,11 +37,15 @@ struct ima_data {
 	void *digest;
 	struct tpm_digest *tpm_digest;
 };
+struct ima_file_buffer {
+	void *buffer;
+	ssize_t size;
+};
 
 extern int bpfmeasurement(unsigned int inum) __ksym;
 extern struct file *container_ima_retrieve_file(int fd) __ksym;
 extern struct ima_hash ima_hash_setup(void) __ksym;
-extern void *ima_buffer_read(struct file *file) __ksym;
+extern struct ima_file_star *ima_buffer_read(struct file *file) __ksym;
 extern struct crypto_shash *ima_shash_init(void) __ksym;
 extern void *ima_crypto(void *buf, int size, struct crypto_tfm *base, int (*cra_init)(struct crypto_tfm *tfm)) __ksym;
 extern int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr) __ksym;
@@ -62,6 +66,7 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
     struct ima_data *data;
     struct task_struct *task;
     struct file *file;
+    struct ima_file_buffer *f_buf;
 
     
     if (prot & 0x04) {
@@ -106,8 +111,8 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
                                 return 0;
                         }
 			bpf_printk("MODE\n");
-			data->f_buf = ima_buffer_read(file);
-			if (!data->f_buf) {
+			f_buf = ima_buffer_read(file);
+			if (!f_buf->size) {
 				return 0;
 			}
 			bpf_printk("POST IMA BUFFER READ\n");
@@ -115,9 +120,8 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 			bpf_printk("SHASH INIT\n");
 			data->cra_init = BPF_CORE_READ(data->shash,base.__crt_alg, cra_init);
 			data->base = BPF_CORE_READ(data->shash, base);
-			data->size = 0; // to do
 			
-			data->digest = ima_crypto(data->f_buf, data->size, &data->base, data->cra_init);
+			data->digest = ima_crypto(f_buf->buffer, data->size, &data->base, data->cra_init);
 
 			strncpy(&data->tpm_digest->digest[0], &data->hash.hdr.digest[0], sizeof(data->hash.hdr.digest));
 			
