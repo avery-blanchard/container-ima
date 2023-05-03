@@ -85,7 +85,7 @@ struct container_ima_data *init_container_ima(unsigned int container_id)
 		return data;
 	}
 	pr_info("Data does not exist, init\n");*/
-	pr_info("INIT CONTAINER IMA\N");
+	pr_info("INIT CONTAINER IMA\n");
 	data = init_container_ima_data(container_id);
 
 	return data;
