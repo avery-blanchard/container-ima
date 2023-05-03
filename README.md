@@ -26,9 +26,4 @@ Insert eBPF probe \
 `sudo ./probe`
 
 ## Notes
-### Todo
-- IMA Apprasial 
-- Allow for multiple policies
-- Debug multiple containers
-- Reduce complexity for scale
-
+See the [kernel module signing fedora guide](https://docs.fedoraproject.org/en-US/fedora/latest/system-administrators-guide/kernel-module-driver-configuration/Working_with_Kernel_Modules/#sect-signing-kernel-modules-for-secure-boot) for information on how to include this module in a kernel booted with UEFI.
