@@ -38,6 +38,12 @@ struct ima_data {
 	struct tpm_digest *tpm_digest;
 };
 
+struct ima {
+        char digest[2048];
+        char *f_name;
+        int size;
+        int algo;
+};
 extern unsigned int bpfmeasurement(unsigned int inum) __ksym;
 extern struct file *container_ima_retrieve_file(int fd) __ksym;
 extern struct ima_hash ima_hash_setup(void) __ksym;
@@ -52,6 +58,13 @@ struct {
 	__uint(max_entries, 256);
 } map SEC(".maps");
 
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, u32);
+	__type(value, struct ima);
+	__uint(max_entries, 256);
+} ima SEC(".maps");
+
 // int mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 SEC("kprobe/__x64_sys_mmap")
 int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsigned long prot, unsigned long flags, unsigned long fd) {
@@ -63,7 +76,8 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
     struct file *file;
     struct crypto_shash *shash;
     struct ima_file_buffer *f_buf;
-
+    struct ima_data *ima_data;
+    u32 map_key =1;
     
     if (prot & 0x04) {
     
@@ -96,7 +110,9 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
                                 bpf_printk("FILE RETRIEVED\n");
                                 data->inode = BPF_CORE_READ(file, f_inode);
                                 data->f_name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
+                                ima_data->f_name = data->f_name;
 
+                                bpf_map_update_elem(&ima, &map_key, &ima_data);
                                 bpf_printk("FILE INODE AND DENTRY NAME\n");
                                 //data->hash = ima_hash_setup();
 
