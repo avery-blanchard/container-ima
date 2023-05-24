@@ -389,7 +389,7 @@ void container_ima_add_violation(struct ima_data *, struct file *, const unsigne
 		       const char *, const char *, unsigned int);
 static void container_ima_rdwr_violation_check(struct ima_data *, struct file *, struct integrity_iint_cache *,
 				     int, char **, const char **, char *, unsigned int);
-int container_ima_process_measurement(struct ima_data *, struct mmap_args *, unsigned int);
+int container_ima_process_measurement(struct ima_data *, struct mmap_args *, unsigned int, int);
 int container_ima_add_template_entry(struct ima_data *data, struct ima_template_entry *entry, int violation,
 			   const char *op, struct inode *inode,
 			   const unsigned char *filename, unsigned int container_id);

@@ -53,10 +53,10 @@ noinline struct file *container_ima_retrieve_file(int fd)
 	struct file *file;
 	void *buf;
 	/* Get file from fd, len, and address for measurment */
-   	pr_info("Retrieving file struct for FD %d\n", fd);
+   	pr_err("Retrieving file struct for FD %d\n", fd);
 	file = fget(fd);
 	if (!file) {
-		pr_info("F get fails\n");
+		pr_err("F get fails\n");
 		return PTR_ERR(file);
 	}
 	/*
@@ -352,7 +352,7 @@ int container_ima_get_action(struct ima_data *data, struct inode *inode,
  * container_ima_process_measurement
  * https://elixir.bootlin.com/linux/latest/source/security/integrity/ima/ima_main.c#L201
  */
-noinline int container_ima_process_measurement(struct ima_data *data, struct mmap_args *args, unsigned int container_id) 
+noinline int container_ima_process_measurement(struct ima_data *data, struct mmap_args *args, unsigned int container_id, int fd) 
 {
 	struct integrity_iint_cache *iint = NULL;
 	struct ima_template_desc *template_desc = NULL;
@@ -371,7 +371,8 @@ noinline int container_ima_process_measurement(struct ima_data *data, struct mma
 	void *buf = NULL;
 	loff_t size = 0;
 
-	file = container_ima_retrieve_file(args->fd);
+	pr_err("in process measurement %d\n\n", fd);
+	file = container_ima_retrieve_file(fd);
 	inode = file_inode(file);
 
 	/*if (!data->c_ima_policy_flags || !S_ISREG(inode->i_mode))
@@ -379,10 +380,11 @@ noinline int container_ima_process_measurement(struct ima_data *data, struct mma
 	*/
 	pr_err("IMA get action\n");
 	/* re-write for future use of different IMA polcies per container */
-	/*action  = container_ima_get_action(data, inode, mask);
+	action  = container_ima_get_action(data, inode, mask);
 
 	pr_info("Got action\n");
-	violation_check = ((container_ima_rules.flags & IMA_MEASURE));
+	
+	/*violation_check = ((container_ima_rules.flags & IMA_MEASURE));
 	if (!action && !violation_check)
 		return 0;
 	
@@ -426,7 +428,7 @@ noinline int container_ima_process_measurement(struct ima_data *data, struct mma
 
 	if ((action & IMA_MEASURE) && (iint->measured_pcrs & (0x1 << IMA_PCR)))
 		action ^= IMA_MEASURE;
-	
+	*/
 	if ((action & IMA_HASH) &&
 	    !(test_bit(IMA_DIGSIG, &iint->atomic_flags))) {
 		xattr_len = ima_read_xattr(file_dentry(file), &xattr_value);
@@ -436,13 +438,13 @@ noinline int container_ima_process_measurement(struct ima_data *data, struct mma
 		iint->flags |= IMA_HASHED;
 		action ^= IMA_HASH;
 		set_bit(IMA_UPDATE_XATTR, &iint->atomic_flags);
-	}
+	} 
 	pr_info("Got hash algo\n");
 	hash_algo = ima_get_hash_algo(xattr_value, xattr_len);
-
+	
 	pr_info("Pre-collect measurement\n");
 
-	ret = container_ima_collect_measurement(data, args, container_id, iint, hash_algo, buf, size);
+	/*ret = container_ima_collect_measurement(data, args, container_id, iint, hash_algo, buf, size);
 	if (ret != 0) {
 		pr_err("collecting measurement failed\n");
 		goto out_locked;

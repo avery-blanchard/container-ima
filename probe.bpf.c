@@ -36,7 +36,7 @@ struct ebpf_var {
 	struct mmap_args *args;
 };
 
-extern struct ima_data *bpf_process_measurement(int fd) __ksym;
+extern struct ima_data *bpf_process_measurement(int fd, unsigned int ns) __ksym;
 extern struct list_head init_ns_ml(void) __ksym;
 extern struct rb_root init_ns_iint_tree(void) __ksym;
 
@@ -109,12 +109,12 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 	if (0 == 0) {//!current->ima_data) {
 		// Init per NS IMA data
 		struct ima_data new = {0};
-		ima_data = bpf_process_measurement(fd);
+		ima_data = bpf_process_measurement(fd, ns);
 		//bpf_map_update_elem(&ima_map, &ns, &ima_data, BPF_ANY);
 
 	} else {
 
-		ima_data = bpf_process_measurement(fd);
+		ima_data = bpf_process_measurement(fd, ns);
    	//	bpf_map_update_elem(&ima_map, &ns, &ima_data, BPF_ANY);
 	}
 

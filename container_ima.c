@@ -74,11 +74,13 @@ noinline struct list_head init_ns_ml(void)
 
 	return head;
 }
-noinline struct ima_data *bpf_process_measurement(int fd){
+noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
+{
 
 	int ret;
 	struct ima_data *data;
 	struct mmap_args *args;
+
 
 	args->fd = fd;
 	args->prot = PROT_EXEC;
@@ -90,7 +92,9 @@ noinline struct ima_data *bpf_process_measurement(int fd){
 	data->len = 0;
 	data->violations = 0;
 	data->policy_flags = 0;
-	ret = container_ima_process_measurement(data, args, args->ns);
+	pr_info("pre process measurement FD %d\n", fd);
+	pr_info("pointer fd %d\n", args->fd);
+	ret = container_ima_process_measurement(data, args, ns, fd);
 
 	return data;
 
