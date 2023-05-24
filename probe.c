@@ -8,14 +8,6 @@
 #include <openssl/sha.h>
 #include "probe.skel.h"
 
-struct ima {
-        char digest[2048];
-        char f_buf[2048];
-        char *f_name;
-        struct ima_template *template;
-        int size;
-        int algo;
-};
 
 int cleanup(struct probe_bpf *skel)
 {
@@ -32,11 +24,6 @@ int main(int argc, char **argv)
 {
     struct probe_bpf *skel;
     int ret;
-    struct ima *ima_data;
-    size_t len;
-    FILE *filp, *ima_log;
-    char *ima_name = "/ima";
-    u32 key = 1;
 
     libbpf_set_print(libbpf_print_fn);
 
@@ -52,22 +39,8 @@ int main(int argc, char **argv)
     }
 
     while(1) {
-        ima_data = bpf_map_lookup_elem(&map, &key);
-        if (ima_data) {
-            filp = fopen(ima_data->f_name, "r");
-            ima_log = fopen("/ima", "a");
-            fgets(ima_data->f_buf, 2048, filp);
-            len = strlen(ima_data->f_buf);
-
-            SHA1(ima_data->f_buf, len, ima_data->digest);
-
-            bpf_map_update_elem(&map. &key, &ima_data);
-
-            fputs(ima_data->digest, len, ima_log);
-
-        }
-    }
-	    
+	sleep(5);
+    }	
 
 cleanup:
     cleanup(skel);

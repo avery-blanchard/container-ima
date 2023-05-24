@@ -1,6 +1,7 @@
 /*
  * container_ima_fs.c
- *      Security file system for container measurment lists       
+ *      Security file system for container measurment lists      
+ *      FIX ME! 
  *
  */
 #ifndef __CONTAINER_IMA_FS_H__
@@ -62,17 +63,18 @@ void ima_print_digest(struct seq_file *m, u8 *digest, u32 size)
  */
 static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos)
 {
-    struct container_ima_data *data;
+    struct ima_data *data;
     struct ima_queue_entry *qe = v;
 
-    data = ima_data_from_file(m->file);
+    //data = ima_data_from_file(m->file);
 
+    // FIX ME!
     rcu_read_lock();
     qe = list_entry_rcu(qe->later.next, struct ima_queue_entry, later);
     rcu_read_unlock();
     (*pos)++;
 
-    return (&qe->later == &data->c_ima_measurements) ? NULL : qe;
+    return (&qe->later == &data->measurements) ? NULL : qe;
 }
 /* use default, adjust later if needed (probably needed) */
 static const struct file_operations c_ima_measurements_ops = {
@@ -139,13 +141,14 @@ static void *ima_measurements_start(struct seq_file *m, loff_t *pos)
 	loff_t l = *pos;
 	struct ima_queue_entry *qe;
 	unsigned int id;
-	struct container_ima_data *data;
+	struct ima_data *data;
 	struct task_struct *task = get_current();
 
-	data = ima_data_exists(id);
+	//data = ima_data_exists(id);
+	// FIX ME
 	/* we need a lock since pos could point beyond last element */
 	rcu_read_lock();
-	list_for_each_entry_rcu(qe, &data->c_ima_measurements, later) {
+	list_for_each_entry_rcu(qe, &data->measurements, later) {
 		if (!l--) {
 			rcu_read_unlock();
 			return qe;
@@ -245,13 +248,13 @@ static ssize_t c_ima_show_htable_violations(struct file *filp,
 					  char __user *buf,
 					  size_t count, loff_t *ppos) 
 {
-    struct container_ima_data *data;
+    struct ima_data *data;
     char tmp[32];
     ssize_t len;
     atomic_long_t *val;
 
     data = ima_data_from_file(filp);
-    val = &data->hash_tbl->violations;
+    val = 0; //&data->hash_tbl->violations;
     len = scnprintf(tmp, sizeof(tmp), "%li\n", atomic_long_read(val));
 
     return  simple_read_from_buffer(buf, count, ppos, tmp, len);
@@ -275,11 +278,12 @@ static ssize_t ima_show_htable_violations(struct file *filp,
 					  size_t count, loff_t *ppos)
 {
 	unsigned int id;
-	struct container_ima_data *data;
+	struct ima_data *data;
 	struct task_struct *task = get_current();
 
 	data = ima_data_exists(id);
-	return ima_show_htable_value(buf, count, ppos, &data->hash_tbl->violations);
+	//return ima_show_htable_value(buf, count, ppos, &data->hash_tbl->violations);
+	return 0;
 }
 /*
  * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_fs.c#L200

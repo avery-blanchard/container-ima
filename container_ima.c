@@ -50,7 +50,6 @@
 
 unsigned int host_inum;
 extern int ima_hash_algo;
-struct container_ima_data *data;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
 
@@ -58,167 +57,43 @@ struct ima_file_buffer {
         void *buffer;
         ssize_t size;
 };
-/*
- * init_mmap_probe, TO DO
- */
-static int init_mmap_probe(void) 
+
+noinline struct ima_data init_ns_ima(void) 
 {
-	// using probe.c, init probe from kernelspace using kernel bpf hooks that are reached from userspace through syscall
+	struct ima_data data = {0};
+
+	//atomic_long_set(&data.hash_tbl->violations, 0);
+	//memset(&data.hash_tbl->queue, 0, sizeof(data.hash_tbl->queue));
+
+	INIT_LIST_HEAD(&data.measurements);
+
+        //DEFINE_RWLOCK(&data->queue_lock);
+
+	mutex_init(&data.ima_write_mutex);
+
+	data.iint_tree = RB_ROOT;
+
+	return data;
+}
+noinline unsigned int bpf_process_measurement(struct ima_data *data, struct mmap_args *args, unsigned int ns) 
+{
+
 	int ret;
 
-	/* approach: userspace subprocess to insert the probe */
-	struct subprocess_info *subprocess_info; //https://elixir.bootlin.com/linux/v4.19/source/include/linux/umh.h#L19
-	// https://developer.ibm.com/articles/l-user-space-apps/
-	char *argv[] = {"./probe", "NULL"};
-	static char *envp[] = {
-		"HOME=/",
-		"TERM=linux",
-		"PATH=/sbin:/bin:/usr/sbin:/usr/bin", NULL};
+	ret = container_ima_process_measurement(data, args, ns);
 
-	return call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+	return ret;
 
 }
-noinline unsigned int bpfmeasurement(unsigned int inum ) {
 
-	return host_inum;
-/*
-	struct container_ima_data *data;
-	struct mmap_args_t *args;
-	struct task_struct *task;
-	unsigned int inum;
-	struct file *file;
-	struct inode *inode;
-	const char *filename;
-	int ret, action, len;
-	void *buf;
-	u64 i_version;
-	loff_t i_size;
-	struct crypto_shash *ftm;
-	struct shash_desc *shash;
-	unsigned int flags;
-	fmode_t mode;
+BTF_SET8_START(ima_kfunc_ids)
+BTF_ID_FLAGS(func, bpf_process_measurement)
+BTF_ID_FLAGS(func, init_ns_ima)
+BTF_SET8_END(ima_kfunc_ids)
 
-	struct {
-		struct ima_digest_data hdr;
-		char digest[IMA_MAX_DIGEST_SIZE];
-	} hash;
-	
-	task = (void *) bpf_get_current_task();
-
-	inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
-
-	if (inum  == host_inum) {
-		pr_err("inum  == host_inum check\n");
-		args->fd = fd;
-		args->length = length;
-		args->flags = flags;
-		args->prot = PROT_EXEC;
-		args->offset = 0;
-
-		file = container_ima_retrieve_file(args->fd);
-		if (file) {
-			pr_err("FILE\n");
-			inode = file_inode(file);
-			action = MEASURE;
-			filename = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-			i_version = &(BPF_CORE_READ(inode, i_version));
-
-			hash.hdr.algo = ima_hash_algo;
-			hash.hdr.length = hash_digest_size[ima_hash_algo];
-			
-			flags = BPF_CORE_READ(file, f_flags);
-			if (file->f_flags & O_DIRECT) {
-				return 0;
-			}
-			mode = BPF_CORE_READ(file, f_mode);
-			if (!(file->f_mode & FMODE_READ)) {
-				return 0;
-			}
-
-			i_size = BPF_CORE_READ(inode, i_size);
-			if (!i_size) {
-				pr_err("panic\n");
-				return 0;
-			}
-			ftm = ima_shash_tfm;
-
-			//ftm = ftm->base.__crt_algo->cra_init(&ftm->base);
-
-			return 0;
-		}
-	}
-	return 0;*/
-}
-
-noinline struct ima_hash ima_hash_setup(void) 
-{
-	struct ima_hash hash;
-
-        hash.hdr.algo = ima_hash_algo;
-        hash.hdr.length = hash_digest_size[ima_hash_algo];
-
-	return hash;
-
-}
-noinline struct ima_file_buffer *ima_buffer_read(struct file *filp) 
-{
-	struct ima_file_buffer *f_buf;
-
-	f_buf->size = kernel_read(filp, f_buf->buffer, 0, NULL);
-        
-	return f_buf;
-       	       
-}
-noinline void *ima_crypto(struct file *filp, struct crypto_tfm *base, int (*cra_init)(struct crypto_tfm *tfm))
-{
-	int ret;
-	unsigned int len;
-	struct shash_desc *shash;
-	void *buf;
-	ssize_t size;
-
-
-	size = kernel_read(filp, buf, 0, NULL);
-	if (!size)
-		return NULL;
-
-	shash->tfm = ima_shash_tfm;
-
-	ret = cra_init(base);
-	if (ret != 0) {
-		return ret;
-	}
-
-	while (size) {
-		len = size < PAGE_SIZE ? size : PAGE_SIZE;
-		ret = crypto_shash_update(shash, buf, len);
-		if (ret)
-			break;
-		buf += len;
-		size -= len;
-	}
-
-	return buf;
-
-}
-noinline struct crypto_shash *ima_shash_init(void) 
-{
-	return ima_shash_tfm;
-}
-
-BTF_SET8_START(container_ima_check_kfunc_ids)
-BTF_ID_FLAGS(func, bpfmeasurement)
-BTF_ID_FLAGS(func, container_ima_retrieve_file)
-BTF_ID_FLAGS(func, ima_hash_setup)
-BTF_ID_FLAGS(func, ima_buffer_read)
-BTF_ID_FLAGS(func, ima_crypto)
-BTF_ID_FLAGS(func, ima_shash_init)
-BTF_ID_FLAGS(func, ima_pcr_extend)
-BTF_SET8_END(container_ima_check_kfunc_ids)
-
-static const struct btf_kfunc_id_set bpf_container_ima_kfunc_set = {
+static const struct btf_kfunc_id_set bpf_ima_kfunc_set = {
 	.owner = THIS_MODULE,
-	.set   = &container_ima_check_kfunc_ids,
+	.set   = &ima_kfunc_ids,
 };
 static int container_ima_init(void)
 {
@@ -235,9 +110,6 @@ static int container_ima_init(void)
 	ret = container_ima_fs_init();
 	if (ret < 0)
 		return ret;
-
-	pr_info("DATA INIT\n");
-	data = init_container_ima(host_inum);
 	
 	/* Initialize IMA crypto */
 	pr_info("CRYPTO INIT\n");
@@ -249,7 +121,7 @@ static int container_ima_init(void)
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
 	
 
-	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_UNSPEC, &bpf_container_ima_kfunc_set);
+	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_UNSPEC, &bpf_ima_kfunc_set);
 	pr_info("Return val of registration %d\n", ret);
 	if (ret < 0)
 		return ret;
@@ -266,7 +138,6 @@ static void container_ima_exit(void)
 	 */
 	int ret;
 	pr_info("Exiting Container IMA\n");
-	kfree(data);
 	//ret = container_ima_cleanup();
 	return;
 }

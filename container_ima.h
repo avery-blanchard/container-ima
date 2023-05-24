@@ -236,7 +236,7 @@ extern struct dentry *ascii_runtime_measurements;
 extern struct dentry *violations;
 extern struct dentry *policy;
 
-extern struct container_ima_data *data;
+extern struct ima_data *data;
 struct ima_rule_entry {
 	struct list_head list;
 	int action;
@@ -246,14 +246,12 @@ struct ima_rule_entry {
 }; // add to this as needed
 
 /* struct for BPF argument mappings */
-struct mmap_args_t {
-	void *addr;
+struct mmap_args {
 	size_t length;
 	int prot;
 	int flags;
 	int fd;
-	int offset;
-	long id;
+	unsigned int ns;
 };
 
 /* IMA event related data */
@@ -321,7 +319,7 @@ struct ima_h_table {
 struct c_ima_queue_entry {
 	struct hlist_node hnext;
 	unsigned int id;
-	struct container_ima_data *data;
+	struct ima_data *data;
 };
 
 struct c_ima_data_hash_table {
@@ -345,23 +343,20 @@ struct hash {
 		struct ima_digest_data hdr;
 		char digest[IMA_MAX_DIGEST_SIZE];
 };
-/* TODO fix policy  */
-struct container_ima_data {
-	unsigned int container_id;  // inum of ns
-	atomic_long_t len; // number of digest
-	atomic_long_t violations; // violations count 
-	spinlock_t c_ima_queue_lock;
-	struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE]; // hash table queue
-	/* policy configurations TODO */
-	struct list_head c_ima_measurements; // linked list of measurements 
-	unsigned long binary_runtime_size;
-	struct ima_h_table *hash_tbl;  
-	struct mutex c_ima_write_mutex;
-	int c_ima_policy_flags;
-	struct rb_root container_integrity_iint_tree;
 
+struct ima_data {
+        atomic_long_t len; // number of digest
+        atomic_long_t violations; // violations count 
+        //spinlock_t queue_lock;
+        struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE]; // hash table queue
+        /* policy configurations TODO */
+        struct list_head measurements; // linked list of measurements 
+        //unsigned long binary_runtime_size;
+        //struct ima_h_table *hash_tbl;
+        struct mutex ima_write_mutex;
+        int policy_flags;
+        struct rb_root iint_tree;
 };
-
 
 /* integrity data associated with an inode */
 struct integrity_iint_cache {
@@ -383,52 +378,47 @@ struct integrity_iint_cache {
 
 /* Internal container IMA function definitions */
 int container_ima_fs_init(void);
-long container_ima_vtpm_setup(struct container_ima_data *, unsigned int, struct tpm_chip *);
+long container_ima_vtpm_setup(struct ima_data *, unsigned int, struct tpm_chip *);
 struct file *container_ima_retrieve_file(int);
-struct container_ima_inode_data *container_ima_retrieve_inode_data(struct container_ima_data *, int, struct file *);
-int container_ima_collect_measurement(struct container_ima_data *, struct mmap_args_t *, unsigned int, struct integrity_iint_cache *, enum hash_algo, void *, loff_t );
-struct integrity_iint_cache *container_integrity_inode_find(struct container_ima_data *, struct inode *, unsigned int);
-struct integrity_iint_cache *container_integrity_inode_get(struct container_ima_data *, struct inode *, unsigned int);
-void container_ima_add_violation(struct container_ima_data *, struct file *, const unsigned char *,
+struct container_ima_inode_data *container_ima_retrieve_inode_data(struct ima_data *, int, struct file *);
+int container_ima_collect_measurement(struct ima_data *, struct mmap_args *, unsigned int, struct integrity_iint_cache *, enum hash_algo, void *, loff_t );
+struct integrity_iint_cache *container_integrity_inode_find(struct ima_data *, struct inode *, unsigned int);
+struct integrity_iint_cache *container_integrity_inode_get(struct ima_data *, struct inode *, unsigned int);
+void container_ima_add_violation(struct ima_data *, struct file *, const unsigned char *,
 		       struct integrity_iint_cache *,
 		       const char *, const char *, unsigned int);
-static void container_ima_rdwr_violation_check(struct container_ima_data *, struct file *, struct integrity_iint_cache *,
+static void container_ima_rdwr_violation_check(struct ima_data *, struct file *, struct integrity_iint_cache *,
 				     int, char **, const char **, char *, unsigned int);
-int container_ima_process_measurement(struct container_ima_data *, struct file *,
-			       void *, loff_t, int, unsigned int, struct mmap_args_t *);
-int container_ima_add_template_entry(struct container_ima_data *data, struct ima_template_entry *entry, int violation,
+int container_ima_process_measurement(struct ima_data *, struct mmap_args *, unsigned int);
+int container_ima_add_template_entry(struct ima_data *data, struct ima_template_entry *entry, int violation,
 			   const char *op, struct inode *inode,
 			   const unsigned char *filename, unsigned int container_id);
-int container_ima_store_template(struct container_ima_data *, struct ima_template_entry *,
+int container_ima_store_template(struct ima_data *, struct ima_template_entry *,
 		       int, struct inode *,
 		       const char *, unsigned int);
-int container_ima_store_measurement(struct container_ima_data *, struct mmap_args_t *, unsigned int, struct integrity_iint_cache *, 
+int container_ima_store_measurement(struct ima_data *, struct mmap_args *, unsigned int, struct integrity_iint_cache *, 
                 struct file *, struct ima_template_desc *, const char *); 
-struct container_ima_data *init_container_ima(unsigned int container_id);
+struct ima_data *init_container_ima(unsigned int container_id);
 int container_ima_cleanup(void);
 static int container_ima_init(void);
 static void container_ima_exit(void);
-struct container_ima_data *create_container_ima_data(void);
-void container_ima_free_data(struct container_ima_data *);
-int container_ima_get_action(struct container_ima_data *, struct inode *,
+struct container_ima *create_container_ima_data(void);
+void container_ima_free_data(struct ima_data *);
+int container_ima_get_action(struct ima_data *, struct inode *,
 		   int);
-int container_ima_match_policy(struct container_ima_data *, struct inode *,
+int container_ima_match_policy(struct ima_data *, struct inode *,
 		     int, int);
 static int c_ima_seq_open(struct inode *, struct file *);
-static struct container_ima_data *ima_data_from_file(const struct file *filp);
+static struct ima_data *ima_data_from_file(const struct file *filp);
 static struct c_ima_queue_entry *container_ima_lookup_data_entry(unsigned int id);
-static struct ima_queue_entry *container_ima_lookup_digest_entry(struct container_ima_data *data, u8 *digest_value,
+static struct ima_queue_entry *container_ima_lookup_digest_entry(struct ima_data *data, u8 *digest_value,
 						       int pcr, unsigned int container_id);
 static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos);
 static ssize_t c_ima_show_htable_violations(struct file *filp,
 					  char __user *buf,
 					  size_t count, loff_t *ppos);
-static long mmap_bpf_map_lookup(uint64_t id, struct mmap_args_t *args, int map_fd);
-static long mmap_bpf_map_add(uint64_t id, struct mmap_args_t *args, int map_fd);
-int create_mmap_bpf_map(void);
-static int vtpm_pcr_extend(struct container_ima_data *data, struct tpm_digest *digests_arg, int pcr);
-static int container_ima_add_digest_entry(struct container_ima_data *data, struct ima_template_entry *entry);
-struct container_ima_data *ima_data_exists(unsigned int id);
+static int container_ima_add_digest_entry(struct ima_data *data, struct ima_template_entry *entry);
+struct ima_data *ima_data_exists(unsigned int id);
 static int get_binary_runtime_size(struct ima_template_entry *entry);
 //static int ima_get_verity_digest(struct integrity_iint_cache *iint,
 			//	 struct ima_max_digest_data *hash);
@@ -481,7 +471,7 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
 			      struct ima_digest_data *hash); 
 int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr);
-static int container_ima_add_data_entry(struct container_ima_data *data, long id);
+static int container_ima_add_data_entry(struct ima_data *data, long id);
 //extern int process_mmap(struct mmap_args_t *args);
 /*
  * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h#L170

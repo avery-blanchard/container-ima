@@ -6,148 +6,118 @@
 
 #define bpf_target_x86
 #define bpf_target_defined
-
-#define FMODE_READ	0x1
-#define O_DIRECT	00040000
-#define TPM_ALG_SHA256	0x000B
-#define TPM_ALG_SHA1	0x0004 //to do
+#define IMA_HASH_BITS 9
+#define IMA_MEASURE_HTABLE_SIZE 64
 #define MAP_ANONYMOUS	0x20	
+
 char _license[] SEC("license") = "GPL";
 
-struct ima_hash {
-            struct ima_digest_data hdr;
-            char digest[2048];
-};
-
 struct ima_data {
-        unsigned int inum;
-        struct ima_hash hash;
-        struct file *file;
-        struct inode *inode;
-        char *f_buf;
-        fmode_t f_mode;
-        unsigned int f_flags;
-        const unsigned char *f_name;
-        int (*cra_init)(struct crypto_tfm *tfm);
-        struct crypto_shash *shash;
-        struct crypto_tfm base;
-	struct shash_desc *desc;
-	int size;
-	unsigned int host;
-	void *digest;
-	struct tpm_digest *tpm_digest;
+	atomic_long_t len; // number of digest
+	atomic_long_t violations; // violations count 
+	//spinlock_t queue_lock;
+	struct list_head measurements; // linked list of measurements 
+	//unsigned long binary_runtime_size;
+	//struct ima_h_table *hash_tbl;  
+	struct mutex ima_write_mutex;
+	int policy_flags;
+	struct rb_root iint_tree;
 };
 
-struct ima {
-        char digest[2048];
-        char *f_name;
-        int size;
-        int algo;
+struct mmap_args {
+	size_t length;
+       	int prot;
+       	int flags;
+       	int fd;
+	unsigned int ns;
 };
-extern unsigned int bpfmeasurement(unsigned int inum) __ksym;
-extern struct file *container_ima_retrieve_file(int fd) __ksym;
-extern struct ima_hash ima_hash_setup(void) __ksym;
-extern struct crypto_shash *ima_shash_init(void) __ksym;
-extern void *ima_crypto(struct file *filp, struct crypto_tfm *base, int (*cra_init)(struct crypto_tfm *tfm)) __ksym;
-extern int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr) __ksym;
+
+struct ebpf_var {
+	struct ima_data *ima_data;
+	struct mmap_args *args;
+};
+
+extern unsigned int bpf_process_measurement(struct ima_data *ima, struct mmap_args *args, unsigned int ns) __ksym;
+extern struct ima_data init_ns_ima(void) __ksym;
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 	__type(key, u32);
-	__type(value, struct ima_data);
+	__type(value, struct mmap_args);
 	__uint(max_entries, 256);
-} map SEC(".maps");
+} mmap_map SEC(".maps");
+
+struct {
+        __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+        __type(key, u32);
+        __type(value, struct ebpf_var);
+        __uint(max_entries, 256);
+} var_map SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__type(key, u32);
-	__type(value, struct ima);
+	__type(value, struct ima_data);
 	__uint(max_entries, 256);
-} ima SEC(".maps");
+} ima_map SEC(".maps");
 
 // int mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 SEC("kprobe/__x64_sys_mmap")
-int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsigned long prot, unsigned long flags, unsigned long fd) {
+int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsigned long prot, unsigned long flags, unsigned long fd) 
+{
 
-    int ret, len;
-    u32 key;
-    struct ima_data *data;
-    struct task_struct *task;
-    struct file *file;
-    struct crypto_shash *shash;
-    struct ima_file_buffer *f_buf;
+    struct mmap_args *args;
     struct ima_data *ima_data;
-    u32 map_key =1;
-    
+    struct task_struct *task;
+    struct ebpf_var *current;
+    u32 key;
+    int ret;
+
     if (prot & 0x04) {
     
         if (flags & MAP_ANONYMOUS)
 		return 0;
-
+	
+	key = 0;
+	current = (struct ebpf_var *) bpf_map_lookup_elem(&var_map, &key);
         task = (void *) bpf_get_current_task();
 
         bpf_printk("Integrity measurement for fd %d\n", fd);
 
-        key = 0; 
-        data = (struct ima_data *) bpf_map_lookup_elem(&map, &key);
-        if (!data) {
+        args = (struct mmap_args *) bpf_map_lookup_elem(&mmap_map, &key);
+        if (!args) {
                 bpf_printk("Map element lookup failed\n");
                 return 0;
         }
 
-        data->inum = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
-        bpf_printk("BPF INUM %d\n", data->inum);
-        data->host = bpfmeasurement(data->inum);
+	args->length = length;
+	args->prot = prot;
+	args->flags = flags;
+	args->fd = fd;
 
-        bpf_printk("INUM comparision returns %d\n", data->host);
-        if (data->host == data->inum) {
 
-                bpf_printk("PRE RETRIEVE FILE\n");
-                file = container_ima_retrieve_file(fd);
-                bpf_printk("POST CHECK\n"); 	    
-                if (file) {
+        args->ns = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
+	
+	current->args = args;
+	current->ima_data = (struct ima_data *) bpf_map_lookup_elem(&ima_map, &args->ns);
+	
+	if (!current->ima_data) {
+		// Init per NS IMA data
+		struct ima_data new = {0};
+		new = init_ns_ima();
+		ret = bpf_process_measurement(&new, args, args->ns);
+		bpf_map_update_elem(&new, &args->ns, &ima_data, BPF_ANY);
 
-                                bpf_printk("FILE RETRIEVED\n");
-                                data->inode = BPF_CORE_READ(file, f_inode);
-                                data->f_name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-                                ima_data->f_name = data->f_name;
+	} else {
 
-                                bpf_map_update_elem(&ima, &map_key, &ima_data);
-                                bpf_printk("FILE INODE AND DENTRY NAME\n");
-                                //data->hash = ima_hash_setup();
+		ret = bpf_process_measurement(current->ima_data, args, args->ns); 
+   		bpf_map_update_elem(&ima_map, &args->ns, &current->ima_data, BPF_ANY);
+	}
 
-                                bpf_printk("HASH SET UP\n");
-                                data->f_flags = BPF_CORE_READ(file, f_flags); 
-                                if (data->f_flags & O_DIRECT) {
-                                        return 0;
-                                }
-                                bpf_printk("FLAGS \n");
-                                data->f_mode = BPF_CORE_READ(file, f_mode);
-                                if (!(data->f_mode & FMODE_READ)) {
-                                        return 0;
-                                }
-                                bpf_printk("MODE\n");
-                                
-                                shash = ima_shash_init();
-                                bpf_printk("SHASH INIT\n");
-                                
-                                data->cra_init = BPF_CORE_READ(shash,base.__crt_alg, cra_init);
-                                data->base = BPF_CORE_READ(shash, base);
-                                data->digest = ima_crypto(file, &data->base, data->cra_init);
 
-                                strncpy(&data->tpm_digest->digest[0], &data->hash.hdr.digest[0], sizeof(data->hash.hdr.digest));
-                                
-                                data->tpm_digest->alg_id = TPM_ALG_SHA256;
-                                
-                                ret = ima_pcr_extend(data->tpm_digest, 10);
-                                
-                                return 0;
+    }
 
-                        }
-
-                 }
-
-        }
+    
     return 0;
 
 }
