@@ -345,8 +345,8 @@ struct hash {
 };
 
 struct ima_data {
-        atomic_long_t len; // number of digest
-        atomic_long_t violations; // violations count 
+        long len; // number of digest
+        long violations; // violations count 
         //spinlock_t queue_lock;
         struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE]; // hash table queue
         /* policy configurations TODO */
@@ -474,21 +474,18 @@ int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr);
 static int container_ima_add_data_entry(struct ima_data *data, long id);
 //extern int process_mmap(struct mmap_args_t *args);
 /*
- * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h#L170
  */
 static inline unsigned long ima_hash_key(u8 *digest)
 {
 	return hash_long(*digest, IMA_HASH_BITS);
 }
 /*
- * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h#L170
  */
 static inline unsigned long c_ima_hash_key(long *id)
 {
 	return hash_long(*id, IMA_HASH_BITS);
 }
 /*
- * https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h#L284
  */
 static inline enum hash_algo
 ima_get_hash_algo(struct evm_ima_xattr_data *xattr_value, int xattr_len)
@@ -496,8 +493,6 @@ ima_get_hash_algo(struct evm_ima_xattr_data *xattr_value, int xattr_len)
 	return ima_hash_algo;
 }
 /* 
- * TODO 
- *  https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima_appraise.c#L191 
  */
 static inline int ima_read_xattr(struct dentry *dentry,
 				 struct evm_ima_xattr_data **xattr_value)

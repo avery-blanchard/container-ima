@@ -47,48 +47,63 @@
 #define INTEGRITY_KEYRING_IMA 1
 #define LOG_BUF_SIZE 2048
 
+#define BTF_TYPE_SAFE_NESTED(__type)  __PASTE(__type, __safe_fields)
+
+BTF_TYPE_SAFE_NESTED(struct ima_data) {
+	long len; // number of digest
+        long violations; // violations count
+        //spinlock_t queue_lock;
+        struct list_head measurements; // linked list of measurements
+        //unsigned long binary_runtime_size;
+        //struct ima_h_table *hash_tbl;
+        int policy_flags;
+        struct rb_root iint_tree;
+
+};
 
 unsigned int host_inum;
 extern int ima_hash_algo;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
 
-struct ima_file_buffer {
-        void *buffer;
-        ssize_t size;
-};
-
-noinline struct ima_data init_ns_ima(void) 
+noinline struct list_head init_ns_ml(void) 
 {
-	struct ima_data data = {0};
+	struct list_head head;
 
-	//atomic_long_set(&data.hash_tbl->violations, 0);
-	//memset(&data.hash_tbl->queue, 0, sizeof(data.hash_tbl->queue));
+	INIT_LIST_HEAD(&head);
 
-	INIT_LIST_HEAD(&data.measurements);
-
-        //DEFINE_RWLOCK(&data->queue_lock);
-
-	mutex_init(&data.ima_write_mutex);
-
-	data.iint_tree = RB_ROOT;
-
-	return data;
+	return head;
 }
-noinline unsigned int bpf_process_measurement(struct ima_data *data, struct mmap_args *args, unsigned int ns) 
-{
+noinline struct ima_data *bpf_process_measurement(int fd){
 
 	int ret;
+	struct ima_data *data;
+	struct mmap_args *args;
 
-	ret = container_ima_process_measurement(data, args, ns);
+	args->fd = fd;
+	args->prot = PROT_EXEC;
+	args->flags = 0;
+	args->length = 0;
 
-	return ret;
+	data->iint_tree = RB_ROOT;
+	data->measurements = init_ns_ml();
+	data->len = 0;
+	data->violations = 0;
+	data->policy_flags = 0;
+	ret = container_ima_process_measurement(data, args, args->ns);
+
+	return data;
 
 }
 
+noinline struct rb_root init_ns_iint_tree(void)
+{
+	return RB_ROOT;
+}
 BTF_SET8_START(ima_kfunc_ids)
-BTF_ID_FLAGS(func, bpf_process_measurement)
-BTF_ID_FLAGS(func, init_ns_ima)
+BTF_ID_FLAGS(func, bpf_process_measurement, KF_TRUSTED_ARGS)
+BTF_ID_FLAGS(func, init_ns_ml, KF_TRUSTED_ARGS)
+BTF_ID_FLAGS(func, init_ns_iint_tree, KF_TRUSTED_ARGS | KF_ACQUIRE)
 BTF_SET8_END(ima_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_ima_kfunc_set = {
