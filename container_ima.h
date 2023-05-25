@@ -381,7 +381,7 @@ int container_ima_fs_init(void);
 long container_ima_vtpm_setup(struct ima_data *, unsigned int, struct tpm_chip *);
 struct file *container_ima_retrieve_file(int);
 struct container_ima_inode_data *container_ima_retrieve_inode_data(struct ima_data *, int, struct file *);
-int container_ima_collect_measurement(struct ima_data *, struct mmap_args *, unsigned int, struct integrity_iint_cache *, enum hash_algo, void *, loff_t );
+int container_ima_collect_measurement(struct file *, struct mmap_args *, unsigned int, struct integrity_iint_cache *, enum hash_algo, void *, loff_t );
 struct integrity_iint_cache *container_integrity_inode_find(struct ima_data *, struct inode *, unsigned int);
 struct integrity_iint_cache *container_integrity_inode_get(struct ima_data *, struct inode *, unsigned int);
 void container_ima_add_violation(struct ima_data *, struct file *, const unsigned char *,

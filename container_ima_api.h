@@ -88,10 +88,10 @@ noinline struct file *container_ima_retrieve_file(int fd)
   *     Get file from mmap args and measure
   * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L198
   */
-noinline int container_ima_collect_measurement(struct ima_data *data, struct mmap_args *args, unsigned int container_id, struct integrity_iint_cache *iint, enum hash_algo hash_algo, void *buf, loff_t size) 
+noinline int container_ima_collect_measurement(struct file *file, struct mmap_args *args, unsigned int container_id, struct integrity_iint_cache *iint, enum hash_algo hash_algo, void *buf, loff_t size) 
 {
 	int result;
-	struct file *file, *f;
+	struct file *f;
 	struct inode *inode;
 	const char *filename;
 	void *tmpbuf; 
@@ -106,22 +106,17 @@ noinline int container_ima_collect_measurement(struct ima_data *data, struct mma
 	const char *audit_cause = "failed";
 
 	result = 0;
-
-	file = container_ima_retrieve_file(args);
-	if (!file) {
-		pr_err("error retrieving file\n");
-		return -1;
-	}
-
+	pr_err("In collect measurement \n");
 	inode = file_inode(file);
 	filename = file->f_path.dentry->d_name.name;
-
+	pr_err("got inode and filename\n");
 	i_version = inode_query_iversion(inode);
-	hash.hdr.algo = hash_algo;
+	pr_err("collect measurement returning\n");
+	/*hash.hdr.algo = hash_algo;
 	hash.hdr.length = hash_digest_size[hash_algo];
 
 
-	/* zero out, in case of failue */
+	/* zero out, in case of failue 
 	memset(&hash.digest, 0, sizeof(hash.digest));
 	if (buf) {
 		result = ima_calc_buffer_hash(buf, size, &hash.hdr);
@@ -143,7 +138,7 @@ noinline int container_ima_collect_measurement(struct ima_data *data, struct mma
 	memcpy(iint->ima_hash, &hash, length);
 	iint->version = i_version;
 
-	/* Possibly temporary failure due to type of read (eg. O_DIRECT) */
+	/* Possibly temporary failure due to type of read (eg. O_DIRECT) *
 	if (!result)
 		iint->flags |= IMA_COLLECTED;
 out:
@@ -154,7 +149,7 @@ out:
 		integrity_audit_msg(AUDIT_INTEGRITY_DATA, inode,
 				    filename, "collect_data", audit_cause,
 				    result, 0);
-	}
+	}*/
 	return result;
  }
  /*
@@ -444,12 +439,11 @@ noinline int container_ima_process_measurement(struct ima_data *data, struct mma
 	
 	pr_info("Pre-collect measurement\n");
 
-	/*ret = container_ima_collect_measurement(data, args, container_id, iint, hash_algo, buf, size);
+	ret = container_ima_collect_measurement(file, args, container_id, iint, hash_algo, buf, size);
 	if (ret != 0) {
 		pr_err("collecting measurement failed\n");
-		goto out_locked;
 	}
-	if (!pathbuf)	/* ima_rdwr_violation possibly pre-fetched */
+	/*if (!pathbuf)	/* ima_rdwr_violation possibly pre-fetched */
 	/*	pathname = ima_d_path(&file->f_path, &pathbuf, filename);
 
 	if (action & IMA_MEASURE)
