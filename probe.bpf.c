@@ -39,7 +39,7 @@ struct ebpf_var {
 extern struct ima_data *bpf_process_measurement(int fd, unsigned int ns) __ksym;
 extern struct list_head init_ns_ml(void) __ksym;
 extern struct rb_root init_ns_iint_tree(void) __ksym;
-
+extern int measure_file(struct file *) __ksym;
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 	__type(key, u32);

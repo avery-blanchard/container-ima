@@ -65,7 +65,7 @@ unsigned int host_inum;
 extern int ima_hash_algo;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
-
+extern int ima_file_hash(struct file *file, char *buf, size_t buf_size);
 noinline struct list_head init_ns_ml(void) 
 {
 	struct list_head head;
@@ -74,6 +74,20 @@ noinline struct list_head init_ns_ml(void)
 
 	return head;
 }
+noinline int measure_file(struct file *file)
+{
+        int check;
+	char buf[256];
+        pr_err("in file measure\n");
+
+        check = ima_file_hash(file, buf, sizeof(buf));
+        pr_err("exiting file measure, return %d\n", check);
+	if (!buf)
+		pr_err("buffer is null :(");
+	pr_err("Buffer contents %s\n", buf);
+        return 0;
+}
+
 noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 {
 
@@ -81,7 +95,7 @@ noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 	struct ima_data *data;
 	struct mmap_args *args;
 
-
+	struct file *file;
 	args->fd = fd;
 	args->prot = PROT_EXEC;
 	args->flags = 0;
@@ -94,12 +108,13 @@ noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 	data->policy_flags = 0;
 	pr_info("pre process measurement FD %d\n", fd);
 	pr_info("pointer fd %d\n", args->fd);
-	ret = container_ima_process_measurement(data, args, ns, fd);
+	//ret = container_ima_process_measurement(data, args, ns, fd);
 
+	file = container_ima_retrieve_file(fd);
+
+	ret = measure_file(file);
 	return data;
-
 }
-
 noinline struct rb_root init_ns_iint_tree(void)
 {
 	return RB_ROOT;
@@ -108,6 +123,7 @@ BTF_SET8_START(ima_kfunc_ids)
 BTF_ID_FLAGS(func, bpf_process_measurement, KF_TRUSTED_ARGS)
 BTF_ID_FLAGS(func, init_ns_ml, KF_TRUSTED_ARGS)
 BTF_ID_FLAGS(func, init_ns_iint_tree, KF_TRUSTED_ARGS | KF_ACQUIRE)
+BTF_ID_FLAGS(func, measure_file, KF_TRUSTED_ARGS)
 BTF_SET8_END(ima_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_ima_kfunc_set = {

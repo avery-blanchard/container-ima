@@ -104,6 +104,7 @@ noinline int container_ima_collect_measurement(struct file *file, struct mmap_ar
 		char digest[IMA_MAX_DIGEST_SIZE];
 	} hash;
 	const char *audit_cause = "failed";
+	ssize_t check;
 
 	result = 0;
 	pr_err("In collect measurement \n");
@@ -133,7 +134,12 @@ noinline int container_ima_collect_measurement(struct file *file, struct mmap_ar
 		result = -ENOMEM;
 		goto out;
 	}
-
+	
+	check = kernel_read(file, buf, 1, 0);
+	if (check < 0) {
+		pr_err("kernel read returns negative");
+		return 0;
+	}
 	iint->ima_hash = tmpbuf;
 	memcpy(iint->ima_hash, &hash, length);
 	iint->version = i_version;

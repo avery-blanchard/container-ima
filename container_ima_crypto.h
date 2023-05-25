@@ -377,8 +377,8 @@ static int ima_calc_file_ahash(struct file *file, struct ima_digest_data *hash)
 }
 noinline struct shash_desc *ima_init_shash(struct crypto_shash *tfm) 
 {
-	SHASH_DESC_ON_STACK(shash, tfm);
 
+	SHASH_DESC_ON_STACK(shash, tfm);
 	return shash;
 }
 /*
@@ -401,18 +401,19 @@ static int ima_calc_file_hash_tfm(struct file *file,
 		pr_err("shash is not null\n");
 		shash->tfm = tfm;
 	}
-	return 0;
-/*	hash->length = crypto_shash_digestsize(tfm);
+	hash->length = crypto_shash_digestsize(tfm);
 	pr_err("returning hash tfm");	
-	return 0;
+	
 	rc = crypto_shash_init(shash);
 	if (rc != 0)
 		return rc;
-
+	pr_err("post crypto shash init\n");
 	i_size = i_size_read(file_inode(file));
 
 	if (i_size == 0)
 		goto out;
+	pr_err("i size != 0");
+	return 0;
 
 	rbuf = kzalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!rbuf)
@@ -445,7 +446,7 @@ static int ima_calc_file_hash_tfm(struct file *file,
 out:
 	if (!rc)
 		rc = crypto_shash_final(shash, hash->digest);
-	return rc;*/
+	return rc;
 	return 0;
 }
 /*
