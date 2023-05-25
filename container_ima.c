@@ -66,6 +66,20 @@ extern int ima_hash_algo;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
 extern int ima_file_hash(struct file *file, char *buf, size_t buf_size);
+
+int attest_ebpf(void) 
+{
+	int ret;
+	struct file *file;
+	char buf[265];
+
+	file = filp_open("./probe.bpf.c", O_RDONLY, 0);
+	if (!file)
+		return -1;
+	ret = ima_file_hash(file, buf, sizeof(buf));
+	return 0;
+
+}
 noinline struct list_head init_ns_ml(void) 
 {
 	struct list_head head;
@@ -139,7 +153,10 @@ static int container_ima_init(void)
 	struct task_struct *task;
 	struct nsproxy *ns;
 	
-
+	ret = attest_ebpf();
+	if (ret < 0) {
+		pr_err("eBPF Probe failed integrity check\n");
+	}
 	/* Initialize global/shared IMA data */
 	pr_info("FS INIT\n");
 	ret = container_ima_fs_init();
