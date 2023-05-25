@@ -112,18 +112,18 @@ noinline int container_ima_collect_measurement(struct file *file, struct mmap_ar
 	pr_err("got inode and filename\n");
 	i_version = inode_query_iversion(inode);
 	pr_err("collect measurement returning\n");
-	/*hash.hdr.algo = hash_algo;
+	hash.hdr.algo = hash_algo;
 	hash.hdr.length = hash_digest_size[hash_algo];
 
 
-	/* zero out, in case of failue 
+	/* zero out, in case of failue*/ 
 	memset(&hash.digest, 0, sizeof(hash.digest));
 	if (buf) {
 		result = ima_calc_buffer_hash(buf, size, &hash.hdr);
 	} else {
 		result = ima_calc_file_hash(file, &hash.hdr);
 	}
-
+	return 0;
 	if (result == -ENOMEM)
 		goto out;
 
@@ -140,7 +140,7 @@ noinline int container_ima_collect_measurement(struct file *file, struct mmap_ar
 
 	/* Possibly temporary failure due to type of read (eg. O_DIRECT) *
 	if (!result)
-		iint->flags |= IMA_COLLECTED;
+		iint->flags |= IMA_COLLECTED;*/
 out:
 	if (result) {
 		if (file->f_flags & O_DIRECT)
@@ -149,7 +149,7 @@ out:
 		integrity_audit_msg(AUDIT_INTEGRITY_DATA, inode,
 				    filename, "collect_data", audit_cause,
 				    result, 0);
-	}*/
+	}
 	return result;
  }
  /*

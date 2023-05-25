@@ -14,6 +14,7 @@
 #include <linux/ratelimit.h>
 #include <linux/file.h>
 #include <crypto/hash.h>
+#include <linux/printk.h>
 
 #include "container_ima.h"
 #include "container_ima_init.h"
@@ -374,6 +375,12 @@ static int ima_calc_file_ahash(struct file *file, struct ima_digest_data *hash)
 
 	return rc;
 }
+noinline struct shash_desc *ima_init_shash(struct crypto_shash *tfm) 
+{
+	SHASH_DESC_ON_STACK(shash, tfm);
+
+	return shash;
+}
 /*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L333
  */
@@ -384,12 +391,20 @@ static int ima_calc_file_hash_tfm(struct file *file,
 	loff_t i_size, offset = 0;
 	char *rbuf;
 	int rc, read = 0;
-	SHASH_DESC_ON_STACK(shash, tfm);
+	struct shash_desc *shash;
+	pr_err("before shash\n");
 
-	shash->tfm = tfm;
-
-	hash->length = crypto_shash_digestsize(tfm);
-
+	//SHASH_DESC_ON_STACK(shash, tfm);
+	shash = ima_init_shash(tfm);
+	pr_err("post shash\n");
+	if(shash) {
+		pr_err("shash is not null\n");
+		shash->tfm = tfm;
+	}
+	return 0;
+/*	hash->length = crypto_shash_digestsize(tfm);
+	pr_err("returning hash tfm");	
+	return 0;
 	rc = crypto_shash_init(shash);
 	if (rc != 0)
 		return rc;
@@ -430,7 +445,8 @@ static int ima_calc_file_hash_tfm(struct file *file,
 out:
 	if (!rc)
 		rc = crypto_shash_final(shash, hash->digest);
-	return rc;
+	return rc;*/
+	return 0;
 }
 /*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L390
@@ -440,10 +456,10 @@ static int ima_calc_file_shash(struct file *file, struct ima_digest_data *hash)
 	struct crypto_shash *tfm;
 	int rc;
 
+	pr_err("in calc file shash \n");
 	tfm = ima_alloc_tfm(hash->algo);
 	if (IS_ERR(tfm))
 		return PTR_ERR(tfm);
-
 	rc = ima_calc_file_hash_tfm(file, hash, tfm);
 
 	ima_free_tfm(tfm);
@@ -453,7 +469,7 @@ static int ima_calc_file_shash(struct file *file, struct ima_digest_data *hash)
 /*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L419
  */
-int ima_calc_file_hash(struct file *file, struct ima_digest_data *hash)
+noinline int ima_calc_file_hash(struct file *file, struct ima_digest_data *hash)
 {
 	loff_t i_size;
 	int rc;
@@ -462,20 +478,28 @@ int ima_calc_file_hash(struct file *file, struct ima_digest_data *hash)
 	 * For consistency, fail file's opened with the O_DIRECT flag on
 	 * filesystems mounted with/without DAX option.
 	 */
+	pr_err("in file hash \n");
 	if (file->f_flags & O_DIRECT) {
+		pr_err("O_DIRECT\n");
 		hash->length = hash_digest_size[ima_hash_algo];
 		hash->algo = ima_hash_algo;
 		return -EINVAL;
 	}
 
 	i_size = i_size_read(file_inode(file));
-
-	if (ima_ahash_minsize && i_size >= ima_ahash_minsize) {
+	//pr_err("got i_size %d");
+	if (!i_size)
+		pr_err("I size is null");
+	else
+		pr_err("I size is okay?");
+	if (ima_ahash_minsize) {
+		if (i_size >= ima_ahash_minsize) {
+		return 0;
 		rc = ima_calc_file_ahash(file, hash);
 		if (!rc)
 			return 0;
+		}
 	}
-
 	return ima_calc_file_shash(file, hash);
 }
 /*
@@ -592,17 +616,19 @@ static int calc_buffer_shash(const void *buf, loff_t len,
 /*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L618
  */
-int ima_calc_buffer_hash(const void *buf, loff_t len,
+noinline int ima_calc_buffer_hash(const void *buf, loff_t len,
 			 struct ima_digest_data *hash)
 {
 	int rc;
 
+	pr_err("in ima calc buffer hash\n");
 	if (ima_ahash_minsize && len >= ima_ahash_minsize) {
+		return 0;
 		rc = calc_buffer_ahash(buf, len, hash);
 		if (!rc)
 			return 0;
 	}
-
+	return 0;
 	return calc_buffer_shash(buf, len, hash);
 }
 #endif
