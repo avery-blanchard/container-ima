@@ -60,6 +60,10 @@ BTF_TYPE_SAFE_NESTED(struct ima_data) {
         struct rb_root iint_tree;
 
 };
+struct ima_max_digest_data {
+	struct ima_digest_data hdr;
+	u8 digest[HASH_MAX_DIGESTSIZE];
+} __packed;
 
 unsigned int host_inum;
 extern int ima_hash_algo;
@@ -104,34 +108,52 @@ noinline int measure_file(struct file *file, unsigned int ns)
 {
         int check;
 	char buf[2048];
+	char *extend;
 	char *path;
 	char filename[2048];
-	char *ns_buf;
+	char ns_buf[16];
 	struct ima_template_entry *entry;
 	struct integrity_iint_cache iint = {};
         struct ima_template_desc *desc;
+        struct ima_max_digest_data hash;
 
+       	//to fix, do not hardcode, use check to index hash enum
+	hash.hdr.length = 32;
+	hash.hdr.algo = HASH_ALGO_SHA256;
+	memset(&hash.digest, 0, sizeof(hash.digest));
+	
 	pr_err("in file measure\n");
 
         check = ima_file_hash(file, buf, sizeof(buf));
-        pr_err("exiting file measure, return %d\n", check);
-	if (!buf)
-		pr_err("buffer is null :(");
+        pr_err("exiting file measure, return %d %s\n", check, buf);
 	pr_err("Buffer contents %s\n", buf);
 
-	ns_buf = (char *) ns + '0';
-	//buf = buf ^ ns_buf;
-	//pr_err("XOR Buffer contents %s\n", buf);
 	path = ima_d_path(&file->f_path, &path, filename);
 
-	pr_err("File path %s and NS %s\n", path, ns_buf);
+
+	pr_err("File path %s and NS %d", path, ns);
+	//check = ima_calc_buffer_hash(ns_buf, sizeof(ns_buf), &hash.hdr);
+	//if (check < 0)
+	  //     return 0;
+
+	//pr_err("NS hash %s\n", hash.digest);	
 	//strncat(path, ns_buf, strlen(ns_buf));
+	
+	memcpy(ns_buf, &ns, sizeof(ns));
+	pr_err("NS buffer %s\n", ns_buf);
+
 	struct ima_event_data event_data = {.iint = &iint,
                                             .filename = path,
                                             .buf = buf,
                                             .buf_len = sizeof(buf)};
 
-	desc = ima_template_desc_buf();
+	extend = strncat(buf, ns_buf, 32);
+	pr_err("extension %s\n", extend);
+	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
+	if (check < 0)
+		return 0;
+	pr_err("hash of extend %s\n", hash.digest);
+	/*desc = ima_template_desc_buf();
 	if (!desc)
 		return 0;
 	check = ima_alloc_init_template(&event_data, &entry, desc);
@@ -140,7 +162,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 
 
 	check = ima_store_template(entry, 0, NULL, buf, IMA_PCR);
-
+	*/
 	pr_err("exit\n");
 
         return 0;
