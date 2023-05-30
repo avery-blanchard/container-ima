@@ -117,7 +117,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	char buf[2048];
 	char *extend;
 	char *path;
-	char filename[64];
+	char filename[128];
 	char ns_buf[16];
 	struct ima_template_entry *entry;
 	struct integrity_iint_cache iint = {};
@@ -148,7 +148,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	//memcpy(ns_buf, ns, sizeof(ns));
 	pr_err("NS buffer %s\n", ns_buf);
 
-	sprintf(filename, "%lu:%s", ns, path);
+	sprintf(filename, "%lu:%s\0", ns, path);
 	pr_err("final filename %s\n", filename);
 	struct ima_event_data event_data = {.iint = &iint,
                                             .filename = filename,
