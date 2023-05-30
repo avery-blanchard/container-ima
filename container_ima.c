@@ -123,7 +123,10 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	struct integrity_iint_cache iint = {};
         struct ima_template_desc *desc;
         struct ima_max_digest_data hash;
+	struct inode *inode;
+	u64 i_version;	
 
+	inode = file_inode(file);
        	//to fix, do not hardcode, use check to index hash enum
 	hash.hdr.length = 32;
 	hash.hdr.algo = HASH_ALGO_SHA256;
@@ -148,6 +151,9 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	//memcpy(ns_buf, ns, sizeof(ns));
 	pr_err("NS buffer %s\n", ns_buf);
 
+	check = 0;
+	if (check)
+		pr_err("VIOLATIONS check\n");
 	sprintf(filename, "%lu:%s\0", ns, path);
 	pr_err("final filename %s\n", filename);
 	struct ima_event_data event_data = {.iint = &iint,
@@ -169,19 +175,31 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	iint.ima_hash = &hash.hdr;
 	iint.ima_hash->algo = HASH_ALGO_SHA256;
 	iint.ima_hash->length = 32;
+	i_version = inode_query_iversion(inode);
+	iint.version = i_version;
 
-	memcpy(extend, hash.hdr.digest, 32);
-	memcpy(extend, iint.ima_hash->digest, 32);
-	event_data.buf = extend;
+	memcpy(hash.hdr.digest, hash.digest, sizeof(hash.digest));
+	memcpy(iint.ima_hash->digest, hash.digest, sizeof(hash.digest));
+	memcpy(iint.ima_hash, hash.digest, sizeof(hash.digest));
+
+	event_data.buf = hash.digest;
 	event_data.buf_len = 32;
 	pr_err("FINAL FILE HASH %s\n %s\n %s\n", extend, hash.hdr.digest, iint.ima_hash->digest);
-	check = ima_alloc_init_template(&event_data, &entry, desc);
+
+	check = ima_alloc_init_template(&event_data, &entry, NULL);
+	if (check != 0) {
+		pr_err("Template Allocation fails\n");
+		return 0;
+	}
 
 	pr_err("template allocated\n");
 
 
-	check = ima_store_template(entry, 0, NULL, buf, IMA_PCR);
-	
+	check = ima_store_template(entry, 0, inode, filename, IMA_PCR);
+	if (check !=  0) {
+		pr_err("Template storage fails: %d\n", check);
+		return 0;
+	}
 	pr_err("exit\n");
 
         return 0;

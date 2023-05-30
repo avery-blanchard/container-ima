@@ -9,7 +9,7 @@ Note: These are instructions for a Fedora 37 machine running kernel 6.2 \
 Update \
 `sudo dnf update` \
 Install dependencies \
-`sudo dnf install kernel-devel kernel-headers git libbpf libbpf-devel bpftool clang openssl dwarves` \
+`sudo dnf install kernel-devel kernel-headers git libbpf libbpf-devel bpftool clang openssl dwarves glibc-devel.i686` \
 Installl developement tools \
 `sudo dnf groupinstall "Development Tools" "Development Libraries"` \
 Clone repository \
