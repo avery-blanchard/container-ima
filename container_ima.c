@@ -171,10 +171,10 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	iint.ima_hash->length = 32;
 
 	memcpy(extend, hash.hdr.digest, 32);
-
+	memcpy(extend, iint.ima_hash->digest, 32);
 	event_data.buf = extend;
 	event_data.buf_len = 32;
-	pr_err("FINAL FILE HASH %s\n", extend);
+	pr_err("FINAL FILE HASH %s\n %s\n %s\n", extend, hash.hdr.digest, iint.ima_hash->digest);
 	check = ima_alloc_init_template(&event_data, &entry, desc);
 
 	pr_err("template allocated\n");
