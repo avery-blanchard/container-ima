@@ -7,6 +7,7 @@
 #include <linux/ima.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/kprobes.h>
 #include <linux/integrity.h>
 #include <uapi/linux/bpf.h>
 #include <keys/system_keyring.h>
@@ -65,6 +66,10 @@ struct ima_max_digest_data {
 	u8 digest[HASH_MAX_DIGESTSIZE];
 } __packed;
 
+static struct kprobe kp = {
+    .symbol_name = "kallsyms_lookup_name"
+};
+
 unsigned int host_inum;
 extern int ima_hash_algo;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
@@ -74,14 +79,17 @@ extern int ima_file_hash(struct file *file, char *buf, size_t buf_size);
 int (*ima_add_template_entry)(struct ima_template_entry *entry, int violation, const char *op, struct inode *inode, const unsigned char *filename) = (int(*)(struct ima_template_entry *, int, const char *, struct inode *, const unsigned char *)) 0xffffffffa5706aa0;
 
 int (*ima_calc_field_array_hash)(struct ima_field_data *field_data,
-			      struct ima_template_entry *entry) = (int(*)(struct ima_field_data *, struct ima_template_entry *)) 0xffffffffa5709940;
+			      struct ima_template_entry *entry);
 //const char *(*ima_d_path)(const struct path *, char **, char *) = (const char *(*)(const struct path *, char **, char *)) = 0xffffffffa570a9b0;
 
-int (*ima_alloc_init_template)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *) = (int(*)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *)) 0xffffffffa5709f80;
+int (*ima_alloc_init_template)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *);
 
-int (*ima_store_template)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int) = (int(*)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int)) 0xffffffffa570a130;
+int (*ima_store_template)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int);
 
-struct ima_template_desc *(*ima_template_desc_buf)(void) = (struct ima_template_desc *(*)(void)) 0xffffffffa570e5f0;
+struct ima_template_desc *(*ima_template_desc_buf)(void);
+
+int (*ima_calc_buffer_hash)(const void *, loff_t len, struct ima_digest_data *); //= (int(*)(const void *, loff_t len, struct ima_digest_data *)) 0xffffffff82709ab0;
+
 
 int attest_ebpf(void) 
 {
@@ -110,7 +118,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	char buf[2048];
 	char *extend;
 	char *path;
-	char filename[2048];
+	char *filename;
 	char ns_buf[16];
 	struct ima_template_entry *entry;
 	struct integrity_iint_cache iint = {};
@@ -129,24 +137,25 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	pr_err("Buffer contents %s\n", buf);
 
 	path = ima_d_path(&file->f_path, &path, filename);
+	if (!path) {
+		pr_err("path is NULL\n");
+		return 0;
+	}
 
-
-	pr_err("File path %s and NS %d", path, ns);
-	//check = ima_calc_buffer_hash(ns_buf, sizeof(ns_buf), &hash.hdr);
-	//if (check < 0)
-	  //     return 0;
-
-	//pr_err("NS hash %s\n", hash.digest);	
-	//strncat(path, ns_buf, strlen(ns_buf));
+	//pr_err("File path %s and NS %d", path, ns);
 	
 	memcpy(ns_buf, &ns, sizeof(ns));
 	pr_err("NS buffer %s\n", ns_buf);
 
-	struct ima_event_data event_data = {.iint = &iint,
+	/*filename = strncat(ns_buf, ":", 1);
+	pr_err("updated filename %s\n", filename);
+	filename = strncat(filename, path, strlen(path));
+	pr_err("final filename %s\n", filename);*/
+	/*struct ima_event_data event_data = {.iint = &iint,
                                             .filename = path,
                                             .buf = buf,
                                             .buf_len = sizeof(buf)};
-
+	*/
 	extend = strncat(buf, ns_buf, 32);
 	pr_err("extension %s\n", extend);
 	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
@@ -250,7 +259,50 @@ static int container_ima_init(void)
 	
 	pr_info("Return val of registration %d\n", ret);
 	
+
+	typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
+	kallsyms_lookup_name_t kallsyms_lookup_name;
+	register_kprobe(&kp);
+	kallsyms_lookup_name = (kallsyms_lookup_name_t) kp.addr;
+	unregister_kprobe(&kp);
+
+	ima_calc_buffer_hash = (int(*)(const void *, loff_t len, struct ima_digest_data *)) kallsyms_lookup_name("ima_calc_buffer_hash");
+	if (ima_calc_buffer_hash == 0) {
+		pr_err("Lookup fails\n");
+		return -1;
+	}
+	ima_template_desc_buf =  (struct ima_template_desc *(*)(void)) kallsyms_lookup_name("ima_template_desc_buf");
+        if (ima_template_desc_buf == 0) {
+                pr_err("Lookup fails\n");
+                return -1;
+        }
 	
+	ima_store_template =(int(*)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int)) kallsyms_lookup_name("ima_store_template");
+        if (ima_store_template == 0) {
+                pr_err("Lookup fails\n");
+                return -1;
+        }
+
+
+	ima_alloc_init_template = (int(*)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *)) kallsyms_lookup_name("ima_alloc_init_template");
+        if (ima_alloc_init_template == 0) {
+                pr_err("Lookup fails\n");
+                return -1;
+        }
+
+	ima_calc_field_array_hash = (int(*)(struct ima_field_data *, struct ima_template_entry *)) kallsyms_lookup_name("ima_calc_field_array_hash");
+        if (ima_calc_field_array_hash == 0) {
+                pr_err("Lookup fails\n");
+                return -1;
+        }
+
+	ima_calc_field_array_hash = (int(*)(struct ima_field_data *, struct ima_template_entry *)) kallsyms_lookup_name("ima_calc_field_array_hash");
+        if (ima_calc_field_array_hash == 0) {
+                pr_err("Lookup fails\n");
+                return -1;
+        }
+
+
 	return ret;
 }
 
