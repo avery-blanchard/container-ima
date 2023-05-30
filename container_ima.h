@@ -425,8 +425,6 @@ static int get_binary_runtime_size(struct ima_template_entry *entry);
 void ima_audit_measurement(struct integrity_iint_cache *iint,
 			   const unsigned char *filename);
 const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf);
-int ima_alloc_init_template(struct ima_event_data *event_data,
-			    struct ima_template_entry **entry, struct ima_template_desc *template_desc);
 void ima_free_template_entry(struct ima_template_entry *entry);
 int ima_calc_file_hash(struct file *file, struct ima_digest_data *hash);
 int ima_calc_buffer_hash(const void *buf, loff_t len,
@@ -467,9 +465,9 @@ static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
 					 struct ima_template_desc *td,
 					 int num_fields,
 					 struct ima_digest_data *hash,  struct crypto_shash *tfm);*/
-int ima_calc_field_array_hash(struct ima_field_data *field_data,
-			      struct ima_template_desc *desc, int num_fields,
-			      struct ima_digest_data *hash); 
+//int ima_calc_field_array_hash(struct ima_field_data *field_data,
+			      //struct ima_template_desc *desc, int num_fields,
+			      //struct ima_digest_data *hash); 
 int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr);
 static int container_ima_add_data_entry(struct ima_data *data, long id);
 //extern int process_mmap(struct mmap_args_t *args);

@@ -248,13 +248,13 @@ void container_ima_add_violation(struct ima_data *data, struct file *file, const
 	//atomic_long_inc(&data->hash_tbl->violations);
 
 	/* try to use IMA's allocation function */
-	result = ima_alloc_init_template(&event_data, &entry, NULL);
+	result = -1; //ima_alloc_init_template(&event_data, &entry, NULL);
 	if (result < 0) {
 		result = -ENOMEM;
 		goto err_out;
 	}
-	result = container_ima_store_template(data, entry, violation, inode,
-				    filename, IMA_PCR);
+	//result = container_ima_store_template(data, entry, violation, inode,
+	//			    filename, IMA_PCR);
 	if (result < 0)
 		ima_free_template_entry(entry);
 err_out:
@@ -589,7 +589,7 @@ out:
  * container_ima_store_template
  *     Calculate hash, add to ML and extend to PCR
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L89
- */
+ *
 int container_ima_store_template(struct ima_data *data, struct ima_template_entry *entry,
 		       int violation, struct inode *inode,
 		       const char *filename, unsigned int container_id)
@@ -623,7 +623,7 @@ int container_ima_store_template(struct ima_data *data, struct ima_template_entr
 
 	return res;
 
-}
+}*/
 /*
  * container_ima_store_measurement
  *      Store container IMA measurement 
@@ -644,9 +644,9 @@ int container_ima_store_measurement(struct ima_data *data, struct mmap_args *arg
 		return 0;
 
 	/* using IMA's function to allocate should be define, not keeping memory separate yet */
-	res = ima_alloc_init_template(event_data, &entry, template_desc);
+	res = 0; //ima_alloc_init_template(event_data, &entry, template_desc);
 	// going to need to rewrite store template due to host specific stuff
-	res = container_ima_store_template(data, entry, 1, inode, filename, container_id);
+	//res = container_ima_store_template(data, entry, 1, inode, filename, container_id);
 	if ((!res || res == -EEXIST) && !(file->f_flags & O_DIRECT)) {
 		iint->flags |= IMA_MEASURED;
 		iint->measured_pcrs |= (0x1 << IMA_PCR);
@@ -784,7 +784,7 @@ const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf)
 }
 /*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L41 
- */
+ *
 int ima_alloc_init_template(struct ima_event_data *event_data,
 			    struct ima_template_entry **entry, struct ima_template_desc *template_desc)
 {
@@ -814,7 +814,7 @@ out:
 	ima_free_template_entry(*entry);
 	*entry = NULL;
 	return result;
-}
+}*/
 /* 
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L28 
  */

@@ -67,6 +67,18 @@ extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
 extern int ima_file_hash(struct file *file, char *buf, size_t buf_size);
 
+int (*ima_add_template_entry)(struct ima_template_entry *entry, int violation, const char *op, struct inode *inode, const unsigned char *filename) = (int(*)(struct ima_template_entry *, int, const char *, struct inode *, const unsigned char *)) 0xffffffffa5706aa0;
+
+int (*ima_calc_field_array_hash)(struct ima_field_data *field_data,
+			      struct ima_template_entry *entry) = (int(*)(struct ima_field_data *, struct ima_template_entry *)) 0xffffffffa5709940;
+//const char *(*ima_d_path)(const struct path *, char **, char *) = (const char *(*)(const struct path *, char **, char *)) = 0xffffffffa570a9b0;
+
+int (*ima_alloc_init_template)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *) = (int(*)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *)) 0xffffffffa5709f80;
+
+int (*ima_store_template)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int) = (int(*)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int)) 0xffffffffa570a130;
+
+struct ima_template_desc *(*ima_template_desc_buf)(void) = (struct ima_template_desc *(*)(void)) 0xffffffffa570e5f0;
+
 int attest_ebpf(void) 
 {
 	int ret;
@@ -88,17 +100,49 @@ noinline struct list_head init_ns_ml(void)
 
 	return head;
 }
-noinline int measure_file(struct file *file)
+noinline int measure_file(struct file *file, unsigned int ns)
 {
         int check;
-	char buf[256];
-        pr_err("in file measure\n");
+	char buf[2048];
+	char *path;
+	char filename[2048];
+	char *ns_buf;
+	struct ima_template_entry *entry;
+	struct integrity_iint_cache iint = {};
+        struct ima_template_desc *desc;
+
+	pr_err("in file measure\n");
 
         check = ima_file_hash(file, buf, sizeof(buf));
         pr_err("exiting file measure, return %d\n", check);
 	if (!buf)
 		pr_err("buffer is null :(");
 	pr_err("Buffer contents %s\n", buf);
+
+	ns_buf = (char *) ns + '0';
+	//buf = buf ^ ns_buf;
+	//pr_err("XOR Buffer contents %s\n", buf);
+	path = ima_d_path(&file->f_path, &path, filename);
+
+	pr_err("File path %s and NS %s\n", path, ns_buf);
+	//strncat(path, ns_buf, strlen(ns_buf));
+	struct ima_event_data event_data = {.iint = &iint,
+                                            .filename = path,
+                                            .buf = buf,
+                                            .buf_len = sizeof(buf)};
+
+	desc = ima_template_desc_buf();
+	if (!desc)
+		return 0;
+	check = ima_alloc_init_template(&event_data, &entry, desc);
+
+	pr_err("template allocated\n");
+
+
+	check = ima_store_template(entry, 0, NULL, buf, IMA_PCR);
+
+	pr_err("exit\n");
+
         return 0;
 }
 
@@ -122,11 +166,15 @@ noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 	data->policy_flags = 0;
 	pr_info("pre process measurement FD %d\n", fd);
 	pr_info("pointer fd %d\n", args->fd);
-	//ret = container_ima_process_measurement(data, args, ns, fd);
 
 	file = container_ima_retrieve_file(fd);
 
-	ret = measure_file(file);
+	ret = measure_file(file, ns);
+
+	// XOR measurement
+	
+	// Store
+	
 	return data;
 }
 noinline struct rb_root init_ns_iint_tree(void)

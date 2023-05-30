@@ -136,7 +136,7 @@ static struct crypto_shash *ima_alloc_tfm(enum hash_algo algo)
 }
 /*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L495
- */
+ *
 int ima_calc_field_array_hash(struct ima_field_data *field_data,
 			      struct ima_template_desc *desc, int num_fields,
 			      struct ima_digest_data *hash)
@@ -154,7 +154,7 @@ int ima_calc_field_array_hash(struct ima_field_data *field_data,
 	ima_free_tfm(tfm);
 
 	return rc;
-}
+}*/
 /* 
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L168
  */
