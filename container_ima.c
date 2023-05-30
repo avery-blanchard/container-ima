@@ -39,7 +39,6 @@
 #include "container_ima_init.h"
 #include "container_ima_fs.h"
 #include "container_ima_api.h"
-
 #define PROT_EXEC 0x04
 #define LOG_SIZE 4096
 #define PROBE_SIZE 2048
@@ -80,7 +79,7 @@ int (*ima_add_template_entry)(struct ima_template_entry *entry, int violation, c
 
 int (*ima_calc_field_array_hash)(struct ima_field_data *field_data,
 			      struct ima_template_entry *entry);
-//const char *(*ima_d_path)(const struct path *, char **, char *) = (const char *(*)(const struct path *, char **, char *)) = 0xffffffffa570a9b0;
+const char *(*ima_d_path)(const struct path *, char **, char *);
 
 int (*ima_alloc_init_template)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *);
 
@@ -118,7 +117,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	char buf[2048];
 	char *extend;
 	char *path;
-	char *filename;
+	char filename[64];
 	char ns_buf[16];
 	struct ima_template_entry *entry;
 	struct integrity_iint_cache iint = {};
@@ -142,36 +141,47 @@ noinline int measure_file(struct file *file, unsigned int ns)
 		return 0;
 	}
 
-	//pr_err("File path %s and NS %d", path, ns);
-	
-	memcpy(ns_buf, &ns, sizeof(ns));
+	pr_err("File path %s and NS %lu", path, ns);
+
+		
+	sprintf(ns_buf, "%lu", ns);
+	//memcpy(ns_buf, ns, sizeof(ns));
 	pr_err("NS buffer %s\n", ns_buf);
 
-	/*filename = strncat(ns_buf, ":", 1);
-	pr_err("updated filename %s\n", filename);
-	filename = strncat(filename, path, strlen(path));
-	pr_err("final filename %s\n", filename);*/
-	/*struct ima_event_data event_data = {.iint = &iint,
-                                            .filename = path,
+	sprintf(filename, "%lu:%s", ns, path);
+	pr_err("final filename %s\n", filename);
+	struct ima_event_data event_data = {.iint = &iint,
+                                            .filename = filename,
                                             .buf = buf,
                                             .buf_len = sizeof(buf)};
-	*/
+
+		
 	extend = strncat(buf, ns_buf, 32);
 	pr_err("extension %s\n", extend);
 	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
 	if (check < 0)
 		return 0;
 	pr_err("hash of extend %s\n", hash.digest);
-	/*desc = ima_template_desc_buf();
+	desc = ima_template_desc_buf();
 	if (!desc)
 		return 0;
+	
+	iint.ima_hash = &hash.hdr;
+	iint.ima_hash->algo = HASH_ALGO_SHA256;
+	iint.ima_hash->length = 32;
+
+	memcpy(extend, hash.hdr.digest, 32);
+
+	event_data.buf = extend;
+	event_data.buf_len = 32;
+	pr_err("FINAL FILE HASH %s\n", extend);
 	check = ima_alloc_init_template(&event_data, &entry, desc);
 
 	pr_err("template allocated\n");
 
 
 	check = ima_store_template(entry, 0, NULL, buf, IMA_PCR);
-	*/
+	
 	pr_err("exit\n");
 
         return 0;
@@ -296,8 +306,8 @@ static int container_ima_init(void)
                 return -1;
         }
 
-	ima_calc_field_array_hash = (int(*)(struct ima_field_data *, struct ima_template_entry *)) kallsyms_lookup_name("ima_calc_field_array_hash");
-        if (ima_calc_field_array_hash == 0) {
+	ima_d_path = (const char *(*)(const struct path *, char **, char *)) kallsyms_lookup_name("ima_d_path");
+        if (ima_d_path == 0) {
                 pr_err("Lookup fails\n");
                 return -1;
         }

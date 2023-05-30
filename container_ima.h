@@ -424,11 +424,8 @@ static int get_binary_runtime_size(struct ima_template_entry *entry);
 			//	 struct ima_max_digest_data *hash);
 void ima_audit_measurement(struct integrity_iint_cache *iint,
 			   const unsigned char *filename);
-const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf);
 void ima_free_template_entry(struct ima_template_entry *entry);
 int ima_calc_file_hash(struct file *file, struct ima_digest_data *hash);
-int ima_calc_buffer_hash(const void *buf, loff_t len,
-			 struct ima_digest_data *hash);
 void integrity_audit_msg(int audit_msgno, struct inode *inode,
 			 const unsigned char *fname, const char *op,
 			 const char *cause, int result, int audit_info);

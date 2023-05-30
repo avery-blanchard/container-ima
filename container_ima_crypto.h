@@ -616,7 +616,7 @@ static int calc_buffer_shash(const void *buf, loff_t len,
 }
 /*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_crypto.c#L618
- */
+ *
 noinline int ima_calc_buffer_hash(const void *buf, loff_t len,
 			 struct ima_digest_data *hash)
 {
@@ -631,5 +631,5 @@ noinline int ima_calc_buffer_hash(const void *buf, loff_t len,
 	}
 	return 0;
 	return calc_buffer_shash(buf, len, hash);
-}
+}*/
 #endif

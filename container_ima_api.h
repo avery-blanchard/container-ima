@@ -117,13 +117,13 @@ noinline int container_ima_collect_measurement(struct file *file, struct mmap_ar
 	hash.hdr.length = hash_digest_size[hash_algo];
 
 
-	/* zero out, in case of failue*/ 
+	/* zero out, in case of failue* 
 	memset(&hash.digest, 0, sizeof(hash.digest));
 	if (buf) {
 		result = ima_calc_buffer_hash(buf, size, &hash.hdr);
 	} else {
 		result = ima_calc_file_hash(file, &hash.hdr);
-	}
+	}*/
 	return 0;
 	if (result == -ENOMEM)
 		goto out;
@@ -299,7 +299,7 @@ static void container_ima_rdwr_violation_check(struct ima_data *data, struct fil
 	if (!send_t && !send_w)
 		return;
 
-	*pathname = ima_d_path(&file->f_path, pathbuf, filename); // try to use IMA's ima_d_path, don't see any issues so far
+	//*pathname = ima_d_path(&file->f_path, pathbuf, filename); // try to use IMA's ima_d_path, don't see any issues so far
 
     // are violations needed? yes
 	if (send_t)
@@ -773,16 +773,6 @@ out:
 }
 /*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L357
- */
-const char *ima_d_path(const struct path *path, char **pathbuf, char *namebuf)
-{
-	char *pathname = NULL;
-	strlcpy(namebuf, path->dentry->d_name.name, NAME_MAX);
-	pathname = namebuf;
-
-	return pathname;
-}
-/*
  * https://elixir.bootlin.com/linux/v4.19/source/security/integrity/ima/ima_api.c#L41 
  *
 int ima_alloc_init_template(struct ima_event_data *event_data,
