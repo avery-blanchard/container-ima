@@ -28,7 +28,6 @@
 #include <linux/tpm_command.h>
 #include <linux/file.h>
 #include <linux/hash.h>
-#include <linux/vtpm_proxy.h>
 
 enum ima_show_type { IMA_SHOW_BINARY, IMA_SHOW_BINARY_NO_FIELD_LEN,
 		     IMA_SHOW_BINARY_OLD_STRING_FMT, IMA_SHOW_ASCII };
@@ -226,26 +225,9 @@ enum policy_types { ORIGINAL_TCB = 1, DEFAULT_TCB };
 enum policy_rule_list { IMA_DEFAULT_POLICY = 1, IMA_CUSTOM_POLICY };
 
 extern struct tpm_chip *ima_tpm_chip;
-extern struct c_ima_data_hash_table container_hash_table;
 extern int ima_hash_algo;
 extern bool ima_canonical_fmt;
 
-/* Dentry for IMA measurment logs, policies, violations */
-extern struct dentry *binary_runtime_measurements; 
-extern struct dentry *ascii_runtime_measurements;
-extern struct dentry *violations;
-extern struct dentry *policy;
-
-extern struct ima_data *data;
-struct ima_rule_entry {
-	struct list_head list;
-	int action;
-	int flags;
-	int pcr;
-	int mask;
-}; // add to this as needed
-
-/* struct for BPF argument mappings */
 struct mmap_args {
 	size_t length;
 	int prot;
@@ -305,39 +287,10 @@ struct ima_queue_entry {
 };
 
 
-struct c_ima_hash_table {
-    atomic_long_t size;
-    atomic_long_t violations;
-    struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
-};
-
 struct ima_h_table {
 	atomic_long_t len;	/* number of stored measurements in the list */
 	atomic_long_t violations;
 	struct hlist_head queue[IMA_MEASURE_HTABLE_SIZE];
-};
-struct c_ima_queue_entry {
-	struct hlist_node hnext;
-	unsigned int id;
-	struct ima_data *data;
-};
-
-struct c_ima_data_hash_table {
-    struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE];
-	atomic_long_t len;
-};
-
-/* Hash table for container data structs with the key id */
-extern struct container_ima_hash_table ima_hash_table;
-
-struct container_ima_hash {
-	u8 algo;
-	u8 length;
-};
-struct container_ima_hash_data {
-	u8 algo;
-	u8 length;
-	u8 digest[IMA_DIGEST_SIZE];
 };
 struct hash {
 		struct ima_digest_data hdr;
@@ -377,126 +330,6 @@ struct integrity_iint_cache {
 };
 
 /* Internal container IMA function definitions */
-int container_ima_fs_init(void);
-long container_ima_vtpm_setup(struct ima_data *, unsigned int, struct tpm_chip *);
 struct file *container_ima_retrieve_file(int);
-struct container_ima_inode_data *container_ima_retrieve_inode_data(struct ima_data *, int, struct file *);
-int container_ima_collect_measurement(struct file *, struct mmap_args *, unsigned int, struct integrity_iint_cache *, enum hash_algo, void *, loff_t );
-struct integrity_iint_cache *container_integrity_inode_find(struct ima_data *, struct inode *, unsigned int);
-struct integrity_iint_cache *container_integrity_inode_get(struct ima_data *, struct inode *, unsigned int);
-void container_ima_add_violation(struct ima_data *, struct file *, const unsigned char *,
-		       struct integrity_iint_cache *,
-		       const char *, const char *, unsigned int);
-static void container_ima_rdwr_violation_check(struct ima_data *, struct file *, struct integrity_iint_cache *,
-				     int, char **, const char **, char *, unsigned int);
-int container_ima_process_measurement(struct ima_data *, struct mmap_args *, unsigned int, int);
-int container_ima_add_template_entry(struct ima_data *data, struct ima_template_entry *entry, int violation,
-			   const char *op, struct inode *inode,
-			   const unsigned char *filename, unsigned int container_id);
-int container_ima_store_template(struct ima_data *, struct ima_template_entry *,
-		       int, struct inode *,
-		       const char *, unsigned int);
-int container_ima_store_measurement(struct ima_data *, struct mmap_args *, unsigned int, struct integrity_iint_cache *, 
-                struct file *, struct ima_template_desc *, const char *); 
-struct ima_data *init_container_ima(unsigned int container_id);
-int container_ima_cleanup(void);
-static int container_ima_init(void);
-static void container_ima_exit(void);
-struct container_ima *create_container_ima_data(void);
-void container_ima_free_data(struct ima_data *);
-int container_ima_get_action(struct ima_data *, struct inode *,
-		   int);
-int container_ima_match_policy(struct ima_data *, struct inode *,
-		     int, int);
-static int c_ima_seq_open(struct inode *, struct file *);
-static struct ima_data *ima_data_from_file(const struct file *filp);
-static struct c_ima_queue_entry *container_ima_lookup_data_entry(unsigned int id);
-static struct ima_queue_entry *container_ima_lookup_digest_entry(struct ima_data *data, u8 *digest_value,
-						       int pcr, unsigned int container_id);
-static void *c_ima_measurements_next(struct seq_file *m, void *v, loff_t *pos);
-static ssize_t c_ima_show_htable_violations(struct file *filp,
-					  char __user *buf,
-					  size_t count, loff_t *ppos);
-static int container_ima_add_digest_entry(struct ima_data *data, struct ima_template_entry *entry);
-struct ima_data *ima_data_exists(unsigned int id);
-static int get_binary_runtime_size(struct ima_template_entry *entry);
-//static int ima_get_verity_digest(struct integrity_iint_cache *iint,
-			//	 struct ima_max_digest_data *hash);
-void ima_audit_measurement(struct integrity_iint_cache *iint,
-			   const unsigned char *filename);
-void ima_free_template_entry(struct ima_template_entry *entry);
-int ima_calc_file_hash(struct file *file, struct ima_digest_data *hash);
-void integrity_audit_msg(int audit_msgno, struct inode *inode,
-			 const unsigned char *fname, const char *op,
-			 const char *cause, int result, int audit_info);
-//static int ima_calc_file_shash(struct file *file, struct ima_digest_data *hash);	
-//static int ima_calc_file_ahash(struct file *file, struct ima_digest_data *hash);
-//static void ima_free_atfm(struct crypto_ahash *tfm);
-//static int ima_calc_file_hash_atfm(struct file *file,struct ima_digest_data *hash, struct crypto_ahash *tfm); 
-//static void ima_free_pages(void *ptr, size_t size);
-int integrity_kernel_read(struct file *file, loff_t offset,
-			  void *addr, unsigned long count);
-int container_ima_crypto_init(void);
-//static void *ima_alloc_pages(loff_t max_size, size_t *allocated_size,int last_warn);
-//static inline int ahash_wait(int err, struct crypto_wait *wait);
-//static int param_set_bufsize(const char *val, const struct kernel_param *kp);
-int __init ima_init_crypto(void);	
-////static struct crypto_ahash *ima_alloc_atfm(enum hash_algo algo);
-//static void ima_free_tfm(struct crypto_shash *tfm);
-/*
-static int ima_calc_file_hash_tfm(struct file *file,
-				  struct ima_digest_data *hash,
-				  struct crypto_shash *tfm);
-static int calc_buffer_shash(const void *buf, loff_t len,
-			     struct ima_digest_data *hash);
-static int calc_buffer_ahash(const void *buf, loff_t len,
-			     struct ima_digest_data *hash);
-static int calc_buffer_shash_tfm(const void *buf, loff_t size,
-				struct ima_digest_data *hash,
-				struct crypto_shash *tfm);
-static int calc_buffer_ahash_atfm(const void *buf, loff_t len,
-				  struct ima_digest_data *hash,
-				  struct crypto_ahash *tfm);
-static struct crypto_shash *ima_alloc_tfm(enum hash_algo algo);
-static int ima_calc_field_array_hash_tfm(struct ima_field_data *field_data,
-					 struct ima_template_desc *td,
-					 int num_fields,
-					 struct ima_digest_data *hash,  struct crypto_shash *tfm);*/
-//int ima_calc_field_array_hash(struct ima_field_data *field_data,
-			      //struct ima_template_desc *desc, int num_fields,
-			      //struct ima_digest_data *hash); 
-int ima_pcr_extend(struct tpm_digest *digests_arg, int pcr);
-static int container_ima_add_data_entry(struct ima_data *data, long id);
-//extern int process_mmap(struct mmap_args_t *args);
-/*
- */
-static inline unsigned long ima_hash_key(u8 *digest)
-{
-	return hash_long(*digest, IMA_HASH_BITS);
-}
-/*
- */
-static inline unsigned long c_ima_hash_key(long *id)
-{
-	return hash_long(*id, IMA_HASH_BITS);
-}
-/*
- */
-static inline enum hash_algo
-ima_get_hash_algo(struct evm_ima_xattr_data *xattr_value, int xattr_len)
-{
-	return ima_hash_algo;
-}
-/* 
- */
-static inline int ima_read_xattr(struct dentry *dentry,
-				 struct evm_ima_xattr_data **xattr_value)
-{
-	return 0;
-}
-struct c_ima_data_hash_table container_hash_table = {
-	.len = ATOMIC_LONG_INIT(0),
-	.queue[0 ... IMA_MEASURE_HTABLE_SIZE - 1] = HLIST_HEAD_INIT
-};
 
 #endif

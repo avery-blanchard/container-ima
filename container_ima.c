@@ -34,11 +34,9 @@
 #include <uapi/linux/btf.h>
 #include <uapi/linux/bpf.h>
 #include <crypto/hash.h>
+#include <linux/iversion.h>
 #include "container_ima.h"
-#include "container_ima_crypto.h"
-#include "container_ima_init.h"
-#include "container_ima_fs.h"
-#include "container_ima_api.h"
+
 #define PROT_EXEC 0x04
 #define LOG_SIZE 4096
 #define PROBE_SIZE 2048
@@ -287,6 +285,49 @@ noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 	
 	return data;
 }
+/*
+ * container_ima_retrieve_file
+ *      Retrieve the file from mmap arguments
+ *
+ * https://elixir.bootlin.com/linux/v6.0.9/source/mm/mmap.c#L1586
+ */
+noinline struct file *container_ima_retrieve_file(int fd)
+{
+	int ret;
+	ssize_t len;
+	struct file *file;
+	void *buf;
+	/* Get file from fd, len, and address for measurment */
+   	pr_err("Retrieving file struct for FD %d\n", fd);
+	file = fget(fd);
+	if (!file) {
+		pr_err("F get fails\n");
+		return PTR_ERR(file);
+	}
+	/*
+	} else if (args->flags & MAP_HUGETLB) {
+		struct user_struct *user = NULL;
+		struct hstate *hs;
+		hs = &default_hstate; // remove default later
+		if (!hs) {
+			ret = -EINVAL;
+			return ret;
+		}
+		args->length = ALIGN(args->length, huge_page_size(hs));
+		file = hugetlb_file_setup(HUGETLB_ANON_FILE, args->length,
+				VM_NORESERVE,
+				&user, HUGETLB_ANONHUGE_INODE,
+				(args->flags >> MAP_HUGE_SHIFT) & MAP_HUGE_MASK);
+		if (IS_ERR(file)) {
+			ret = PTR_ERR(file);
+			return ret;
+		}
+	} */
+	pr_info("F get works\n");
+	if (file)
+		fput(file);
+	return file;
+}
 noinline struct rb_root init_ns_iint_tree(void)
 {
 	return RB_ROOT;
@@ -317,17 +358,16 @@ static int container_ima_init(void)
 	}
 	/* Initialize global/shared IMA data */
 	pr_info("FS INIT\n");
-	ret = container_ima_fs_init();
+	//ret = container_ima_fs_init();
 	if (ret < 0)
 		return ret;
 	
 	/* Initialize IMA crypto */
 	pr_info("CRYPTO INIT\n");
-	ret = container_ima_crypto_init();
+	//ret = container_ima_crypto_init();
 
 	/* Register kfunc for eBPF */
 	task = current;
-	pr_info("Getting host task\n");
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
 	
 
