@@ -1,3 +1,12 @@
+/*
+ * Container IMA + eBPF
+ *
+ * File: container_ima.c
+ * 	implements namespaced IMA measurements,
+ * 	defines kernel symbols, registers kfuncs
+ * 	with libbpf
+ */
+
 #define _GNU_SOURCE
 #include <linux/unistd.h>
 #include <linux/mount.h>
