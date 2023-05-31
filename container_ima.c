@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
 #include <linux/unistd.h>
-#include <linux/slab.h>
+#include <linux/mount.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/printk.h>
@@ -17,7 +17,7 @@
 #include <linux/dcache.h>
 #include <linux/syscalls.h>
 #include <linux/hugetlb.h>
-#include <linux/shm.h>
+#include <linux/cred.h>
 #include <linux/fcntl.h>
 #include <linux/kthread.h>
 #include <linux/bpf_trace.h>
@@ -44,8 +44,8 @@
 #define PROBE_SIZE 2048
 #define MAX_ENTRIES 100
 #define MODULE_NAME "ContainerIMA"
-#define INTEGRITY_KEYRING_IMA 1
 #define LOG_BUF_SIZE 2048
+#define MAY_EXEC		0x00000001
 
 #define BTF_TYPE_SAFE_NESTED(__type)  __PASTE(__type, __safe_fields)
 
@@ -89,6 +89,37 @@ struct ima_template_desc *(*ima_template_desc_buf)(void);
 
 int (*ima_calc_buffer_hash)(const void *, loff_t len, struct ima_digest_data *); //= (int(*)(const void *, loff_t len, struct ima_digest_data *)) 0xffffffff82709ab0;
 
+
+#define __ima_hooks(hook)				\
+	hook(NONE, none)				\
+	hook(FILE_CHECK, file)				\
+	hook(MMAP_CHECK, mmap)				\
+	hook(MMAP_CHECK_REQPROT, mmap_reqprot)		\
+	hook(BPRM_CHECK, bprm)				\
+	hook(CREDS_CHECK, creds)			\
+	hook(POST_SETATTR, post_setattr)		\
+	hook(MODULE_CHECK, module)			\
+	hook(FIRMWARE_CHECK, firmware)			\
+	hook(KEXEC_KERNEL_CHECK, kexec_kernel)		\
+	hook(KEXEC_INITRAMFS_CHECK, kexec_initramfs)	\
+	hook(POLICY_CHECK, policy)			\
+	hook(KEXEC_CMDLINE, kexec_cmdline)		\
+	hook(KEY_CHECK, key)				\
+	hook(CRITICAL_DATA, critical_data)		\
+	hook(SETXATTR_CHECK, setxattr_check)		\
+	hook(MAX_CHECK, none)
+
+#define __ima_hook_enumify(ENUM, str)	ENUM,
+#define __ima_stringify(arg) (#arg)
+#define __ima_hook_measuring_stringify(ENUM, str) \
+		(__ima_stringify(measuring_ ##str)),
+
+enum ima_hooks {
+	__ima_hooks(__ima_hook_enumify)
+};
+
+extern int ima_policy_flag;
+int (*ima_get_action)(struct mnt_idmap *, struct inode *, const struct cred *, u32,  int,  enum ima_hooks,  int *, struct ima_template_desc **, const char *, unsigned int *);
 
 int attest_ebpf(void) 
 {
@@ -208,11 +239,18 @@ noinline int measure_file(struct file *file, unsigned int ns)
 noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 {
 
-	int ret;
+	int ret, action, pcr, violation_check;
 	struct ima_data *data;
 	struct mmap_args *args;
-
 	struct file *file;
+	struct inode *inode;
+	struct mnt_idmap *idmap;
+	const struct cred *cred;
+	u32 secid;
+	enum ima_hooks func;
+	struct ima_template_desc *desc = NULL;
+	unsigned int allowed_algos = 0;
+	
 	args->fd = fd;
 	args->prot = PROT_EXEC;
 	args->flags = 0;
@@ -226,13 +264,26 @@ noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 	pr_info("pre process measurement FD %d\n", fd);
 	pr_info("pointer fd %d\n", args->fd);
 
+	
 	file = container_ima_retrieve_file(fd);
+	inode = file->f_inode;
+	security_current_getsecid_subj(&secid);
+	pr_err("Sec id %d\n", secid);
+
+	cred = current_cred();
+
+	if (!cred)
+		pr_err("cred is NULL\n");
+
+	idmap = file->f_path.mnt->mnt_idmap; //file_mnt_idmap(file);
+
+	// Get action 
+	action = ima_get_action(idmap, inode, cred, secid, MAY_EXEC, MMAP_CHECK, &pcr, &desc, NULL, &allowed_algos);
+	if (!action) 
+		return 0;
 
 	ret = measure_file(file, ns);
 
-	// XOR measurement
-	
-	// Store
 	
 	return data;
 }
@@ -326,6 +377,13 @@ static int container_ima_init(void)
 
 	ima_d_path = (const char *(*)(const struct path *, char **, char *)) kallsyms_lookup_name("ima_d_path");
         if (ima_d_path == 0) {
+                pr_err("Lookup fails\n");
+                return -1;
+        }
+	
+	ima_get_action = (int (*)(struct mnt_idmap *, struct inode *, const struct cred *, u32,  int,  enum ima_hooks,  int *, struct ima_template_desc **, const char *, unsigned int *)) kallsyms_lookup_name("ima_get_action");
+        
+	if (ima_get_action == 0) {
                 pr_err("Lookup fails\n");
                 return -1;
         }

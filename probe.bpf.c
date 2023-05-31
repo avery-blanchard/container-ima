@@ -9,6 +9,7 @@
 #define IMA_HASH_BITS 9
 #define IMA_MEASURE_HTABLE_SIZE 64
 #define MAP_ANONYMOUS	0x20	
+#define PROT_EXEC 0x04
 
 char _license[] SEC("license") = "GPL";
 
@@ -75,7 +76,7 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
     unsigned int ns;
     int ret;
 
-    if (prot & 0x04) {
+    if (prot & PROT_EXEC) {
     
         if (flags & MAP_ANONYMOUS)
 		return 0;
