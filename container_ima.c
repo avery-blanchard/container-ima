@@ -28,7 +28,8 @@
 #include <linux/hugetlb.h>
 #include <linux/cred.h>
 #include <linux/fcntl.h>
-#include <linux/kthread.h>
+#include <crypto/sha2.h>
+#include <crypto/hash_info.h>
 #include <linux/bpf_trace.h>
 #include <uapi/linux/bpf.h>
 #include <linux/bpf_lirc.h>
@@ -77,7 +78,6 @@ static struct kprobe kp = {
 };
 
 unsigned int host_inum;
-extern int ima_hash_algo;
 extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 			      const struct btf_kfunc_id_set *kset);
 extern int ima_file_hash(struct file *file, char *buf, size_t buf_size);
@@ -93,6 +93,8 @@ int (*ima_alloc_init_template)(struct ima_event_data *, struct ima_template_entr
 int (*ima_store_template)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int);
 
 struct ima_template_desc *(*ima_template_desc_buf)(void);
+
+int ima_hash_algo;
 
 int (*ima_calc_buffer_hash)(const void *, loff_t len, struct ima_digest_data *); //= (int(*)(const void *, loff_t len, struct ima_digest_data *)) 0xffffffff82709ab0;
 
@@ -144,7 +146,7 @@ int attest_ebpf(void)
 noinline int measure_file(struct file *file, unsigned int ns)
 {
         int check;
-	char buf[2048];
+	char buf[hash_digest_size[ima_hash_algo]];
 	char *extend;
 	char *path;
 	char filename[128];
@@ -158,11 +160,6 @@ noinline int measure_file(struct file *file, unsigned int ns)
 
 	inode = file_inode(file);
        	
-	//to fix, do not hardcode, use check to index hash enum
-	
-	hash.hdr.length = 32;
-	hash.hdr.algo = HASH_ALGO_SHA256;
-	memset(&hash.digest, 0, sizeof(hash.digest));
 	
 	pr_err("in file measure\n");
 
@@ -188,6 +185,11 @@ noinline int measure_file(struct file *file, unsigned int ns)
 
 		
 	extend = strncat(buf, ns_buf, 32);
+
+	hash.hdr.length = hash_digest_size[ima_hash_algo];
+        hash.hdr.algo = HASH_ALGO_SHA256;
+        memset(&hash.digest, 0, sizeof(hash.digest));
+
 	
 	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
 	if (check < 0)
@@ -199,7 +201,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 		return 0;
 	
 	iint.ima_hash = &hash.hdr;
-	iint.ima_hash->algo = HASH_ALGO_SHA256;
+	iint.ima_hash->algo = ima_hash_algo;
 	iint.ima_hash->length = 32;
 	i_version = inode_query_iversion(inode);
 	iint.version = i_version;
@@ -395,7 +397,13 @@ static int container_ima_init(void)
                 pr_err("Lookup fails\n");
                 return -1;
         }
+	
+	ima_hash_algo = (int) kallsyms_lookup_name("ima_hash_algo");
 
+	if (ima_hash_algo == 0) {
+		pr_err("Lookup fails\n");;
+		return -1;
+	}
 
 	return ret;
 }
