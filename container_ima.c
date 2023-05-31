@@ -95,6 +95,7 @@ int (*ima_store_template)(struct ima_template_entry *, int, struct inode *, cons
 struct ima_template_desc *(*ima_template_desc_buf)(void);
 
 int ima_hash_algo;
+int ima_policy_flag;
 
 int (*ima_calc_buffer_hash)(const void *, loff_t len, struct ima_digest_data *); //= (int(*)(const void *, loff_t len, struct ima_digest_data *)) 0xffffffff82709ab0;
 
@@ -262,10 +263,16 @@ noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 
 	// Get action 
 	action = ima_get_action(idmap, inode, cred, secid, MAY_EXEC, MMAP_CHECK, &pcr, &desc, NULL, &allowed_algos);
-	if (!action) { 
+	violation_check = ima_policy_flag & IMA_MEASURE;
+
+	if (!action && !violation_check) { 
 		pr_info("Policy requires no action, returning\n");
 		return 0;
 	}
+	// violation check 
+	
+	if (!action)
+		return 0;
 	ret = measure_file(file, ns);
 
 	
@@ -401,9 +408,16 @@ static int container_ima_init(void)
 	ima_hash_algo = (int) kallsyms_lookup_name("ima_hash_algo");
 
 	if (ima_hash_algo == 0) {
-		pr_err("Lookup fails\n");;
+		pr_err("Lookup fails\n");
 		return -1;
 	}
+
+	ima_policy_flag = (int) kallsyms_lookup_name("ima_policy_flag");
+
+        if (ima_policy_flag == 0) {
+                pr_err("Lookup fails\n");
+                return -1;
+        }
 
 	return ret;
 }
