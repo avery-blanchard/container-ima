@@ -251,9 +251,10 @@ noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 
 	// Get action 
 	action = ima_get_action(idmap, inode, cred, secid, MAY_EXEC, MMAP_CHECK, &pcr, &desc, NULL, &allowed_algos);
-	if (!action) 
+	if (!action) { 
+		pr_info("Policy requires no action, returning\n");
 		return 0;
-
+	}
 	ret = measure_file(file, ns);
 
 	
@@ -273,7 +274,7 @@ noinline struct file *container_ima_retrieve_file(int fd)
 	void *buf;
 	
 	/* Get file from fd, len, and address for measurment */
-   	pr_err("Retrieving file struct for FD %d\n", fd);
+   	pr_info("Retrieving file struct for FD %d\n", fd);
 	file = fget(fd);
 	if (!file) {
 		pr_err("F get fails\n");
