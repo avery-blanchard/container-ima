@@ -116,7 +116,7 @@ enum ima_hooks {
 	__ima_hooks(__ima_hook_enumify)
 };
 
-extern int ima_policy_flag;
+extern int ima_policy_flag = 0;
 int (*ima_get_action)(struct mnt_idmap *, struct inode *, const struct cred *, u32,  int,  enum ima_hooks,  int *, struct ima_template_desc **, const char *, unsigned int *);
 
 int attest_ebpf(void) 
@@ -131,14 +131,6 @@ int attest_ebpf(void)
 	ret = ima_file_hash(file, buf, sizeof(buf));
 	return 0;
 
-}
-noinline struct list_head init_ns_ml(void) 
-{
-	struct list_head head;
-
-	INIT_LIST_HEAD(&head);
-
-	return head;
 }
 noinline int measure_file(struct file *file, unsigned int ns)
 {
@@ -156,7 +148,9 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	u64 i_version;	
 
 	inode = file_inode(file);
-       	//to fix, do not hardcode, use check to index hash enum
+       	
+	//to fix, do not hardcode, use check to index hash enum
+	
 	hash.hdr.length = 32;
 	hash.hdr.algo = HASH_ALGO_SHA256;
 	memset(&hash.digest, 0, sizeof(hash.digest));
@@ -164,8 +158,6 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	pr_err("in file measure\n");
 
         check = ima_file_hash(file, buf, sizeof(buf));
-        pr_err("exiting file measure, return %d %s\n", check, buf);
-	pr_err("Buffer contents %s\n", buf);
 
 	path = ima_d_path(&file->f_path, &path, filename);
 	if (!path) {
@@ -173,18 +165,13 @@ noinline int measure_file(struct file *file, unsigned int ns)
 		return 0;
 	}
 
-	pr_err("File path %s and NS %lu", path, ns);
-
 		
 	sprintf(ns_buf, "%lu", ns);
-	//memcpy(ns_buf, ns, sizeof(ns));
-	pr_err("NS buffer %s\n", ns_buf);
 
 	check = 0;
-	if (check)
-		pr_err("VIOLATIONS check\n");
+	
 	sprintf(filename, "%lu:%s\0", ns, path);
-	pr_err("final filename %s\n", filename);
+	pr_err("NS specific filename %s\n", filename);
 	struct ima_event_data event_data = {.iint = &iint,
                                             .filename = filename,
                                             .buf = buf,
@@ -192,11 +179,12 @@ noinline int measure_file(struct file *file, unsigned int ns)
 
 		
 	extend = strncat(buf, ns_buf, 32);
-	pr_err("extension %s\n", extend);
+	
 	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
 	if (check < 0)
 		return 0;
-	pr_err("hash of extend %s\n", hash.digest);
+	
+	pr_err("HASH(measurement || NS) =  %s\n", hash.digest);
 	desc = ima_template_desc_buf();
 	if (!desc)
 		return 0;
@@ -213,7 +201,6 @@ noinline int measure_file(struct file *file, unsigned int ns)
 
 	event_data.buf = hash.digest;
 	event_data.buf_len = 32;
-	pr_err("FINAL FILE HASH %s\n %s\n %s\n", extend, hash.hdr.digest, iint.ima_hash->digest);
 
 	check = ima_alloc_init_template(&event_data, &entry, NULL);
 	if (check != 0) {
@@ -221,7 +208,6 @@ noinline int measure_file(struct file *file, unsigned int ns)
 		return 0;
 	}
 
-	pr_err("template allocated\n");
 
 
 	check = ima_store_template(entry, 0, inode, filename, IMA_PCR);
@@ -229,7 +215,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 		pr_err("Template storage fails: %d\n", check);
 		return 0;
 	}
-	pr_err("exit\n");
+	pr_err("Exiting IMA\n");
 
         return 0;
 }
@@ -249,24 +235,12 @@ noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
 	struct ima_template_desc *desc = NULL;
 	unsigned int allowed_algos = 0;
 	
-	args->fd = fd;
-	args->prot = PROT_EXEC;
-	args->flags = 0;
-	args->length = 0;
-
-	data->iint_tree = RB_ROOT;
-	data->measurements = init_ns_ml();
-	data->len = 0;
-	data->violations = 0;
-	data->policy_flags = 0;
-	pr_info("pre process measurement FD %d\n", fd);
-	pr_info("pointer fd %d\n", args->fd);
+	pr_info("Processing MMAP file\n");
 
 	
 	file = container_ima_retrieve_file(fd);
 	inode = file->f_inode;
 	security_current_getsecid_subj(&secid);
-	pr_err("Sec id %d\n", secid);
 
 	cred = current_cred();
 
@@ -297,6 +271,7 @@ noinline struct file *container_ima_retrieve_file(int fd)
 	ssize_t len;
 	struct file *file;
 	void *buf;
+	
 	/* Get file from fd, len, and address for measurment */
    	pr_err("Retrieving file struct for FD %d\n", fd);
 	file = fget(fd);
@@ -323,19 +298,12 @@ noinline struct file *container_ima_retrieve_file(int fd)
 			return ret;
 		}
 	} */
-	pr_info("F get works\n");
 	if (file)
 		fput(file);
 	return file;
 }
-noinline struct rb_root init_ns_iint_tree(void)
-{
-	return RB_ROOT;
-}
 BTF_SET8_START(ima_kfunc_ids)
 BTF_ID_FLAGS(func, bpf_process_measurement, KF_TRUSTED_ARGS)
-BTF_ID_FLAGS(func, init_ns_ml, KF_TRUSTED_ARGS)
-BTF_ID_FLAGS(func, init_ns_iint_tree, KF_TRUSTED_ARGS | KF_ACQUIRE)
 BTF_ID_FLAGS(func, measure_file, KF_TRUSTED_ARGS)
 BTF_SET8_END(ima_kfunc_ids)
 
@@ -345,7 +313,7 @@ static const struct btf_kfunc_id_set bpf_ima_kfunc_set = {
 };
 static int container_ima_init(void)
 {
-	pr_info("Starting container IMA\n");
+	pr_info("Starting Container IMA\n");
 
 	/* Start container IMA */
 	int ret;
@@ -356,16 +324,6 @@ static int container_ima_init(void)
 	if (ret < 0) {
 		pr_err("eBPF Probe failed integrity check\n");
 	}
-	/* Initialize global/shared IMA data */
-	pr_info("FS INIT\n");
-	//ret = container_ima_fs_init();
-	if (ret < 0)
-		return ret;
-	
-	/* Initialize IMA crypto */
-	pr_info("CRYPTO INIT\n");
-	//ret = container_ima_crypto_init();
-
 	/* Register kfunc for eBPF */
 	task = current;
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
