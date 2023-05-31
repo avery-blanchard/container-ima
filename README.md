@@ -14,8 +14,6 @@ Installl developement tools \
 `sudo dnf groupinstall "Development Tools" "Development Libraries"` \
 Clone repository \
 `git clone https://github.com/avery-blanchard/container-ima/` \
-Insert tpm device driver \
-`sudo modprobe tpm` \
 Initialize submodule \
 `git submodule update --init --recursive` \
 Build container IMA kernel module \
