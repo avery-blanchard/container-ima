@@ -147,11 +147,11 @@ int attest_ebpf(void)
 noinline int measure_file(struct file *file, unsigned int ns)
 {
         int check;
-	char buf[hash_digest_size[ima_hash_algo]];
+	char buf[64];
 	char *extend;
 	char *path;
 	char filename[128];
-	char ns_buf[16];
+	char ns_buf[64];
 	struct ima_template_entry *entry;
 	struct integrity_iint_cache iint = {};
         struct ima_template_desc *desc;
@@ -159,7 +159,6 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	struct inode *inode;
 	u64 i_version;	
 
-	inode = file_inode(file);
        	
 	
 	pr_err("in file measure\n");
@@ -187,7 +186,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 		
 	extend = strncat(buf, ns_buf, 32);
 
-	hash.hdr.length = hash_digest_size[ima_hash_algo];
+	hash.hdr.length = 32; //hash_digest_size[ima_hash_algo];
         hash.hdr.algo = HASH_ALGO_SHA256;
         memset(&hash.digest, 0, sizeof(hash.digest));
 
@@ -201,6 +200,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	if (!desc)
 		return 0;
 	
+	inode = file_inode(file);	
 	iint.ima_hash = &hash.hdr;
 	iint.ima_hash->algo = ima_hash_algo;
 	iint.ima_hash->length = 32;
@@ -232,13 +232,12 @@ noinline int measure_file(struct file *file, unsigned int ns)
         return 0;
 }
 
-noinline int bpf_process_measurement(int fd, unsigned int ns)
+noinline int bpf_process_measurement(struct file *file, unsigned int ns)
 {
 
 	int ret, action, pcr, violation_check;
 	struct ima_data *data;
 	struct mmap_args *args;
-	struct file *file;
 	struct inode *inode;
 	struct mnt_idmap *idmap;
 	const struct cred *cred;
@@ -250,7 +249,9 @@ noinline int bpf_process_measurement(int fd, unsigned int ns)
 	pr_info("Processing MMAP file\n");
 
 	
-	file = container_ima_retrieve_file(fd);
+	/*	file = container_ima_retrieve_file(fd);
+	if (!file)
+		return 0;*/
 	inode = file->f_inode;
 	security_current_getsecid_subj(&secid);
 
@@ -261,18 +262,18 @@ noinline int bpf_process_measurement(int fd, unsigned int ns)
 
 	idmap = file->f_path.mnt->mnt_idmap; //file_mnt_idmap(file);
 
-	// Get action 
+	// Get action
+	pr_info("Pre-get action\n"); 
 	action = ima_get_action(idmap, inode, cred, secid, MAY_EXEC, MMAP_CHECK, &pcr, &desc, NULL, &allowed_algos);
-	violation_check = ima_policy_flag & IMA_MEASURE;
-
-	if (!action && !violation_check) { 
-		pr_info("Policy requires no action, returning\n");
+	pr_info("Post-get action\n");
+	if (!action) { 
+		pr_info("Policy requires no action, action %d\n", action);
 		return 0;
 	}
 	// violation check 
 	
-	if (!action)
-		return 0;
+	
+	pr_info("Pre-measure file\n");
 	ret = measure_file(file, ns);
 
 	

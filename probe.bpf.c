@@ -37,7 +37,7 @@ struct ebpf_var {
 	struct mmap_args *args;
 };
 
-extern int bpf_process_measurement(int fd, unsigned int ns) __ksym;
+extern int bpf_process_measurement(struct file *, unsigned int ns) __ksym;
 extern struct list_head init_ns_ml(void) __ksym;
 extern struct rb_root init_ns_iint_tree(void) __ksym;
 extern int measure_file(struct file *) __ksym;
@@ -64,10 +64,12 @@ struct {
 */
 
 // int mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-SEC("kprobe/__x64_sys_mmap")
-int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsigned long prot, unsigned long flags, unsigned long fd) 
+/*SEC("kprobe/__x64_sys_mmap.s")
+int  BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsigned long prot, unsigned long flags, unsigned long fd) 
+{*/
+SEC("lsm/mmap_file.s")
+int BPF_PROG(mmap_hook, struct file *file, unsigned int reqprot, unsigned int prot, int flags) 
 {
-
     struct mmap_args *args;
     struct ima_data *ima_data;
     struct task_struct *task;
@@ -76,10 +78,10 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
     unsigned int ns;
     int ret;
 
-    if (prot & PROT_EXEC) {
+    if (!file) 
+	return 0;
+    if (prot & PROT_EXEC || reqprot & PROT_EXEC) {
     
-        if (flags & MAP_ANONYMOUS)
-		return 0;
 	
 	key = 0;
 	current = (struct ebpf_var *) bpf_map_lookup_elem(&var_map, &key);
@@ -88,26 +90,25 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 	}
 	task = (void *) bpf_get_current_task();
 
-        bpf_printk("Integrity measurement for fd %d\n", fd);
 
         args = (struct mmap_args *) bpf_map_lookup_elem(&mmap_map, &key);
         if (!args) {
                 bpf_printk("Map element lookup failed\n");
                 return 0;
         }
-
+	/*
 	args->length = length;
 	args->prot = prot;
 	args->flags = flags;
 	args->fd = fd;
-
+	*/
 
         ns = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
 	
-	current->args = args;
+	//current->args = args;
 	//ima_data = (struct ima_data *) bpf_map_lookup_elem(&ima_map, &ns);
 	
-	ret = bpf_process_measurement(fd, ns);
+	ret = bpf_process_measurement(file, ns);
 
 
     }

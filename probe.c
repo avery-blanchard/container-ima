@@ -5,7 +5,6 @@
 #include <errno.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
-#include <openssl/sha.h>
 #include "probe.skel.h"
 
 
@@ -23,15 +22,18 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 int main(int argc, char **argv)
 {
     struct probe_bpf *skel;
+    struct bpf_link *kprobe_link;
     int ret;
 
     libbpf_set_print(libbpf_print_fn);
 
     skel = probe_bpf__open_and_load();
     if (!skel) {
-	    fprintf(stderr, "Failed to open BPF skeleton\n");
+	fprintf(stderr, "Failed to open BPF skeleton\n");
         return -1;
     }
+
+
     ret = probe_bpf__attach(skel);
     if (ret) {
 	fprintf(stderr, "Failed to attach BPF skeleton\n");
