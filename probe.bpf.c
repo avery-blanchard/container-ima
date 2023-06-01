@@ -37,7 +37,7 @@ struct ebpf_var {
 	struct mmap_args *args;
 };
 
-extern struct ima_data *bpf_process_measurement(int fd, unsigned int ns) __ksym;
+extern int bpf_process_measurement(int fd, unsigned int ns) __ksym;
 extern struct list_head init_ns_ml(void) __ksym;
 extern struct rb_root init_ns_iint_tree(void) __ksym;
 extern int measure_file(struct file *) __ksym;
@@ -54,14 +54,14 @@ struct {
         __type(value, struct ebpf_var);
         __uint(max_entries, 256);
 } var_map SEC(".maps");
-
+/*
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 	__type(key, u32);
 	__type(value, struct ima_data);
 	__uint(max_entries, 256);
 } ima_map SEC(".maps");
-
+*/
 
 // int mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 SEC("kprobe/__x64_sys_mmap")
@@ -107,17 +107,7 @@ int BPF_KPROBE_SYSCALL(kprobe___sys_mmap, void *addr, unsigned long length, unsi
 	current->args = args;
 	//ima_data = (struct ima_data *) bpf_map_lookup_elem(&ima_map, &ns);
 	
-	if (0 == 0) {//!current->ima_data) {
-		// Init per NS IMA data
-		struct ima_data new = {0};
-		ima_data = bpf_process_measurement(fd, ns);
-		//bpf_map_update_elem(&ima_map, &ns, &ima_data, BPF_ANY);
-
-	} else {
-
-		ima_data = bpf_process_measurement(fd, ns);
-   	//	bpf_map_update_elem(&ima_map, &ns, &ima_data, BPF_ANY);
-	}
+	ret = bpf_process_measurement(fd, ns);
 
 
     }

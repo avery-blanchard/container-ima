@@ -5,17 +5,21 @@ The goal of this project is to extend the Linux Integrity Measurement Architectu
 
 It uses eBPF to probe the mmap system call to measure executable files mapped in a container.
 ## Usage 
-Note: These are instructions for a Fedora 37 machine running kernel 6.2 \
+Note: These are instructions for an Ubuntu 22 machine running kernel 6.2 \
+
 Update \
 `sudo dnf update` \
 Install dependencies \
-`sudo dnf install kernel-devel kernel-headers git libbpf libbpf-devel bpftool clang openssl dwarves glibc-devel.i686` \
-Installl developement tools \
-`sudo dnf groupinstall "Development Tools" "Development Libraries"` \
+`sudo apt install llvm libelf-dev libssl-dev gcc-12 git clang dwarves` \
+Install kernel headers \
 Clone repository \
 `git clone https://github.com/avery-blanchard/container-ima/` \
 Initialize submodule \
 `git submodule update --init --recursive` \
+Build bpftool from scratch \
+`git clone --recurse-submodules https://github.com/libbpf/bpftool.git` \
+`cd bpftool/src`
+`make && make install`
 Build container IMA kernel module \
 `make` \
 Insert module \
@@ -24,4 +28,3 @@ Insert eBPF probe \
 `sudo ./probe`
 
 ## Notes
-See the [kernel module signing fedora guide](https://docs.fedoraproject.org/en-US/fedora/latest/system-administrators-guide/kernel-module-driver-configuration/Working_with_Kernel_Modules/#sect-signing-kernel-modules-for-secure-boot) for information on how to include this module in a kernel booted with UEFI.

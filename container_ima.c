@@ -232,7 +232,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
         return 0;
 }
 
-noinline struct ima_data *bpf_process_measurement(int fd, unsigned int ns)
+noinline int bpf_process_measurement(int fd, unsigned int ns)
 {
 
 	int ret, action, pcr, violation_check;
