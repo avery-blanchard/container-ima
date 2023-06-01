@@ -8,7 +8,7 @@ It uses eBPF to probe the mmap system call to measure executable files mapped in
 Note: These are instructions for an Ubuntu 22 machine running kernel 6.2 \
 
 Update \
-`sudo dnf update` \
+`sudo apt update` \
 Install dependencies \
 `sudo apt install llvm libelf-dev libssl-dev gcc-12 git clang dwarves` \
 Install kernel headers \
@@ -18,8 +18,8 @@ Initialize submodule \
 `git submodule update --init --recursive` \
 Build bpftool from scratch \
 `git clone --recurse-submodules https://github.com/libbpf/bpftool.git` \
-`cd bpftool/src`
-`make && make install`
+`cd bpftool/src` \
+`make && make install` \
 Build container IMA kernel module \
 `make` \
 Insert module \
