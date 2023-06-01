@@ -22,7 +22,6 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 int main(int argc, char **argv)
 {
     struct probe_bpf *skel;
-    struct bpf_link *kprobe_link;
     int ret;
 
     libbpf_set_print(libbpf_print_fn);

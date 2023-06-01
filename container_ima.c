@@ -232,7 +232,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
         return 0;
 }
 
-noinline int bpf_process_measurement(struct file *file, unsigned int ns)
+noinline int bpf_process_measurement(struct file *file, int mem__sz, unsigned int ns)
 {
 
 	int ret, action, pcr, violation_check;
@@ -245,7 +245,6 @@ noinline int bpf_process_measurement(struct file *file, unsigned int ns)
 	enum ima_hooks func;
 	struct ima_template_desc *desc = NULL;
 	unsigned int allowed_algos = 0;
-	
 	pr_info("Processing MMAP file\n");
 
 	
@@ -323,8 +322,8 @@ noinline struct file *container_ima_retrieve_file(int fd)
 	return file;
 }
 BTF_SET8_START(ima_kfunc_ids)
-BTF_ID_FLAGS(func, bpf_process_measurement, KF_TRUSTED_ARGS)
-BTF_ID_FLAGS(func, measure_file, KF_TRUSTED_ARGS)
+BTF_ID_FLAGS(func, bpf_process_measurement, KF_TRUSTED_ARGS | KF_SLEEPABLE)
+BTF_ID_FLAGS(func, measure_file, KF_TRUSTED_ARGS | KF_SLEEPABLE)
 BTF_SET8_END(ima_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_ima_kfunc_set = {
@@ -349,7 +348,7 @@ static int container_ima_init(void)
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
 	
 
-	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_UNSPEC, &bpf_ima_kfunc_set);
+	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_LSM, &bpf_ima_kfunc_set);
 	pr_info("Return val of registration %d\n", ret);
 	if (ret < 0)
 		return ret;
