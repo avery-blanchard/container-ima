@@ -1,7 +1,6 @@
 /*
- * container_ima.h
- * 		- define structs and functions for container IMA
- *  https://elixir.bootlin.com/linux/v4.19.259/source/security/integrity/ima/ima.h
+ * File: container_ima.h
+ * 	Definitions for IMA module 
  *
  */
 #ifndef __CONTAINER_IMA_H__
@@ -29,9 +28,6 @@
 #include <linux/file.h>
 #include <linux/hash.h>
 
-enum ima_show_type { IMA_SHOW_BINARY, IMA_SHOW_BINARY_NO_FIELD_LEN,
-		     IMA_SHOW_BINARY_OLD_STRING_FMT, IMA_SHOW_ASCII };
-enum tpm_pcrs { TPM_PCR0 = 0, TPM_PCR8 = 8, TPM_PCR10 = 10 };
 
 /* digest size for IMA, fits SHA1 or MD5 */
 #define IMA_DIGEST_SIZE		SHA1_DIGEST_SIZE
@@ -83,26 +79,6 @@ enum tpm_pcrs { TPM_PCR0 = 0, TPM_PCR8 = 8, TPM_PCR10 = 10 };
 				 IMA_BPRM_APPRAISED | IMA_READ_APPRAISED | \
 				 IMA_CREDS_APPRAISED)
 
-/* iint cache atomic_flags */
-#define IMA_CHANGE_XATTR	0
-#define IMA_UPDATE_XATTR	1
-#define IMA_CHANGE_ATTR		2
-#define IMA_DIGSIG		3
-#define IMA_MUST_MEASURE	4
-
-enum evm_ima_xattr_type {
-	IMA_XATTR_DIGEST = 0x01,
-	EVM_XATTR_HMAC,
-	EVM_IMA_XATTR_DIGSIG,
-	IMA_XATTR_DIGEST_NG,
-	EVM_XATTR_PORTABLE_DIGSIG,
-	IMA_XATTR_LAST
-};
-
-struct evm_ima_xattr_data {
-	u8 type;
-	u8 digest[SHA1_DIGEST_SIZE];
-} __packed;
 
 /* flags definitions */
 #define IMA_FUNC	0x0001
@@ -131,14 +107,6 @@ struct evm_ima_xattr_data {
 #define HASH		0x0100
 #define DONT_HASH	0x0200
 
-/* define digest sizes */
-#define CONTAINER_IMA_DIGEST_SIZE       SHA1_DIGEST_SIZE
-#define IMA_TEMPLATE_IMA_NAME "container-ima"
-#define AUDIT_CAUSE_LEN_MAX 32
-/* define sizes for hash tables */
-#define CONTAINER_IMA_HASH_BITS 10
-#define CONTAINER_IMA_HTABLE_SIZE (1 << CONTAINER_IMA_HASH_BITS)
-#define IMA_DIGEST_SIZE		SHA1_DIGEST_SIZE
 
 /* iint cache flags */
 #define IMA_ACTION_FLAGS	0xff000000
@@ -185,15 +153,11 @@ struct evm_ima_xattr_data {
 #define IMA_HASH		0x00000100
 #define IMA_HASHED		0x00000200
 
-
-#define IMA_HASH_BITS 9
-#define IMA_MEASURE_HTABLE_SIZE (1 << IMA_HASH_BITS)
-
 #define IMA_TEMPLATE_FIELD_ID_MAX_LEN	16
-#define IMA_TEMPLATE_NUM_FIELDS_MAX	15
-#define IMA_TEMPLATE_IMA_FMT "d|n"
+#define IMA_MAX_DIGEST_SIZE	HASH_MAX_DIGESTSIZE
 
-#define IMA_MAX_DIGEST_SIZE	64
+extern int ima_hash_algo;
+
 struct ima_digest_data {
 	u8 algo;
 	u8 length;
@@ -210,31 +174,6 @@ struct ima_digest_data {
 	} xattr;
 	u8 digest[];
 } __packed;
-
-struct ima_hash {
-	    struct ima_digest_data hdr;
-	    char digest[2048];
-};
-static DEFINE_RWLOCK(container_integrity_iint_lock);
-
-#define INVALID_PCR(a) (((a) < 0) || \
-	(a) >= (sizeof_field(struct integrity_iint_cache, measured_pcrs) * 8))
-
-enum policy_types { ORIGINAL_TCB = 1, DEFAULT_TCB };
-
-enum policy_rule_list { IMA_DEFAULT_POLICY = 1, IMA_CUSTOM_POLICY };
-
-extern struct tpm_chip *ima_tpm_chip;
-extern int ima_hash_algo;
-extern bool ima_canonical_fmt;
-
-struct mmap_args {
-	size_t length;
-	int prot;
-	int flags;
-	int fd;
-	unsigned int ns;
-};
 
 /* IMA event related data */
 struct ima_event_data {
@@ -291,25 +230,11 @@ struct ima_h_table {
 	atomic_long_t len;	/* number of stored measurements in the list */
 	atomic_long_t violations;
 	struct hlist_head queue[IMA_MEASURE_HTABLE_SIZE];
-};
+};/*
 struct hash {
 		struct ima_digest_data hdr;
 		char digest[IMA_MAX_DIGEST_SIZE];
-};
-
-struct ima_data {
-        long len; // number of digest
-        long violations; // violations count 
-        //spinlock_t queue_lock;
-        struct hlist_head queue[CONTAINER_IMA_HTABLE_SIZE]; // hash table queue
-        /* policy configurations TODO */
-        struct list_head measurements; // linked list of measurements 
-        //unsigned long binary_runtime_size;
-        //struct ima_h_table *hash_tbl;
-        struct mutex ima_write_mutex;
-        int policy_flags;
-        struct rb_root iint_tree;
-};
+};*/
 
 /* integrity data associated with an inode */
 struct integrity_iint_cache {
@@ -329,7 +254,5 @@ struct integrity_iint_cache {
 	struct ima_digest_data *ima_hash;
 };
 
-/* Internal container IMA function definitions */
-struct file *container_ima_retrieve_file(int);
 
 #endif
