@@ -120,7 +120,7 @@ int attest_ebpf(void)
 	struct file *file;
 	char buf[265];
 
-	file = filp_open("./probe.bpf.c", O_RDONLY, 0);
+	file = filp_open("./probe", O_RDONLY, 0);
 	if (!file)
 		return -1;
 	ret = ima_file_hash(file, buf, sizeof(buf));
