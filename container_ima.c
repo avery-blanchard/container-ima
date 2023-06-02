@@ -211,6 +211,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	memcpy(iint.ima_hash->digest, hash.digest, sizeof(hash.digest));
 	memcpy(iint.ima_hash, hash.digest, sizeof(hash.digest));
 
+
 	event_data.buf = hash.digest;
 	event_data.buf_len = 32;
 
@@ -222,7 +223,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 
 
 
-	check = ima_store_template(entry, 0, inode, filename, IMA_PCR);
+	check = ima_store_template(entry, 0, inode, filename, 11);
 	if (check !=  0) {
 		pr_err("Template storage fails: %d\n", check);
 		return 0;
@@ -273,7 +274,7 @@ noinline int bpf_process_measurement(void *mem, int mem__sz, unsigned int ns)
 	pr_info("Pre-get action\n"); 
 	action = ima_get_action(idmap, inode, cred, secid, MAY_EXEC, MMAP_CHECK, &pcr, &desc, NULL, &allowed_algos);
 	pr_info("Post-get action\n");
-	if (!action) { 
+	if (action) { 
 		pr_info("Policy requires no action, action %d\n", action);
 		return 0;
 	}
