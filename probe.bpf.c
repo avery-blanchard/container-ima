@@ -42,7 +42,7 @@ struct test {
 	unsigned int ns;
 };
 
-extern int bpf_process_measurement(struct file *, int, unsigned int ) __ksym;
+extern int bpf_process_measurement(void *, int, unsigned int ) __ksym;
 extern struct list_head init_ns_ml(void) __ksym;
 extern struct rb_root init_ns_iint_tree(void) __ksym;
 extern int measure_file(struct file *) __ksym;
@@ -86,7 +86,7 @@ int BPF_PROG(mmap_hook, struct file *file, unsigned int reqprot, unsigned int pr
     if (!file) 
 	return 0;
     if (prot & PROT_EXEC || reqprot & PROT_EXEC) {
-    
+   
 	
 	key = 0;/*
 	current = (struct ebpf_var *) bpf_map_lookup_elem(&var_map, &key);
@@ -113,7 +113,8 @@ int BPF_PROG(mmap_hook, struct file *file, unsigned int reqprot, unsigned int pr
 	//current->args = args;
 	//ima_data = (struct ima_data *) bpf_map_lookup_elem(&ima_map, &ns);
 	
-	ret = bpf_process_measurement(file, sizeof(file), ns);
+	struct test test = {.file = file, .ns= ns};
+	ret = bpf_process_measurement((void *) &test, sizeof(&test), ns);
 
 
     }

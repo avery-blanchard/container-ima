@@ -232,7 +232,12 @@ noinline int measure_file(struct file *file, unsigned int ns)
         return 0;
 }
 
-noinline int bpf_process_measurement(struct file *file, int mem__sz, unsigned int ns)
+struct test {
+	struct file *file;
+	unsigned int ns;
+};
+
+noinline int bpf_process_measurement(void *mem, int mem__sz, unsigned int ns)
 {
 
 	int ret, action, pcr, violation_check;
@@ -245,8 +250,11 @@ noinline int bpf_process_measurement(struct file *file, int mem__sz, unsigned in
 	enum ima_hooks func;
 	struct ima_template_desc *desc = NULL;
 	unsigned int allowed_algos = 0;
+	struct test *test = (struct test *) mem;
+	struct file *file = test->file;
 	pr_info("Processing MMAP file\n");
-
+	if (!file)
+		return 0;
 	
 	/*	file = container_ima_retrieve_file(fd);
 	if (!file)
