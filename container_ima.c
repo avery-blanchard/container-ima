@@ -48,72 +48,7 @@
 #include "container_ima.h"
 
 #define MODULE_NAME "ContainerIMA"
-#define MAY_EXEC		0x00000001
 
-struct ima_max_digest_data {
-	struct ima_digest_data hdr;
-	u8 digest[HASH_MAX_DIGESTSIZE];
-} __packed;
-
-static struct kprobe kp = {
-    .symbol_name = "kallsyms_lookup_name"
-};
-
-unsigned int host_inum;
-extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
-			      const struct btf_kfunc_id_set *kset);
-extern int ima_file_hash(struct file *file, char *buf, size_t buf_size);
-
-int (*ima_add_template_entry)(struct ima_template_entry *entry, int violation, const char *op, struct inode *inode, const unsigned char *filename) = (int(*)(struct ima_template_entry *, int, const char *, struct inode *, const unsigned char *)) 0xffffffffa5706aa0;
-
-int (*ima_calc_field_array_hash)(struct ima_field_data *field_data,
-			      struct ima_template_entry *entry);
-const char *(*ima_d_path)(const struct path *, char **, char *);
-
-int (*ima_alloc_init_template)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *);
-
-int (*ima_store_template)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int);
-
-struct ima_template_desc *(*ima_template_desc_current)(void);
-
-void (*ima_free_template_entry)(struct ima_template_entry *);
-int ima_hash_algo;
-int ima_policy_flag;
-
-int (*ima_calc_buffer_hash)(const void *, loff_t len, struct ima_digest_data *); //= (int(*)(const void *, loff_t len, struct ima_digest_data *)) 0xffffffff82709ab0;
-
-
-#define __ima_hooks(hook)				\
-	hook(NONE, none)				\
-	hook(FILE_CHECK, file)				\
-	hook(MMAP_CHECK, mmap)				\
-	hook(MMAP_CHECK_REQPROT, mmap_reqprot)		\
-	hook(BPRM_CHECK, bprm)				\
-	hook(CREDS_CHECK, creds)			\
-	hook(POST_SETATTR, post_setattr)		\
-	hook(MODULE_CHECK, module)			\
-	hook(FIRMWARE_CHECK, firmware)			\
-	hook(KEXEC_KERNEL_CHECK, kexec_kernel)		\
-	hook(KEXEC_INITRAMFS_CHECK, kexec_initramfs)	\
-	hook(POLICY_CHECK, policy)			\
-	hook(KEXEC_CMDLINE, kexec_cmdline)		\
-	hook(KEY_CHECK, key)				\
-	hook(CRITICAL_DATA, critical_data)		\
-	hook(SETXATTR_CHECK, setxattr_check)		\
-	hook(MAX_CHECK, none)
-
-#define __ima_hook_enumify(ENUM, str)	ENUM,
-#define __ima_stringify(arg) (#arg)
-#define __ima_hook_measuring_stringify(ENUM, str) \
-		(__ima_stringify(measuring_ ##str)),
-
-enum ima_hooks {
-	__ima_hooks(__ima_hook_enumify)
-};
-
-int (*ima_get_action)(struct mnt_idmap *, struct inode *, const struct cred *, u32,  int,  enum ima_hooks,  int *, struct ima_template_desc **, const char *, unsigned int *);
-
-int (*ima_calc_field_array_hash)(struct ima_field_data *, struct ima_template_entry *);
 int attest_ebpf(void) 
 {
 	int ret;
@@ -211,11 +146,6 @@ noinline int measure_file(struct file *file, unsigned int ns, struct ima_templat
 
         return 0;
 }
-
-struct ebpf_data {
-	struct file *file;
-	unsigned int ns;
-};
 
 noinline int bpf_process_measurement(void *mem, int mem__sz)
 {
