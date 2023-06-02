@@ -92,7 +92,7 @@ int (*ima_alloc_init_template)(struct ima_event_data *, struct ima_template_entr
 
 int (*ima_store_template)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int);
 
-struct ima_template_desc *(*ima_template_desc_buf)(void);
+struct ima_template_desc *(*ima_template_desc_current)(void);
 
 int ima_hash_algo;
 int ima_policy_flag;
@@ -196,7 +196,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 		return 0;
 	
 	pr_err("HASH(measurement || NS) =  %s\n", hash.digest);
-	desc = ima_template_desc_buf();
+	desc = ima_template_desc_current();
 	if (!desc)
 		return 0;
 	
@@ -215,7 +215,7 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	event_data.buf = hash.digest;
 	event_data.buf_len = 32;
 
-	check = ima_alloc_init_template(&event_data, &entry, NULL);
+	check = ima_alloc_init_template(&event_data, &entry, desc);
 	if (check != 0) {
 		pr_err("Template Allocation fails\n");
 		return 0;
@@ -376,8 +376,8 @@ static int container_ima_init(void)
 		pr_err("Lookup fails\n");
 		return -1;
 	}
-	ima_template_desc_buf =  (struct ima_template_desc *(*)(void)) kallsyms_lookup_name("ima_template_desc_buf");
-        if (ima_template_desc_buf == 0) {
+	ima_template_desc_current =  (struct ima_template_desc *(*)(void)) kallsyms_lookup_name("ima_template_desc_current");
+        if (ima_template_desc_current == 0) {
                 pr_err("Lookup fails\n");
                 return -1;
         }
