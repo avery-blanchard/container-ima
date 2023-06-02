@@ -94,6 +94,7 @@ int (*ima_store_template)(struct ima_template_entry *, int, struct inode *, cons
 
 struct ima_template_desc *(*ima_template_desc_buf)(void);
 
+void (*ima_free_template_entry)(struct ima_template_entry *);
 int ima_hash_algo;
 int ima_policy_flag;
 
@@ -131,6 +132,7 @@ enum ima_hooks {
 extern int ima_policy_flag = 0;
 int (*ima_get_action)(struct mnt_idmap *, struct inode *, const struct cred *, u32,  int,  enum ima_hooks,  int *, struct ima_template_desc **, const char *, unsigned int *);
 
+int (*ima_calc_field_array_hash)(struct ima_field_data *, struct ima_template_entry *);
 int attest_ebpf(void) 
 {
 	int ret;
@@ -144,9 +146,9 @@ int attest_ebpf(void)
 	return 0;
 
 }
-noinline int measure_file(struct file *file, unsigned int ns)
+noinline int measure_file(struct file *file, unsigned int ns, struct ima_template_desc *desc)
 {
-        int check;
+        int i, check, length;
 	char buf[64];
 	char *extend;
 	char *path;
@@ -154,12 +156,11 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	char ns_buf[64];
 	struct ima_template_entry *entry;
 	struct integrity_iint_cache iint = {};
-        struct ima_template_desc *desc;
         struct ima_max_digest_data hash;
 	struct inode *inode;
+	void *tmpbuf;
 	u64 i_version;	
 
-       	
 	
 	pr_err("in file measure\n");
 
@@ -172,16 +173,12 @@ noinline int measure_file(struct file *file, unsigned int ns)
 	}
 
 		
-	sprintf(ns_buf, "%lu", ns);
+	sprintf(ns_buf, "%u", ns);
 
 	check = 0;
 	
-	sprintf(filename, "%lu:%s\0", ns, path);
+	sprintf(filename, "%u:%s\0", ns, path);
 	pr_err("NS specific filename %s\n", filename);
-	struct ima_event_data event_data = {.iint = &iint,
-                                            .filename = filename,
-                                            .buf = buf,
-                                            .buf_len = sizeof(buf)};
 
 		
 	extend = strncat(buf, ns_buf, 32);
@@ -190,44 +187,57 @@ noinline int measure_file(struct file *file, unsigned int ns)
         hash.hdr.algo = HASH_ALGO_SHA256;
         memset(&hash.digest, 0, sizeof(hash.digest));
 
+	length = sizeof(hash.hdr) + hash.hdr.length;
 	
 	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
 	if (check < 0)
 		return 0;
 	
 	pr_err("HASH(measurement || NS) =  %s\n", hash.digest);
-	desc = ima_template_desc_buf();
-	if (!desc)
-		return 0;
 	
-	inode = file_inode(file);	
+	inode = file_inode(file);
+	iint.inode = inode;
+	//inode->i_flags |= S_IMA;	
 	iint.ima_hash = &hash.hdr;
-	iint.ima_hash->algo = ima_hash_algo;
+	iint.ima_hash->algo =  HASH_ALGO_SHA256;
 	iint.ima_hash->length = 32;
 	i_version = inode_query_iversion(inode);
 	iint.version = i_version;
-
 	memcpy(hash.hdr.digest, hash.digest, sizeof(hash.digest));
-	memcpy(iint.ima_hash->digest, hash.digest, sizeof(hash.digest));
-	memcpy(iint.ima_hash, hash.digest, sizeof(hash.digest));
+	//memcpy(iint.ima_hash->digest, hash.digest, sizeof(hash.digest));
+	//memcpy(iint.ima_hash, hash.digest, sizeof(hash.digest));
+	//memcpy(event_data.buf, hash.digest, sizeof(hash.digest));
 
+	memcpy(iint.ima_hash, &hash, length);
+	//event_data.buf_len = 32;
+	 struct ima_event_data event_data = {.iint = &iint,
+		 			     .file = file,
+                                            .filename = filename};
 
-	event_data.buf = hash.digest;
-	event_data.buf_len = 32;
-
-	check = ima_alloc_init_template(&event_data, &entry, NULL);
-	if (check != 0) {
+	check = ima_alloc_init_template(&event_data, &entry, desc);
+	if (check < 0) {
 		pr_err("Template Allocation fails\n");
 		return 0;
 	}
-
-
+	/*
+	check = ima_calc_field_array_hash(&entry->template_data[0], entry);
+	if (check < 0) {
+		pr_info("FIELD ARRAY hash fails\n");
+		return 0;
+	}	*/
 
 	check = ima_store_template(entry, 0, inode, filename, 11);
-	if (check !=  0) {
-		pr_err("Template storage fails: %d\n", check);
+	if ((!check || check == -EEXIST) && !(file->f_flags & O_DIRECT)) {
+		iint.flags |= IMA_MEASURED;
+		iint.measured_pcrs |= (0x1 << 11);
 		return 0;
 	}
+
+	for (i = 0; i < entry->template_desc->num_fields; i++)
+		kfree(entry->template_data[i].data);
+
+	kfree(entry->digests);
+	kfree(entry);
 	pr_err("Exiting IMA\n");
 
         return 0;
@@ -271,10 +281,9 @@ noinline int bpf_process_measurement(void *mem, int mem__sz, unsigned int ns)
 	idmap = file->f_path.mnt->mnt_idmap; //file_mnt_idmap(file);
 
 	// Get action
-	pr_info("Pre-get action\n"); 
+	pcr = 10;
 	action = ima_get_action(idmap, inode, cred, secid, MAY_EXEC, MMAP_CHECK, &pcr, &desc, NULL, &allowed_algos);
-	pr_info("Post-get action\n");
-	if (action) { 
+	if (!action) { 
 		pr_info("Policy requires no action, action %d\n", action);
 		return 0;
 	}
@@ -282,10 +291,11 @@ noinline int bpf_process_measurement(void *mem, int mem__sz, unsigned int ns)
 	
 	
 	pr_info("Pre-measure file\n");
-	ret = measure_file(file, ns);
+	if (action & IMA_MEASURE)
+		ret = measure_file(file, ns, desc);
 
 	
-	return data;
+	return 0;
 }
 /*
  * container_ima_retrieve_file
@@ -421,9 +431,10 @@ static int container_ima_init(void)
 		return -1;
 	}
 
-	ima_policy_flag = (int) kallsyms_lookup_name("ima_policy_flag");
+	ima_calc_field_array_hash = (int (*)(struct ima_field_data *,
+			      struct ima_template_entry *)) kallsyms_lookup_name("ima_calc_field_array_hash");
 
-        if (ima_policy_flag == 0) {
+        if (ima_calc_field_array_hash == 0) {
                 pr_err("Lookup fails\n");
                 return -1;
         }
