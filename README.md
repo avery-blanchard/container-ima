@@ -3,7 +3,8 @@
 ## Overview
 The goal of this project is to extend the Linux Integrity Measurement Architecture to Linux containers without kernel changes using eBPF.
 
-It uses eBPF to probe the mmap system call to measure executable files mapped in a container.
+It uses the eBPF `mmap_file` LSM hook to add namespace support to IMA.
+
 ## Usage 
 Note: Machine must run a new kernel (v6+)
 
