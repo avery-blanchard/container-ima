@@ -47,27 +47,9 @@
 #include <linux/iversion.h>
 #include "container_ima.h"
 
-#define PROT_EXEC 0x04
-#define LOG_SIZE 4096
-#define PROBE_SIZE 2048
-#define MAX_ENTRIES 100
 #define MODULE_NAME "ContainerIMA"
-#define LOG_BUF_SIZE 2048
 #define MAY_EXEC		0x00000001
 
-#define BTF_TYPE_SAFE_NESTED(__type)  __PASTE(__type, __safe_fields)
-
-BTF_TYPE_SAFE_NESTED(struct ima_data) {
-	long len; // number of digest
-        long violations; // violations count
-        //spinlock_t queue_lock;
-        struct list_head measurements; // linked list of measurements
-        //unsigned long binary_runtime_size;
-        //struct ima_h_table *hash_tbl;
-        int policy_flags;
-        struct rb_root iint_tree;
-
-};
 struct ima_max_digest_data {
 	struct ima_digest_data hdr;
 	u8 digest[HASH_MAX_DIGESTSIZE];
@@ -129,7 +111,6 @@ enum ima_hooks {
 	__ima_hooks(__ima_hook_enumify)
 };
 
-extern int ima_policy_flag = 0;
 int (*ima_get_action)(struct mnt_idmap *, struct inode *, const struct cred *, u32,  int,  enum ima_hooks,  int *, struct ima_template_desc **, const char *, unsigned int *);
 
 int (*ima_calc_field_array_hash)(struct ima_field_data *, struct ima_template_entry *);
@@ -158,11 +139,10 @@ noinline int measure_file(struct file *file, unsigned int ns, struct ima_templat
 	struct integrity_iint_cache iint = {};
         struct ima_max_digest_data hash;
 	struct inode *inode;
-	void *tmpbuf;
 	u64 i_version;	
 
 	
-	pr_err("in file measure\n");
+	//pr_err("in file measure\n");
 
         check = ima_file_hash(file, buf, sizeof(buf));
 
@@ -177,13 +157,13 @@ noinline int measure_file(struct file *file, unsigned int ns, struct ima_templat
 
 	check = 0;
 	
-	sprintf(filename, "%u:%s\0", ns, path);
-	pr_err("NS specific filename %s\n", filename);
+	sprintf(filename, "%u:%s", ns, path);
+	//pr_err("NS specific filename %s\n", filename);
 
 		
 	extend = strncat(buf, ns_buf, 32);
 
-	hash.hdr.length = 32; //hash_digest_size[ima_hash_algo];
+	hash.hdr.length = 32; 
         hash.hdr.algo = HASH_ALGO_SHA256;
         memset(&hash.digest, 0, sizeof(hash.digest));
 
@@ -193,37 +173,27 @@ noinline int measure_file(struct file *file, unsigned int ns, struct ima_templat
 	if (check < 0)
 		return 0;
 	
-	pr_err("HASH(measurement || NS) =  %s\n", hash.digest);
+	//pr_err("HASH(measurement || NS) =  %s\n", hash.digest);
 	
 	inode = file_inode(file);
 	iint.inode = inode;
-	//inode->i_flags |= S_IMA;	
 	iint.ima_hash = &hash.hdr;
 	iint.ima_hash->algo =  HASH_ALGO_SHA256;
 	iint.ima_hash->length = 32;
 	i_version = inode_query_iversion(inode);
 	iint.version = i_version;
 	memcpy(hash.hdr.digest, hash.digest, sizeof(hash.digest));
-	//memcpy(iint.ima_hash->digest, hash.digest, sizeof(hash.digest));
-	//memcpy(iint.ima_hash, hash.digest, sizeof(hash.digest));
-	//memcpy(event_data.buf, hash.digest, sizeof(hash.digest));
 
 	memcpy(iint.ima_hash, &hash, length);
-	//event_data.buf_len = 32;
-	 struct ima_event_data event_data = {.iint = &iint,
+	struct ima_event_data event_data = { .iint = &iint,
 		 			     .file = file,
-                                            .filename = filename};
+                                             .filename = filename
+					   };
 
 	check = ima_alloc_init_template(&event_data, &entry, desc);
 	if (check < 0) {
 		return 0;
 	}
-	/*
-	check = ima_calc_field_array_hash(&entry->template_data[0], entry);
-	if (check < 0) {
-		pr_info("FIELD ARRAY hash fails\n");
-		return 0;
-	}	*/
 
 	check = ima_store_template(entry, 0, inode, filename, 11);
 	if ((!check || check == -EEXIST) && !(file->f_flags & O_DIRECT)) {
@@ -237,38 +207,35 @@ noinline int measure_file(struct file *file, unsigned int ns, struct ima_templat
 
 	kfree(entry->digests);
 	kfree(entry);
-	pr_err("Exiting IMA\n");
+	//pr_err("Exiting IMA\n");
 
         return 0;
 }
 
-struct test {
+struct ebpf_data {
 	struct file *file;
 	unsigned int ns;
 };
 
-noinline int bpf_process_measurement(void *mem, int mem__sz, unsigned int ns)
+noinline int bpf_process_measurement(void *mem, int mem__sz)
 {
 
-	int ret, action, pcr, violation_check;
-	struct ima_data *data;
-	struct mmap_args *args;
+	int ret, action, pcr;
 	struct inode *inode;
 	struct mnt_idmap *idmap;
 	const struct cred *cred;
 	u32 secid;
-	enum ima_hooks func;
 	struct ima_template_desc *desc = NULL;
 	unsigned int allowed_algos = 0;
-	struct test *test = (struct test *) mem;
-	struct file *file = test->file;
-	pr_info("Processing MMAP file\n");
+	struct ebpf_data *data = (struct ebpf_data *) mem;
+	struct file *file = data->file;
+	unsigned int ns;
+
+	//pr_info("Processing MMAP file\n");
+	
 	if (!file)
 		return 0;
 	
-	/*	file = container_ima_retrieve_file(fd);
-	if (!file)
-		return 0;*/
 	inode = file->f_inode;
 	security_current_getsecid_subj(&secid);
 
@@ -277,67 +244,23 @@ noinline int bpf_process_measurement(void *mem, int mem__sz, unsigned int ns)
 	if (!cred)
 		pr_err("cred is NULL\n");
 
-	idmap = file->f_path.mnt->mnt_idmap; //file_mnt_idmap(file);
+	idmap = file->f_path.mnt->mnt_idmap; 
 
-	// Get action
 	pcr = 10;
-	action = ima_get_action(idmap, inode, cred, secid, MAY_EXEC, MMAP_CHECK, &pcr, &desc, NULL, &allowed_algos);
+	action = ima_get_action(idmap, inode, cred, secid, 
+			MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
+			NULL, &allowed_algos);
 	if (!action) { 
 		pr_info("Policy requires no action, action %d\n", action);
 		return 0;
 	}
-	// violation check 
 	
 	
-	pr_info("Pre-measure file\n");
 	if (action & IMA_MEASURE)
 		ret = measure_file(file, ns, desc);
 
 	
 	return 0;
-}
-/*
- * container_ima_retrieve_file
- *      Retrieve the file from mmap arguments
- *
- * https://elixir.bootlin.com/linux/v6.0.9/source/mm/mmap.c#L1586
- */
-noinline struct file *container_ima_retrieve_file(int fd)
-{
-	int ret;
-	ssize_t len;
-	struct file *file;
-	void *buf;
-	
-	/* Get file from fd, len, and address for measurment */
-   	pr_info("Retrieving file struct for FD %d\n", fd);
-	file = fget(fd);
-	if (!file) {
-		pr_err("F get fails\n");
-		return PTR_ERR(file);
-	}
-	/*
-	} else if (args->flags & MAP_HUGETLB) {
-		struct user_struct *user = NULL;
-		struct hstate *hs;
-		hs = &default_hstate; // remove default later
-		if (!hs) {
-			ret = -EINVAL;
-			return ret;
-		}
-		args->length = ALIGN(args->length, huge_page_size(hs));
-		file = hugetlb_file_setup(HUGETLB_ANON_FILE, args->length,
-				VM_NORESERVE,
-				&user, HUGETLB_ANONHUGE_INODE,
-				(args->flags >> MAP_HUGE_SHIFT) & MAP_HUGE_MASK);
-		if (IS_ERR(file)) {
-			ret = PTR_ERR(file);
-			return ret;
-		}
-	} */
-	if (file)
-		fput(file);
-	return file;
 }
 BTF_SET8_START(ima_kfunc_ids)
 BTF_ID_FLAGS(func, bpf_process_measurement, KF_TRUSTED_ARGS | KF_SLEEPABLE)
@@ -350,13 +273,13 @@ static const struct btf_kfunc_id_set bpf_ima_kfunc_set = {
 };
 static int container_ima_init(void)
 {
-	pr_info("Starting Container IMA\n");
 
 	/* Start container IMA */
 	int ret;
 	struct task_struct *task;
-	struct nsproxy *ns;
 	
+	pr_info("Starting Container IMA\n");
+
 	ret = attest_ebpf();
 	if (ret < 0) {
 		pr_err("eBPF Probe failed integrity check\n");
@@ -367,11 +290,9 @@ static int container_ima_init(void)
 	
 
 	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_LSM, &bpf_ima_kfunc_set);
-	pr_info("Return val of registration %d\n", ret);
 	if (ret < 0)
 		return ret;
 	
-	pr_info("Return val of registration %d\n", ret);
 	
 
 	typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
@@ -443,11 +364,7 @@ static int container_ima_init(void)
 
 static void container_ima_exit(void)
 {
-	/* Clean up 
-	 */
-	int ret;
 	pr_info("Exiting Container IMA\n");
-	//ret = container_ima_cleanup();
 	return;
 }
 

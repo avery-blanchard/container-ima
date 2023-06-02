@@ -5,13 +5,35 @@ The goal of this project is to extend the Linux Integrity Measurement Architectu
 
 It uses eBPF to probe the mmap system call to measure executable files mapped in a container.
 ## Usage 
-Note: These are instructions for an Ubuntu 22 machine running kernel 6.2 \
+Note: Machine must run a new kernel (v6+)
+
+### Fedora
+Update \
+`sudo dnf update` \
+Install dependencies \
+`sudo dnf install kernel-devel kernel-headers git libbpf libbpf-devel bpftool clang openssl dwarves glibc-devel.i686` \
+Installl developement tools \
+`sudo dnf groupinstall "Development Tools" "Development Libraries"` \
+Clone repository \
+`git clone https://github.com/avery-blanchard/container-ima/` \
+Initialize submodule \
+`git submodule update --init --recursive` \
+Build container IMA kernel module \
+`make` \
+Insert module \
+`sudo insmod container_ima.ko` \
+Insert eBPF probe \
+`sudo ./probe`
+
+### Ubuntu
+Note: For ubuntu, the kernel must be compiled with bpf enabled in `CONFIG_LSM`.
 
 Update \
 `sudo apt update` \
 Install dependencies \
 `sudo apt install llvm libelf-dev libssl-dev gcc-12 git clang dwarves` \
 Install kernel headers \
+`sudo apt install linux-headers-$(uname -r)`
 Clone repository \
 `git clone https://github.com/avery-blanchard/container-ima/` \
 Initialize submodule \
@@ -26,5 +48,3 @@ Insert module \
 `sudo insmod container_ima.ko` \
 Insert eBPF probe \
 `sudo ./probe`
-
-## Notes
