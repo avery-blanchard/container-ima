@@ -39,10 +39,8 @@
 #include <linux/btf_ids.h>
 #include <uapi/linux/btf.h>
 #include <uapi/linux/bpf.h>
-#include <crypto/hash.h>
 #include <linux/iversion.h>
 #include "container_ima.h"
-
 #define MODULE_NAME "ContainerIMA"
 
 int attest_ebpf(void) 
@@ -121,7 +119,7 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
 noinline int ima_file_measure(struct file *file, unsigned int ns, 
 		struct ima_template_desc *desc)
 {
-        int i, check, length;
+        int check, length;
 	char buf[64];
 	char *extend;
 	char *path;

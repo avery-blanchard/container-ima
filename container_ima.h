@@ -7,13 +7,8 @@
 #define __CONTAINER_IMA_H__
 
 #include <linux/types.h>
-#include <linux/crypto.h>
 #include <linux/fs.h>
 #include <linux/security.h>
-#include <linux/hash.h>
-#include <linux/tpm.h>
-#include <linux/audit.h>
-#include <crypto/hash_info.h>
 #include <linux/module.h>
 #include <linux/list.h>
 #include <linux/slab.h>
@@ -27,7 +22,7 @@
 #include <linux/tpm_command.h>
 #include <linux/file.h>
 #include <linux/hash.h>
-
+#include <crypto/hash.h>
 
 /* digest size for IMA, fits SHA1 or MD5 */
 #define IMA_DIGEST_SIZE		SHA1_DIGEST_SIZE
