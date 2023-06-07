@@ -64,8 +64,9 @@ int attest_ebpf(void)
  * 	Store file with namespaced measurement and file name
  * 	Extend to pcr 11
  */
-noinline int ima_store_measurement(struct ima_max_digest_data *hash, struct file *file, 
-		char *filename, int length, struct ima_template_desc *desc)
+noinline int ima_store_measurement(struct ima_max_digest_data *hash, 
+		struct file *file, char *filename, int length, 
+		struct ima_template_desc *desc)
 {
 
 	int i, check;
@@ -117,7 +118,8 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash, struct file
  * 		HASH(measurement | NS) 
  * 	Measurements are logged with the format NS:file_path to allow replay
  */
-noinline int ima_file_measure(struct file *file, unsigned int ns, struct ima_template_desc *desc)
+noinline int ima_file_measure(struct file *file, unsigned int ns, 
+		struct ima_template_desc *desc)
 {
         int i, check, length;
 	char buf[64];
@@ -261,43 +263,59 @@ static int container_ima_init(void)
 	unregister_kprobe(&kp);
 
 	/* Use kallsyms_lookup_name to retrieve kernel IMA functions */
-	ima_calc_buffer_hash = (int(*)(const void *, loff_t len, struct ima_digest_data *)) kallsyms_lookup_name("ima_calc_buffer_hash");
+	ima_calc_buffer_hash = (int(*)(const void *, loff_t len, 
+				struct ima_digest_data *)) 
+		kallsyms_lookup_name("ima_calc_buffer_hash");
 	if (ima_calc_buffer_hash == 0) {
 		pr_err("Lookup fails\n");
 		return -1;
 	}
-	ima_template_desc_current =  (struct ima_template_desc *(*)(void)) kallsyms_lookup_name("ima_template_desc_current");
+	ima_template_desc_current =  (struct ima_template_desc *(*)(void)) 
+		kallsyms_lookup_name("ima_template_desc_current");
         if (ima_template_desc_current == 0) {
                 pr_err("Lookup fails\n");
                 return -1;
         }
 	
-	ima_store_template =(int(*)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int)) kallsyms_lookup_name("ima_store_template");
+	ima_store_template =(int(*)(struct ima_template_entry *, int, 
+				struct inode *, const unsigned char *, int)) 
+		kallsyms_lookup_name("ima_store_template");
         if (ima_store_template == 0) {
                 pr_err("Lookup fails\n");
                 return -1;
         }
 
 
-	ima_alloc_init_template = (int(*)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *)) kallsyms_lookup_name("ima_alloc_init_template");
+	ima_alloc_init_template = (int(*)(struct ima_event_data *, 
+				struct ima_template_entry **, 
+				struct ima_template_desc *)) 
+		kallsyms_lookup_name("ima_alloc_init_template");
         if (ima_alloc_init_template == 0) {
                 pr_err("Lookup fails\n");
                 return -1;
         }
 
-	ima_calc_field_array_hash = (int(*)(struct ima_field_data *, struct ima_template_entry *)) kallsyms_lookup_name("ima_calc_field_array_hash");
+	ima_calc_field_array_hash = (int(*)(struct ima_field_data *, 
+				struct ima_template_entry *)) 
+		kallsyms_lookup_name("ima_calc_field_array_hash");
         if (ima_calc_field_array_hash == 0) {
                 pr_err("Lookup fails\n");
                 return -1;
         }
 
-	ima_d_path = (const char *(*)(const struct path *, char **, char *)) kallsyms_lookup_name("ima_d_path");
+	ima_d_path = (const char *(*)(const struct path *, char **, 
+				char *)) kallsyms_lookup_name("ima_d_path");
         if (ima_d_path == 0) {
                 pr_err("Lookup fails\n");
                 return -1;
         }
 	
-	ima_get_action = (int (*)(struct mnt_idmap *, struct inode *, const struct cred *, u32,  int,  enum ima_hooks,  int *, struct ima_template_desc **, const char *, unsigned int *)) kallsyms_lookup_name("ima_get_action");
+	ima_get_action = (int (*)(struct mnt_idmap *, struct inode *, 
+				const struct cred *, u32,  int,  
+				enum ima_hooks,  int *, 
+				struct ima_template_desc **, 
+				const char *, unsigned int *)) 
+		kallsyms_lookup_name("ima_get_action");
         
 	if (ima_get_action == 0) {
                 pr_err("Lookup fails\n");
@@ -312,7 +330,8 @@ static int container_ima_init(void)
 	}
 
 	ima_calc_field_array_hash = (int (*)(struct ima_field_data *,
-			      struct ima_template_entry *)) kallsyms_lookup_name("ima_calc_field_array_hash");
+			      struct ima_template_entry *)) 
+		kallsyms_lookup_name("ima_calc_field_array_hash");
 
         if (ima_calc_field_array_hash == 0) {
                 pr_err("Lookup fails\n");

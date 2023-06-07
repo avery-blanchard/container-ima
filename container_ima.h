@@ -277,15 +277,20 @@ extern int register_btf_kfunc_id_set(enum bpf_prog_type prog_type,
 
 extern int ima_file_hash(struct file *file, char *buf, size_t buf_size);
 
-int (*ima_add_template_entry)(struct ima_template_entry *entry, int violation, const char *op, struct inode *inode, const unsigned char *filename);
+int (*ima_add_template_entry)(struct ima_template_entry *entry, 
+		int violation, const char *op, struct inode *inode, 
+		const unsigned char *filename);
 
 int (*ima_calc_field_array_hash)(struct ima_field_data *field_data,
                               struct ima_template_entry *entry);
+
 const char *(*ima_d_path)(const struct path *, char **, char *);
 
-int (*ima_alloc_init_template)(struct ima_event_data *, struct ima_template_entry **, struct ima_template_desc *);
+int (*ima_alloc_init_template)(struct ima_event_data *, 
+		struct ima_template_entry **, struct ima_template_desc *);
 
-int (*ima_store_template)(struct ima_template_entry *, int, struct inode *, const unsigned char *, int);
+int (*ima_store_template)(struct ima_template_entry *, int, 
+		struct inode *, const unsigned char *, int);
 
 struct ima_template_desc *(*ima_template_desc_current)(void);
 
@@ -295,7 +300,8 @@ int ima_hash_algo;
 
 int ima_policy_flag;
 
-int (*ima_calc_buffer_hash)(const void *, loff_t len, struct ima_digest_data *); 
+int (*ima_calc_buffer_hash)(const void *, loff_t len, 
+		struct ima_digest_data *); 
 
 #define __ima_hooks(hook)                               \
         hook(NONE, none)                                \
@@ -325,8 +331,13 @@ enum ima_hooks {
         __ima_hooks(__ima_hook_enumify)
 };
 
-int (*ima_get_action)(struct mnt_idmap *, struct inode *, const struct cred *, u32,  int,  enum ima_hooks,  int *, struct ima_template_desc **, const char *, unsigned int *);
+int (*ima_get_action)(struct mnt_idmap *, struct inode *, 
+		const struct cred *, u32,  int,  
+		enum ima_hooks,  int *, 
+		struct ima_template_desc **, 
+		const char *, unsigned int *);
 
-int (*ima_calc_field_array_hash)(struct ima_field_data *, struct ima_template_entry *);
+int (*ima_calc_field_array_hash)(struct ima_field_data *, 
+		struct ima_template_entry *);
 
 #endif
