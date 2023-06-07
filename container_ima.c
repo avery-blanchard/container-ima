@@ -58,7 +58,66 @@ int attest_ebpf(void)
 	return 0;
 
 }
-noinline int measure_file(struct file *file, unsigned int ns, struct ima_template_desc *desc)
+
+/*
+ * ima_store_measurement
+ * 	Store file with namespaced measurement and file name
+ * 	Extend to pcr 11
+ */
+noinline int ima_store_measurement(struct ima_max_digest_data *hash, struct file *file, 
+		char *filename, int length, struct ima_template_desc *desc)
+{
+
+	int i, check;
+	u64 i_version;
+	struct inode *inode;
+	struct ima_template_entry *entry;
+        struct integrity_iint_cache iint = {};
+
+	inode = file_inode(file);
+        iint.inode = inode;
+        iint.ima_hash = &hash->hdr;
+        iint.ima_hash->algo =  HASH_ALGO_SHA256;
+        iint.ima_hash->length = 32;
+        i_version = inode_query_iversion(inode);
+        iint.version = i_version;
+        memcpy(hash->hdr.digest, hash->digest, sizeof(hash->digest));
+
+        memcpy(iint.ima_hash, hash, length);
+        struct ima_event_data event_data = { .iint = &iint,
+                                             .file = file,
+                                             .filename = filename
+                                           };
+
+        check = ima_alloc_init_template(&event_data, &entry, desc);
+        if (check < 0) {
+                return 0;
+        }
+
+        check = ima_store_template(entry, 0, inode, filename, 11);
+        if ((!check || check == -EEXIST) && !(file->f_flags & O_DIRECT)) {
+                iint.flags |= IMA_MEASURED;
+                iint.measured_pcrs |= (0x1 << 11);
+                return 0;
+        }
+
+        for (i = 0; i < entry->template_desc->num_fields; i++)
+                kfree(entry->template_data[i].data);
+
+        kfree(entry->digests);
+        kfree(entry);
+
+	return check;
+}
+
+/*
+ * ima_file_measure
+ * 	Measures file using ima_file_hash 
+ * 	Namespaced measurements are as follows
+ * 		HASH(measurement | NS) 
+ * 	Measurements are logged with the format NS:file_path to allow replay
+ */
+noinline int ima_file_measure(struct file *file, unsigned int ns, struct ima_template_desc *desc)
 {
         int i, check, length;
 	char buf[64];
@@ -66,11 +125,7 @@ noinline int measure_file(struct file *file, unsigned int ns, struct ima_templat
 	char *path;
 	char filename[128];
 	char ns_buf[64];
-	struct ima_template_entry *entry;
-	struct integrity_iint_cache iint = {};
         struct ima_max_digest_data hash;
-	struct inode *inode;
-	u64 i_version;	
 
 	
 	//pr_err("in file measure\n");
@@ -104,44 +159,11 @@ noinline int measure_file(struct file *file, unsigned int ns, struct ima_templat
 	if (check < 0)
 		return 0;
 	
-	//pr_err("HASH(measurement || NS) =  %s\n", hash.digest);
-	
-	inode = file_inode(file);
-	iint.inode = inode;
-	iint.ima_hash = &hash.hdr;
-	iint.ima_hash->algo =  HASH_ALGO_SHA256;
-	iint.ima_hash->length = 32;
-	i_version = inode_query_iversion(inode);
-	iint.version = i_version;
-	memcpy(hash.hdr.digest, hash.digest, sizeof(hash.digest));
+	check = ima_store_measurement(&hash, file, filename, length, desc);
 
-	memcpy(iint.ima_hash, &hash, length);
-	struct ima_event_data event_data = { .iint = &iint,
-		 			     .file = file,
-                                             .filename = filename
-					   };
-
-	check = ima_alloc_init_template(&event_data, &entry, desc);
-	if (check < 0) {
-		return 0;
-	}
-
-	check = ima_store_template(entry, 0, inode, filename, 11);
-	if ((!check || check == -EEXIST) && !(file->f_flags & O_DIRECT)) {
-		iint.flags |= IMA_MEASURED;
-		iint.measured_pcrs |= (0x1 << 11);
-		return 0;
-	}
-
-	for (i = 0; i < entry->template_desc->num_fields; i++)
-		kfree(entry->template_data[i].data);
-
-	kfree(entry->digests);
-	kfree(entry);
-	//pr_err("Exiting IMA\n");
-
-        return 0;
+	return 0;
 }
+
 /*
  * bpf_process_measurement 
  * 	void *mem: pointer to struct ebpf_data to allow though verifier
@@ -163,7 +185,7 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	unsigned int allowed_algos = 0;
 	struct ebpf_data *data = (struct ebpf_data *) mem;
 	struct file *file = data->file;
-	unsigned int ns;
+	unsigned int ns = data->ns;
 
 	//pr_info("Processing MMAP file\n");
 	
@@ -185,20 +207,22 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 			MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
 			NULL, &allowed_algos);
 	if (!action) { 
-		pr_info("Policy requires no action, action %d\n", action);
+		//pr_info("Policy requires no action, action %d\n", action);
 		return 0;
 	}
 	
 	
 	if (action & IMA_MEASURE)
-		ret = measure_file(file, ns, desc);
+		ret =  ima_file_measure(file, ns, desc);
 
 	
 	return 0;
 }
+
 BTF_SET8_START(ima_kfunc_ids)
 BTF_ID_FLAGS(func, bpf_process_measurement, KF_TRUSTED_ARGS | KF_SLEEPABLE)
-BTF_ID_FLAGS(func, measure_file, KF_TRUSTED_ARGS | KF_SLEEPABLE)
+BTF_ID_FLAGS(func,  ima_file_measure, KF_TRUSTED_ARGS | KF_SLEEPABLE)
+BTF_ID_FLAGS(func,  ima_store_measurement, KF_TRUSTED_ARGS | KF_SLEEPABLE)
 BTF_SET8_END(ima_kfunc_ids)
 
 static const struct btf_kfunc_id_set bpf_ima_kfunc_set = {
