@@ -19,16 +19,12 @@
 #include <linux/kprobes.h>
 #include <linux/integrity.h>
 #include <uapi/linux/bpf.h>
-#include <keys/system_keyring.h>
 #include <linux/bpf.h>
 #include <linux/init.h>
 #include <linux/module.h>
-#include <linux/dcache.h>
 #include <linux/syscalls.h>
-#include <linux/hugetlb.h>
 #include <linux/cred.h>
 #include <linux/fcntl.h>
-#include <crypto/sha2.h>
 #include <crypto/hash_info.h>
 #include <linux/bpf_trace.h>
 #include <uapi/linux/bpf.h>
@@ -146,7 +142,15 @@ noinline int measure_file(struct file *file, unsigned int ns, struct ima_templat
 
         return 0;
 }
-
+/*
+ * bpf_process_measurement 
+ * 	void *mem: pointer to struct ebpf_data to allow though verifier
+ * 	int mem__sz: size of pointer 
+ *
+ * 	Function gets action from ima policy, measures, and stores
+ * 	accordingly.
+ * 	Exported by libbpf, called by eBPF program hooked to LSM (mmap_file)
+ */
 noinline int bpf_process_measurement(void *mem, int mem__sz)
 {
 
@@ -214,23 +218,25 @@ static int container_ima_init(void)
 	if (ret < 0) {
 		pr_err("eBPF Probe failed integrity check\n");
 	}
-	/* Register kfunc for eBPF */
+
 	task = current;
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
 	
-
+	/* Register kernel module functions wiht libbpf */
 	ret = register_btf_kfunc_id_set(BPF_PROG_TYPE_LSM, &bpf_ima_kfunc_set);
 	if (ret < 0)
 		return ret;
 	
 	
-
+	/* Attach kprobe to kaalsysms_lookup_name to 
+	 * get function address (symbol no longer exported */
 	typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
 	kallsyms_lookup_name_t kallsyms_lookup_name;
 	register_kprobe(&kp);
 	kallsyms_lookup_name = (kallsyms_lookup_name_t) kp.addr;
 	unregister_kprobe(&kp);
 
+	/* Use kallsyms_lookup_name to retrieve kernel IMA functions */
 	ima_calc_buffer_hash = (int(*)(const void *, loff_t len, struct ima_digest_data *)) kallsyms_lookup_name("ima_calc_buffer_hash");
 	if (ima_calc_buffer_hash == 0) {
 		pr_err("Lookup fails\n");
