@@ -43,7 +43,7 @@
 #include "container_ima.h"
 
 #define MODULE_NAME "ContainerIMA"
-
+extern void security_task_getsecid(struct task_struct *p, u32 *secid);
 /*
  * attest_ebpf
  * 	Attest the integrity of eBPF program before
