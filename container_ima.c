@@ -41,8 +41,14 @@
 #include <uapi/linux/bpf.h>
 #include <linux/iversion.h>
 #include "container_ima.h"
+
 #define MODULE_NAME "ContainerIMA"
 
+/*
+ * attest_ebpf
+ * 	Attest the integrity of eBPF program before
+ * 	inserting into kernel 
+ */
 int attest_ebpf(void) 
 {
 	int ret;
@@ -53,6 +59,7 @@ int attest_ebpf(void)
 	if (!file)
 		return -1;
 	ret = ima_file_hash(file, buf, sizeof(buf));
+
 	return 0;
 
 }
@@ -128,24 +135,17 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
         struct ima_max_digest_data hash;
 
 	
-	//pr_err("in file measure\n");
 
         check = ima_file_hash(file, buf, sizeof(buf));
 
 	path = ima_d_path(&file->f_path, &path, filename);
 	if (!path) {
-		pr_err("path is NULL\n");
 		return 0;
 	}
 
 		
 	sprintf(ns_buf, "%u", ns);
-
-	check = 0;
-	
 	sprintf(filename, "%u:%s", ns, path);
-	//pr_err("NS specific filename %s\n", filename);
-
 		
 	extend = strncat(buf, ns_buf, 32);
 
@@ -187,7 +187,6 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	struct file *file = data->file;
 	unsigned int ns = data->ns;
 
-	//pr_info("Processing MMAP file\n");
 	
 	if (!file)
 		return 0;
@@ -198,7 +197,7 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	cred = current_cred();
 
 	if (!cred)
-		pr_err("cred is NULL\n");
+		return 0;
 
 	idmap = file->f_path.mnt->mnt_idmap; 
 
@@ -206,10 +205,8 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	action = ima_get_action(idmap, inode, cred, secid, 
 			MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
 			NULL, &allowed_algos);
-	if (!action) { 
-		//pr_info("Policy requires no action, action %d\n", action);
+	if (!action)  
 		return 0;
-	}
 	
 	
 	if (action & IMA_MEASURE)
