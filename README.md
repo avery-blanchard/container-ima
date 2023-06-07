@@ -34,7 +34,7 @@ Update \
 Install dependencies \
 `sudo apt install llvm libelf-dev libssl-dev gcc-12 git clang dwarves` \
 Install kernel headers \
-`sudo apt install linux-headers-$(uname -r)`
+`sudo apt install linux-headers-$(uname -r)` \
 Clone repository \
 `git clone https://github.com/avery-blanchard/container-ima/` \
 Initialize submodule \
