@@ -80,17 +80,20 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
 	struct ima_template_entry *entry;
         struct integrity_iint_cache iint = {};
 
-	inode = file_inode(file);
+	inode = file->f_inode;
+	i_version = inode_query_iversion(inode);
+
         iint.inode = inode;
         iint.ima_hash = &hash->hdr;
         iint.ima_hash->algo =  HASH_ALGO_SHA256;
         iint.ima_hash->length = 32;
-        i_version = inode_query_iversion(inode);
         iint.version = i_version;
-        memcpy(hash->hdr.digest, hash->digest, sizeof(hash->digest));
+        
+	memcpy(hash->hdr.digest, hash->digest, sizeof(hash->digest));
 
         memcpy(iint.ima_hash, hash, length);
-        struct ima_event_data event_data = { .iint = &iint,
+        
+	struct ima_event_data event_data = { .iint = &iint,
                                              .file = file,
                                              .filename = filename
                                            };
@@ -131,10 +134,9 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	char *extend;
 	char *path;
 	char filename[128];
-	char ns_buf[64];
+	char ns_buf[128];
         struct ima_max_digest_data hash;
 
-	
 
         check = ima_file_hash(file, buf, sizeof(buf));
 
@@ -142,11 +144,11 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	if (!path) {
 		return 0;
 	}
-
-		
+	if (path[0] != '/')
+		return 0;
 	sprintf(ns_buf, "%u", ns);
 	sprintf(filename, "%u:%s", ns, path);
-		
+	
 	extend = strncat(buf, ns_buf, 32);
 
 	hash.hdr.length = 32; 
@@ -186,12 +188,15 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	struct ebpf_data *data = (struct ebpf_data *) mem;
 	struct file *file = data->file;
 	unsigned int ns = data->ns;
-
 	
 	if (!file)
 		return 0;
 	
 	inode = file->f_inode;
+	if (!S_ISREG(inode->i_mode))
+                return 0;
+
+
 	security_current_getsecid_subj(&secid);
 
 	cred = current_cred();
