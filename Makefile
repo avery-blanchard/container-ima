@@ -1,6 +1,7 @@
 #
-# Makefile for Container IMA kernel module
-# https://elixir.bootlin.com/linux/latest/source/Documentation/kbuild/modules.rst
+# Makefile for Container IMA
+# 	Builds kernel module and eBPF program
+#
 obj-m += container_ima.o 
 all: kmod $(APPS)
 
