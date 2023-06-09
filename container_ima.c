@@ -43,25 +43,101 @@
 #include "container_ima.h"
 
 #define MODULE_NAME "ContainerIMA"
+
 extern void security_task_getsecid(struct task_struct *p, u32 *secid);
 extern const int hash_digest_size[HASH_ALGO__LAST];
+extern struct subprocess_info *call_usermodehelper_setup(const char *path, char **argv,
+		char **envp, gfp_t gfp_mask,
+		int (*init)(struct subprocess_info *info, struct cred *new),
+		void (*cleanup)(struct subprocess_info *info),
+		void *data);
+extern int call_usermodehelper_exec(struct subprocess_info *sub_info, int wait);
+extern int kill_pid(struct pid *pid, int sig, int priv);
+
+struct subprocess_info *ebpf_proc;
+struct task_struct *ebpf_task;
+
 /*
  * attest_ebpf
- * 	Attest the integrity of eBPF program before
- * 	inserting into kernel 
+ *      Attest the integrity of eBPF program before
+ *      inserting into kernel
  */
-int attest_ebpf(void) 
+int attest_ebpf(void)
 {
-	int ret;
-	struct file *file;
-	char buf[265];
+        int ret;
+        struct file *file;
+        char buf[265];
 
-	file = filp_open("./probe", O_RDONLY, 0);
-	if (!file)
-		return -1;
-	ret = ima_file_hash(file, buf, sizeof(buf));
+        file = filp_open("./probe", O_RDONLY, 0);
+        if (!file)
+                return -1;
+        ret = ima_file_hash(file, buf, sizeof(buf));
+
+	filp_close(file, NULL);
+        return 0;
+
+}
+/*
+ * init_ebpf_process 
+ * 	Grab task struct of new userspace 
+ * 	subprocess to send kill signal at 
+ * 	module exit
+ */
+int init_ebpf_process(struct subprocess_info *info, struct cred *new) 
+{
+	ebpf_task = current;
 
 	return 0;
+
+}
+/*
+ * start_ebpf
+ * 	Load, attest, and start userspace ebpf 
+ * 	subprocess
+ */
+struct subprocess_info *start_ebpf(void) 
+{
+	int ret;
+	char filename[64];
+	char *ebpf_path;
+	struct file *file;
+	static char *envp[] = {
+		"HOME=/",
+		"TERM=linux",
+		"PATH=/sbin:/usr/sbin:/bin:/usr/bin",
+		NULL
+	};
+
+	ret = 0;
+
+	file =  filp_open("./probe", O_RDONLY, 0);
+        if (!file)
+                return -1;
+
+
+	ebpf_path = ima_d_path(&file->f_path, &ebpf_path, filename);
+        if (!ebpf_path) {
+		filp_close(file, NULL);
+		return -1;
+        }
+
+	filp_close(file, NULL);
+
+	ret = attest_ebpf();
+
+	if (ret < 0) {
+		return ret;
+	}
+
+	char *argv[] = { ebpf_path, NULL };
+	ebpf_proc = call_usermodehelper_setup(ebpf_path, argv, envp, GFP_KERNEL,
+					 init_ebpf_process, NULL, NULL);
+	if (!ebpf_proc) {
+		return -1;
+	}
+
+	return call_usermodehelper_exec(ebpf_proc, UMH_KILLABLE | UMH_NO_WAIT);
+
 
 }
 
@@ -237,14 +313,11 @@ static int container_ima_init(void)
 
 	/* Start container IMA */
 	int ret;
+	
 	struct task_struct *task;
 	
 	pr_info("Starting Container IMA\n");
 
-	ret = attest_ebpf();
-	if (ret < 0) {
-		pr_err("eBPF Probe failed integrity check\n");
-	}
 
 	task = current;
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
@@ -339,12 +412,24 @@ static int container_ima_init(void)
                 return -1;
         }
 
+	ebpf_proc = start_ebpf();
 	return ret;
 }
 
 static void container_ima_exit(void)
 {
 	pr_info("Exiting Container IMA\n");
+	
+	int check;
+	struct pid *tgid;
+
+	tgid = ebpf_task->tgid;
+
+	if (tgid) {
+		check = kill_pid(tgid, SIGKILL, 1);
+		wait_event(tgid->wait_pidfd, thread_group_exited(tgid));
+	}
+
 	return;
 }
 
