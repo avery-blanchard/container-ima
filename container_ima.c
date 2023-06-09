@@ -44,6 +44,7 @@
 
 #define MODULE_NAME "ContainerIMA"
 extern void security_task_getsecid(struct task_struct *p, u32 *secid);
+extern const int hash_digest_size[HASH_ALGO__LAST];
 /*
  * attest_ebpf
  * 	Attest the integrity of eBPF program before
@@ -71,7 +72,7 @@ int attest_ebpf(void)
  */
 noinline int ima_store_measurement(struct ima_max_digest_data *hash, 
 		struct file *file, char *filename, int length, 
-		struct ima_template_desc *desc)
+		struct ima_template_desc *desc, int hash_algo)
 {
 
 	int i, check;
@@ -85,8 +86,8 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
 
         iint.inode = inode;
         iint.ima_hash = &hash->hdr;
-        iint.ima_hash->algo =  HASH_ALGO_SHA256;
-        iint.ima_hash->length = 32;
+        iint.ima_hash->algo =  hash_algo;
+        iint.ima_hash->length = hash_digest_size[hash_algo];
         iint.version = i_version;
         
 	memcpy(hash->hdr.digest, hash->digest, sizeof(hash->digest));
@@ -129,7 +130,7 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
 noinline int ima_file_measure(struct file *file, unsigned int ns, 
 		struct ima_template_desc *desc)
 {
-        int check, length;
+        int check, length, hash_algo;
 	char buf[64];
 	char *extend;
 	char *path;
@@ -138,7 +139,7 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
         struct ima_max_digest_data hash;
 
 
-        check = ima_file_hash(file, buf, sizeof(buf));
+        hash_algo = ima_file_hash(file, buf, sizeof(buf));
 
 	path = ima_d_path(&file->f_path, &path, filename);
 	if (!path) {
@@ -161,7 +162,7 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	if (check < 0)
 		return 0;
 	
-	check = ima_store_measurement(&hash, file, filename, length, desc);
+	check = ima_store_measurement(&hash, file, filename, length, desc, hash_algo);
 
 	return 0;
 }
