@@ -24,8 +24,6 @@ Build container IMA kernel module \
 `make` \
 Insert module \
 `sudo insmod container_ima.ko` \
-Insert eBPF probe \
-`sudo ./probe`
 
 ### Ubuntu
 Note: For ubuntu, the kernel must be compiled with bpf enabled in `CONFIG_LSM`.
@@ -48,5 +46,3 @@ Build container IMA kernel module \
 `make` \
 Insert module \
 `sudo insmod container_ima.ko` \
-Insert eBPF probe \
-`sudo ./probe`
