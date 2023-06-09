@@ -78,7 +78,6 @@ int attest_ebpf(void)
 
 	ret = strncmp(buf, probe, strlen(probe));
 	
-	pr_warn("strncmp returns %d\n", ret);
         return ret;
 
 }
