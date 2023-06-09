@@ -46,12 +46,14 @@
 
 extern void security_task_getsecid(struct task_struct *p, u32 *secid);
 extern const int hash_digest_size[HASH_ALGO__LAST];
-extern struct subprocess_info *call_usermodehelper_setup(const char *path, char **argv,
+extern struct subprocess_info *call_usermodehelper_setup(const char *path, 
+		char **argv,
 		char **envp, gfp_t gfp_mask,
 		int (*init)(struct subprocess_info *info, struct cred *new),
 		void (*cleanup)(struct subprocess_info *info),
 		void *data);
-extern int call_usermodehelper_exec(struct subprocess_info *sub_info, int wait);
+extern int call_usermodehelper_exec(struct subprocess_info *sub_info, 
+		int wait);
 extern int kill_pid(struct pid *pid, int sig, int priv);
 
 struct subprocess_info *ebpf_proc;
@@ -135,14 +137,15 @@ int start_ebpf(void)
 	}
 
 	char *argv[] = { ebpf_path, NULL };
-	ebpf_proc = call_usermodehelper_setup(ebpf_path, argv, envp, GFP_KERNEL,
-					 init_ebpf_process, NULL, NULL);
+	ebpf_proc = call_usermodehelper_setup(ebpf_path, argv, envp, 
+			GFP_KERNEL, init_ebpf_process, NULL, NULL);
 	if (!ebpf_proc) {
 		pr_warn("Subprocess set up fails\n");
 		return -1;
 	}
 
-	return call_usermodehelper_exec(ebpf_proc, UMH_KILLABLE | UMH_NO_WAIT);
+	return call_usermodehelper_exec(ebpf_proc, 
+			UMH_KILLABLE | UMH_NO_WAIT);
 
 
 }
