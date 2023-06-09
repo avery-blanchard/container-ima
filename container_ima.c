@@ -56,7 +56,8 @@ extern int kill_pid(struct pid *pid, int sig, int priv);
 
 struct subprocess_info *ebpf_proc;
 struct task_struct *ebpf_task;
-char *probe = "\x03+o\x08\xc0\x95\xf3 *%\xe8D\x98\xf8\x02\x98\x91\xe7\xbb\x14\x92\x85\xbe\x95\xac͇O\x0e\xe9\xc5\x04";
+char probe[] = "\x03+o\x08\xc0\x95\xf3 *%\xe8D\x98\xf8\x02\x98\x91\xe7\xbb\x14\x92\x85\xbe\x95\xac͇O\x0e\xe9\xc5\x04";
+
 /*
  * attest_ebpf
  *      Attest the integrity of eBPF program before
@@ -66,15 +67,18 @@ int attest_ebpf(void)
 {
         int ret;
         struct file *file;
-        char buf[265];
+        char buf[64];
 
         file = filp_open("./probe", O_RDONLY, 0);
         if (!file)
                 return -1;
         ret = ima_file_hash(file, buf, sizeof(buf));
 	filp_close(file, NULL);
-	ret = strncmp(buf, probe, strlen(probe));
 
+
+	ret = strncmp(buf, probe, strlen(probe));
+	
+	pr_warn("strncmp returns %d\n", ret);
         return ret;
 
 }
@@ -96,7 +100,7 @@ int init_ebpf_process(struct subprocess_info *info, struct cred *new)
  * 	Load, attest, and start userspace ebpf 
  * 	subprocess
  */
-struct subprocess_info *start_ebpf(void) 
+int start_ebpf(void) 
 {
 	int ret;
 	char filename[64];
@@ -126,14 +130,16 @@ struct subprocess_info *start_ebpf(void)
 
 	ret = attest_ebpf();
 
-	if (ret < 0) {
-		return ret;
+	if (ret != 1) {
+		pr_warn("eBPF program failed integrity check\n");
+		return -1;
 	}
 
 	char *argv[] = { ebpf_path, NULL };
 	ebpf_proc = call_usermodehelper_setup(ebpf_path, argv, envp, GFP_KERNEL,
 					 init_ebpf_process, NULL, NULL);
 	if (!ebpf_proc) {
+		pr_warn("Subprocess set up fails\n");
 		return -1;
 	}
 
@@ -414,7 +420,8 @@ static int container_ima_init(void)
         }
 
 	/* Insert eBPF program */
-	ebpf_proc = start_ebpf();
+
+	ret  = start_ebpf();
 
 	return ret;
 }
