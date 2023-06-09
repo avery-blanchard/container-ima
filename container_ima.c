@@ -1,8 +1,8 @@
 /*
- * Container IMA + eBPF
+ * Container IMA using eBPF
  *
  * File: container_ima.c
- * 	implements namespaced IMA measurements,
+ * 	Implements namespaced IMA measurements,
  * 	defines kernel symbols, registers kfuncs
  * 	with libbpf
  */
@@ -56,7 +56,7 @@ extern int kill_pid(struct pid *pid, int sig, int priv);
 
 struct subprocess_info *ebpf_proc;
 struct task_struct *ebpf_task;
-
+char *probe = "\x03+o\x08\xc0\x95\xf3 *%\xe8D\x98\xf8\x02\x98\x91\xe7\xbb\x14\x92\x85\xbe\x95\xac͇O\x0e\xe9\xc5\x04";
 /*
  * attest_ebpf
  *      Attest the integrity of eBPF program before
@@ -72,9 +72,10 @@ int attest_ebpf(void)
         if (!file)
                 return -1;
         ret = ima_file_hash(file, buf, sizeof(buf));
-
 	filp_close(file, NULL);
-        return 0;
+	ret = strncmp(buf, probe, strlen(probe));
+
+        return ret;
 
 }
 /*
@@ -412,12 +413,15 @@ static int container_ima_init(void)
                 return -1;
         }
 
+	/* Insert eBPF program */
 	ebpf_proc = start_ebpf();
+
 	return ret;
 }
 
 static void container_ima_exit(void)
 {
+	/* Exit Container IMA */
 	pr_info("Exiting Container IMA\n");
 	
 	int check;
