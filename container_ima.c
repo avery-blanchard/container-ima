@@ -2,7 +2,7 @@
  * Container IMA + eBPF
  *
  * File: container_ima.c
- * 	implements namespaced IMA measurements,
+ * 	Implements namespaced IMA measurements,
  * 	defines kernel symbols, registers kfuncs
  * 	with libbpf
  */
@@ -45,25 +45,6 @@
 #define MODULE_NAME "ContainerIMA"
 extern void security_task_getsecid(struct task_struct *p, u32 *secid);
 extern const int hash_digest_size[HASH_ALGO__LAST];
-/*
- * attest_ebpf
- * 	Attest the integrity of eBPF program before
- * 	inserting into kernel 
- */
-int attest_ebpf(void) 
-{
-	int ret;
-	struct file *file;
-	char buf[265];
-
-	file = filp_open("./probe", O_RDONLY, 0);
-	if (!file)
-		return -1;
-	ret = ima_file_hash(file, buf, sizeof(buf));
-
-	return 0;
-
-}
 
 /*
  * ima_store_measurement
@@ -81,6 +62,7 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
 	struct ima_template_entry *entry;
         struct integrity_iint_cache iint = {};
 
+	/* init inode integrity data */
 	inode = file->f_inode;
 	i_version = inode_query_iversion(inode);
 
@@ -94,16 +76,19 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
 
         memcpy(iint.ima_hash, hash, length);
         
+	/* IMA event data */
 	struct ima_event_data event_data = { .iint = &iint,
                                              .file = file,
                                              .filename = filename
                                            };
 
+	/* IMA template field data */
         check = ima_alloc_init_template(&event_data, &entry, desc);
         if (check < 0) {
                 return 0;
         }
 
+	/* Store template, extend to PCR 11 */
         check = ima_store_template(entry, 0, inode, filename, 11);
         if ((!check || check == -EEXIST) && !(file->f_flags & O_DIRECT)) {
                 iint.flags |= IMA_MEASURED;
@@ -111,6 +96,7 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
                 return 0;
         }
 
+	/* Clean up */
         for (i = 0; i < entry->template_desc->num_fields; i++)
                 kfree(entry->template_data[i].data);
 
@@ -139,25 +125,30 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
         struct ima_max_digest_data hash;
 
 
+	/* Measure file */
         hash_algo = ima_file_hash(file, buf, sizeof(buf));
 
 	path = ima_d_path(&file->f_path, &path, filename);
 	if (!path) {
 		return 0;
 	}
+	
+	/* Catch all for policy errors, todo */
 	if (path[0] != '/')
 		return 0;
+
 	sprintf(ns_buf, "%u", ns);
 	sprintf(filename, "%u:%s", ns, path);
 	
 	extend = strncat(buf, ns_buf, 32);
 
-	hash.hdr.length = 32; 
-        hash.hdr.algo = HASH_ALGO_SHA256;
+	hash.hdr.length = hash_digest_size[hash_algo]; 
+        hash.hdr.algo =  hash_algo;
         memset(&hash.digest, 0, sizeof(hash.digest));
 
 	length = sizeof(hash.hdr) + hash.hdr.length;
 	
+	/* Final measurement HASH(measurement | NS) */	
 	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
 	if (check < 0)
 		return 0;
@@ -207,6 +198,7 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 
 	idmap = file->f_path.mnt->mnt_idmap; 
 
+	/* Get action form IMA policy */
 	pcr = 10;
 	action = ima_get_action(idmap, inode, cred, secid, 
 			MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
@@ -241,10 +233,6 @@ static int container_ima_init(void)
 	
 	pr_info("Starting Container IMA\n");
 
-	ret = attest_ebpf();
-	if (ret < 0) {
-		pr_err("eBPF Probe failed integrity check\n");
-	}
 
 	task = current;
 	host_inum = task->nsproxy->cgroup_ns->ns.inum;
