@@ -19,7 +19,8 @@ extern int bpf_process_measurement(void *, int) __ksym;
 extern int measure_file(struct file *) __ksym;
 
 SEC("lsm.s/mmap_file")
-int BPF_PROG(mmap_hook, struct file *file, unsigned int reqprot, unsigned int prot, int flags) 
+int BPF_PROG(mmap_hook, struct file *file, unsigned int reqprot, 
+		unsigned int prot, int flags) 
 {
     struct task_struct *task;
     u32 key;
@@ -36,7 +37,8 @@ int BPF_PROG(mmap_hook, struct file *file, unsigned int reqprot, unsigned int pr
 	
 	struct ebpf_data data = { .file = file, .ns = ns };
 	
-	ret = bpf_process_measurement((void *) &data, sizeof(&data));
+	ret = bpf_process_measurement((void *) &data, 
+			sizeof(&data));
 
 
     }
