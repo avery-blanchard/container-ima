@@ -1,5 +1,5 @@
 /*
- * Container IMA + eBPF
+ * Container IMA using eBPF
  *
  * File: container_ima.c
  * 	Implements namespaced IMA measurements,
@@ -96,7 +96,7 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
                 return 0;
         }
 
-	/* Clean up */
+	/* Clean up if needed */
         for (i = 0; i < entry->template_desc->num_fields; i++)
                 kfree(entry->template_data[i].data);
 
@@ -153,7 +153,8 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	if (check < 0)
 		return 0;
 	
-	check = ima_store_measurement(&hash, file, filename, length, desc, hash_algo);
+	check = ima_store_measurement(&hash, file, filename, length, 
+			desc, hash_algo);
 
 	return 0;
 }
