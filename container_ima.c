@@ -48,6 +48,13 @@ extern const int hash_digest_size[HASH_ALGO__LAST];
 
 /*
  * ima_store_measurement
+ * 	struct ima_max_digest_data *hash: hash information
+ * 	struct file *file: file measured
+ * 	char *filename: name of measured file (ns:file path) 
+ * 	int length: size of hash data
+ * 	struct ima_template_desc *desc: description of IMA template
+ * 	int hash_algo: algorithm used in measurement 
+ *
  * 	Store file with namespaced measurement and file name
  * 	Extend to pcr 11
  */
@@ -108,10 +115,14 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
 
 /*
  * ima_file_measure
+ * 	struct file *file: file to be measured
+ * 	unsigned int ns: namespace 
+ * 	struct ima_template_desc *decs: description of IMA template
+ * 	
  * 	Measures file using ima_file_hash 
  * 	Namespaced measurements are as follows
- * 		HASH(measurement | NS) 
- * 	Measurements are logged with the format NS:file_path to allow replay
+ * 		HASH(measurement || NS) 
+ * 	Measurements are logged with the format NS:file_path 
  */
 noinline int ima_file_measure(struct file *file, unsigned int ns, 
 		struct ima_template_desc *desc)
@@ -148,7 +159,10 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 
 	length = sizeof(hash.hdr) + hash.hdr.length;
 	
-	/* Final measurement HASH(measurement | NS) */	
+	/* Final measurement:
+	 * HASH(measurement || NS) 
+	 * Concatenate file measurement with the NS buffer
+	 * Hash the concatonated string */	
 	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
 	if (check < 0)
 		return 0;
@@ -193,7 +207,6 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	security_current_getsecid_subj(&secid);
 
 	cred = current_cred();
-
 	if (!cred)
 		return 0;
 
