@@ -14,8 +14,10 @@ Update \
 `sudo dnf update` \
 Install dependencies \
 `sudo dnf install kernel-devel kernel-headers git libbpf libbpf-devel bpftool clang openssl dwarves glibc-devel.i686` \
-Installl developement tools \
+Install developement tools \
 `sudo dnf groupinstall "Development Tools" "Development Libraries"` \
+Reboot \
+`sudo reboot` \
 Clone repository \
 `git clone https://github.com/avery-blanchard/container-ima/` \
 Initialize submodule \
