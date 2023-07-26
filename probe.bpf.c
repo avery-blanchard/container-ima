@@ -30,10 +30,10 @@ int BPF_PROG(mmap_hook, struct file *file, unsigned int reqprot,
     if (!file) 
 	return 0;
     
-    if (prot & PROT_EXEC) {
+    if (prot & PROT_EXEC || reqprot & PROT_EXEC) {
 	
 	task = (void *) bpf_get_current_task();
-        ns = BPF_CORE_READ(task, nsproxy, cgroup_ns, ns.inum);
+        ns = BPF_CORE_READ(task, nsproxy, uts_ns, ns.inum);
 	
 	struct ebpf_data data = { .file = file, .ns = ns };
 	
