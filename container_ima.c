@@ -34,8 +34,6 @@
 #include <linux/btf.h>
 #include <linux/btf_ids.h>
 #include <linux/sysfs.h>
-#include <linux/bpfptr.h>
-#include <linux/bsearch.h>
 #include <linux/btf_ids.h>
 #include <uapi/linux/btf.h>
 #include <uapi/linux/bpf.h>
