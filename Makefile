@@ -131,10 +131,12 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 
 .PHONY: kmod
 kmod:
-	make COPTS=-g -C /lib/modules/$(KVER)/build EXTRA_CFLAGS=-DKMODVER=\\\"$(KMODVER)\\\"  M=$(PWD) modules
+	make COPTS=-g -C /lib/modules/$(KVER)/build  M=$(PWD) modules
 	LLVM_OBJCOPY=llvm-objcopy pahole -J --btf_gen_floats -j --btf_base /sys/kernel/btf/vmlinux container_ima.ko; \
 	/usr/lib/modules/$(shell uname -r)/build/tools/bpf/resolve_btfids/resolve_btfids -b /sys/kernel/btf/vmlinux container_ima.ko;
-
+	install -v -m 755 -d /lib/modules/$(KVER)/
+	install -v -m 644 container_ima.ko /lib/modules/$(KVER)/container_ima.c
+	depmod -F /lib/modules/$(KVER)/System.map $(KVER)
 .PHONY: kmod-clean
 kmod-clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
