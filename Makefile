@@ -24,6 +24,15 @@ VMLINUX := vmlinux.h
 vmlinux.h:
 	$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > $(OUTPUT)/vmlinux.h
 
+
+ifndef KVER
+KVER=$(shell uname -r)
+endif
+
+ifndef KMODVER
+KMODVER=$(shell git describe HEAD 2>/dev/null || git rev-parse --short HEAD)
+endif
+
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
@@ -122,7 +131,7 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 
 .PHONY: kmod
 kmod:
-	make COPTS=-g -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	make COPTS=-g -C /lib/modules/$(KVER)/build EXTRA_CFLAGS=-DKMODVER=\\\"$(KMODVER)\\\"  M=$(PWD) modules
 	LLVM_OBJCOPY=llvm-objcopy pahole -J --btf_gen_floats -j --btf_base /sys/kernel/btf/vmlinux container_ima.ko; \
 	/usr/lib/modules/$(shell uname -r)/build/tools/bpf/resolve_btfids/resolve_btfids -b /sys/kernel/btf/vmlinux container_ima.ko;
 
