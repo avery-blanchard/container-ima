@@ -29,9 +29,6 @@ ifndef KVER
 KVER=$(shell uname -r)
 endif
 
-ifndef KMODVER
-KMODVER=$(shell git describe HEAD 2>/dev/null || git rev-parse --short HEAD)
-endif
 
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
@@ -137,6 +134,7 @@ kmod:
 	install -v -m 755 -d /lib/modules/$(KVER)/
 	install -v -m 644 container_ima.ko /lib/modules/$(KVER)/container_ima.c
 	depmod -F /lib/modules/$(KVER)/System.map $(KVER)
+
 .PHONY: kmod-clean
 kmod-clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
