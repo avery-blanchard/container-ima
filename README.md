@@ -30,7 +30,9 @@ Insert eBPF probe \
 `sudo ./probe`
 
 ### Ubuntu
-Note: For ubuntu, the kernel must be compiled with bpf enabled in `CONFIG_LSM`.
+Note: For Ubuntu, the kernel must be compiled with bpf enabled in `CONFIG_LSM`. \
+      Additionally, the system must be booted with lsm=...,bpf in the command-line parameters. \
+      i.e. lsm=apparmor,integrity,bpf
 
 Update \
 `sudo apt update` \
