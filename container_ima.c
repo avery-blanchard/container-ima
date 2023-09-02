@@ -128,11 +128,11 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 		struct ima_template_desc *desc)
 {
         int check, length, hash_algo;
-	char buf[64];
+	char *buf = vmalloc(64);
 	char *extend;
 	char *path;
-	char filename[128];
-	char ns_buf[128];
+	char *filename = vmalloc(128);
+	char *ns_buf = vmalloc(128);
         struct ima_max_digest_data hash;
 
 
@@ -170,6 +170,9 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	check = ima_store_measurement(&hash, file, filename, length, 
 			desc, hash_algo);
 
+	free(buf);
+	free(filename);
+	free(ns_buf);
 	return 0;
 }
 
