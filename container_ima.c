@@ -170,9 +170,9 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	check = ima_store_measurement(&hash, file, filename, length, 
 			desc, hash_algo);
 
-	free(buf);
-	free(filename);
-	free(ns_buf);
+	vfree(buf);
+	vfree(filename);
+	vfree(ns_buf);
 	return 0;
 }
 
