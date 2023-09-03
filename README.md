@@ -30,10 +30,24 @@ Insert eBPF probe \
 `sudo ./probe`
 
 ### Ubuntu
-Note: For Ubuntu, the kernel must be compiled with bpf enabled in `CONFIG_LSM`, \
-      i.e. CONFIG_LSM="landlock,lockdown,yama,integrity,apparmor,bpf". \
-      Additionally, the system must be booted with lsm=...,bpf in the command-line parameters. \
-      i.e. lsm=apparmor,integrity,bpf
+Prerequisite: Upgrade the kernel to 6.2.x
+disclaimer: be aware that packages from universe or multiverse will be installed along with linux-image-unsigned-6.2.0-*. Those packages do not receive any reviews or updates from the Ubuntu security team. Alternatively, you may compile a kernel from source, which does not require any dependencies from universe or multiverse.
+* Make sure deb-src sources are not commented out in /etc/apt/sources.list
+`apt-get update`
+`apt-cache search linux-image-unsigned-6.2.0 generic`
+`apt-get build-dep linux-image-unsigned-6.2.0-31-generic`
+note: -31 is the latest unsigned-6.2.0 generic at the time of writing.
+`apt-get source linux-image-unsigned-6.2.0-31-generic`
+`cd /usr/src/linux-hwe-6.2-6.2.0`
+`make olddefconfig`
+`sed -i 's/^CONFIG_LSM="\(.*\)"/CONFIG_LSM="\1,bpf"/' .config`
+`make -j`nproc` && make modules_install && make install`
+`sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="lsm=apparmor,integrity,bpf ima_apparise=log"/' /etc/default/grub`
+note: integrity and bpf LSMs should be initialized at boot. Note that this overrides CONFIG_LSM.
+`update-grub`
+optional: since 6.0.3 the i_version counter is always enabled on ext4.
+`sed -i 's/\(\/ ext4 defaults\)/\/ ext4 noatime,iversion/' /etc/fstab`
+`shutdown -r now`
 
 Update \
 `sudo apt update` \
