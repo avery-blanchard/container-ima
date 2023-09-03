@@ -49,6 +49,7 @@ Optional: since 6.0.3 the i_version counter is always enabled on ext4. \
 `sed -i 's/\(\/ ext4 defaults\)/\/ ext4 noatime,iversion/' /etc/fstab` \
 `shutdown -r now` \
 
+Continue with the installation of container-ima: \
 Update \
 `sudo apt update` \
 Install dependencies \
