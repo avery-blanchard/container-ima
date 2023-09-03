@@ -50,11 +50,11 @@ Optional: since 6.0.3 the i_version counter is always enabled on ext4. \
 `shutdown -r now`
 
 Continue with the installation of container-ima: \
-Update \
+Update (you may skip this section if you have just installed a new kernel) \
 `sudo apt update` \
 Install dependencies \
 `sudo apt install llvm libelf-dev libssl-dev gcc-12 git clang dwarves` \
-Install kernel headers \
+Install kernel headers (you may skip this section if you have just installed a new kernel) \
 `sudo apt install linux-headers-$(uname -r)` \
 Clone repository \
 `git clone https://github.com/avery-blanchard/container-ima/` \
