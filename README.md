@@ -32,7 +32,8 @@ Insert eBPF probe \
 ### Ubuntu
 Prerequisite: Upgrade the kernel to 6.2.x and enable bpf in CONFIG_LSM. \
 Disclaimer: be aware that packages from universe or multiverse will be installed along with linux-image-unsigned-6.2.0-*. Those packages do not receive any reviews or updates from the Ubuntu security team. Alternatively, you may compile a kernel from source, which does not require any dependencies from universe or multiverse. \
-* Make sure deb-src sources are not commented out in /etc/apt/sources.list \
+* Make sure deb-src sources are not commented out in /etc/apt/sources.list
+
 `apt-get update` \
 `apt-cache search linux-image-unsigned-6.2.0 generic` \
 `apt-get build-dep linux-image-unsigned-6.2.0-31-generic` \
