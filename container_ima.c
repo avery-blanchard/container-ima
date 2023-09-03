@@ -192,7 +192,11 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	struct inode *inode;
 	struct mnt_idmap *idmap;
 	const struct cred *cred;
+#ifdef _LSMSTACKING
+	struct lsmblob blob;
+#else
 	u32 secid;
+#endif /* _LSMSTACKING */
 	struct ima_template_desc *desc = NULL;
 	unsigned int allowed_algos = 0;
 	struct ebpf_data *data = (struct ebpf_data *) mem;
@@ -206,8 +210,11 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	if (!S_ISREG(inode->i_mode))
                 return 0;
 
-
+#ifdef _LSMSTACKING
+	security_current_getsecid_subj(&blob);
+#else
 	security_current_getsecid_subj(&secid);
+#endif /* _LSMSTACKING */
 
 	cred = current_cred();
 	if (!cred)
@@ -217,9 +224,16 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 
 	/* Get action form IMA policy */
 	pcr = 10;
+#ifdef _LSMSTACKING
+	action = ima_get_action(idmap, inode, cred, &blob, 
+			MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
+			NULL, &allowed_algos);
+#else
 	action = ima_get_action(idmap, inode, cred, secid, 
 			MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
 			NULL, &allowed_algos);
+
+#endif /* _LSMSTACKING */
 	if (!action)  
 		return 0;
 	
