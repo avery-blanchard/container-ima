@@ -53,7 +53,7 @@ Continue with the installation of container-ima: \
 Update (you may skip this section if you have just installed a new kernel) \
 `sudo apt update` \
 Install dependencies \
-`sudo apt install llvm libelf-dev libssl-dev gcc-12 git clang dwarves` \
+`sudo apt install llvm libelf-dev libssl-dev gcc-12 git clang dwarves libc6-dev-i386` \
 Install kernel headers (you may skip this section if you have just installed a new kernel) \
 `sudo apt install linux-headers-$(uname -r)` \
 Clone repository \
