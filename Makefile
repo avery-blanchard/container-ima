@@ -2,7 +2,10 @@
 # Makefile for Container IMA
 # 	Builds kernel module and eBPF program
 #
-obj-m += container_ima.o 
+obj-m += container_ima.o
+ifeq ($(shell expr match `uname -r` ".*container.*" \> 0), 1)
+	ccflags-y := -D_LSMSTACKING=1
+endif
 all: kmod $(APPS)
 
 # Libbpf Makefile from libbpf-bootstrap
