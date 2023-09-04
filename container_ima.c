@@ -128,11 +128,11 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 		struct ima_template_desc *desc)
 {
         int check, length, hash_algo;
-	char buf[64];
+	char *buf = vmalloc(64);
 	char *extend;
 	char *path;
-	char filename[128];
-	char ns_buf[128];
+	char *filename = vmalloc(128);
+	char *ns_buf = vmalloc(128);
         struct ima_max_digest_data hash;
 
 
@@ -170,6 +170,9 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	check = ima_store_measurement(&hash, file, filename, length, 
 			desc, hash_algo);
 
+	vfree(buf);
+	vfree(filename);
+	vfree(ns_buf);
 	return 0;
 }
 
@@ -189,7 +192,11 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	struct inode *inode;
 	struct mnt_idmap *idmap;
 	const struct cred *cred;
+#ifdef _LSMSTACKING
+	struct lsmblob blob;
+#else
 	u32 secid;
+#endif /* _LSMSTACKING */
 	struct ima_template_desc *desc = NULL;
 	unsigned int allowed_algos = 0;
 	struct ebpf_data *data = (struct ebpf_data *) mem;
@@ -203,8 +210,11 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	if (!S_ISREG(inode->i_mode))
                 return 0;
 
-
+#ifdef _LSMSTACKING
+	security_current_getsecid_subj(&blob);
+#else
 	security_current_getsecid_subj(&secid);
+#endif /* _LSMSTACKING */
 
 	cred = current_cred();
 	if (!cred)
@@ -214,9 +224,16 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 
 	/* Get action form IMA policy */
 	pcr = 10;
+#ifdef _LSMSTACKING
+	action = ima_get_action(idmap, inode, cred, &blob, 
+			MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
+			NULL, &allowed_algos);
+#else
 	action = ima_get_action(idmap, inode, cred, secid, 
 			MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
 			NULL, &allowed_algos);
+
+#endif /* _LSMSTACKING */
 	if (!action)  
 		return 0;
 	
