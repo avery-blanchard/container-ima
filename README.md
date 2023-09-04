@@ -43,7 +43,7 @@ Note: -31 is the latest unsigned-6.2.0 generic at the time of writing. \
 `sed -i 's/^CONFIG_LSM="\(.*\)"/CONFIG_LSM="\1,bpf"/' .config` \
 `sed -i 's/^EXTRAVERSION.*/EXTRAVERSION = -containerima/' Makefile` \
 ``make -j`nproc` && make modules_install && make install`` \
-`sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="lsm=apparmor,integrity,bpf ima_apparise=log"/' /etc/default/grub` \
+`sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="lsm=apparmor,integrity,bpf ima_apparise=log ima_hash=sha256"/' /etc/default/grub` \
 Note: integrity and bpf LSMs should be initialized at boot. Note that this overrides CONFIG_LSM. \
 `update-grub` \
 Optional: since 6.0.3 the i_version counter is always enabled on ext4. \
