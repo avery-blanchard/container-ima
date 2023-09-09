@@ -135,18 +135,17 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	char *ns_buf = vmalloc(128);
 	struct ima_max_digest_data hash;
 
-
 	/* Measure file */
         hash_algo = ima_file_hash(file, buf, sizeof(buf));
 
 	path = ima_d_path(&file->f_path, &path, filename);
 	if (!path) {
-		return 0;
+		goto end;
 	}
 	
 	/* Catch all for policy errors, todo */
 	if (path[0] != '/')
-		return 0;
+		goto end;
 
 	sprintf(ns_buf, "%u", ns);
 	sprintf(filename, "%u:%s", ns, path);
@@ -165,11 +164,12 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	 * Hash the concatonated string */	
 	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
 	if (check < 0)
-		return 0;
+		goto end;
 	
 	check = ima_store_measurement(&hash, file, filename, length, 
 			desc, hash_algo);
 
+end:
 	vfree(buf);
 	vfree(filename);
 	vfree(ns_buf);
