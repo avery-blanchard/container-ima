@@ -59,6 +59,9 @@ Debian 12 (bookworm) follows the same logic as Ubuntu (see above): \
 `cd /usr/src/linux-6.4.4` \
 `make olddefconfig` \
 `sed -i 's/^CONFIG_LSM="\(.*\)"/CONFIG_LSM="\1,bpf"/' .config` \
+``make -j`nproc` && make modules_install && make install`` \
+`sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="lsm=apparmor,integrity,bpf ima_apparise=log ima_hash=sha256"/' /etc/default/grub` \
+`update-grub` \
 Note: Debian kernels still define void security_current_getsecid_subj(u32 *secid) so you don't need to modify EXTRAVERSION.
 
 Continue with the installation of container-ima: \
