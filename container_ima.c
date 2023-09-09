@@ -224,7 +224,7 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	/* Get action form IMA policy */
 	pcr = 10;
 #ifdef _LSMSTACKING
-	action = ima_get_action(idmap, inode, cred, &blob, 
+	action = ima_get_action(idmap, inode, cred, blob.secid[0], 
 					MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
 					NULL, &allowed_algos);
 #else
