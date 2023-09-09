@@ -128,7 +128,7 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 		struct ima_template_desc *desc)
 {
 	int check, length, hash_algo;
-	char *buf = vmalloc(64);
+	char *buf = vmalloc(IMA_MAX_DIGEST_SIZE);
 	char *extend;
 	char *path;
 	char *ns_buf = vmalloc(16);
