@@ -41,7 +41,7 @@ Note: -31 is the latest unsigned-6.2.0 generic at the time of writing. \
 `apt-get source linux-image-unsigned-6.2.0-31-generic` \
 `cd /usr/src/linux-hwe-6.2-6.2.0` \
 `make olddefconfig` \
-`sed -i 's/^CONFIG_LSM="\(.*\)"/CONFIG_LSM="\1,bpf"/' .config` \
+`grep -e "^CONFIG_LSM=.*bpf.*" .config || sed -i 's/^CONFIG_LSM="\(.*\)"/CONFIG_LSM="\1,bpf"/' .config` \
 `sed -i 's/^EXTRAVERSION.*/EXTRAVERSION = -containerima/' Makefile` \
 ``make -j`nproc` && make modules_install && make install`` \
 `sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=""/GRUB_CMDLINE_LINUX_DEFAULT="lsm=apparmor,integrity,bpf ima_apparise=log ima_hash=sha256"/' /etc/default/grub` \
