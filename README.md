@@ -30,8 +30,9 @@ Insert eBPF probe \
 `sudo ./probe`
 
 ### Ubuntu
-Prerequisite: Upgrade the kernel to 6.2.x and enable bpf in CONFIG_LSM. \
+Prerequisite: Upgrade the kernel to 6.2.x (or newer) and enable bpf in CONFIG_LSM. \
 Disclaimer: Be aware that packages from universe or multiverse will be installed along with linux-image-unsigned-6.2.0-*'s build dependencies. Those packages do not receive any reviews or updates from the Ubuntu security team. Alternatively, you may compile a kernel from source, which does not require any dependencies from universe or multiverse. \
+For Ubuntu 22.04LTS: \
 `apt-get update` \
 Note: make sure deb-src sources are not commented out in /etc/apt/sources.list. \
 `apt-cache search linux-image-unsigned-6.2.0 generic` \
@@ -49,6 +50,16 @@ Note: integrity and bpf LSMs should be initialized at boot. Note that this overr
 Optional: since 6.0.3 the i_version counter is always enabled on ext4. \
 `sed -i 's/\(\/ ext4 defaults\)/\/ ext4 noatime,iversion/' /etc/fstab` \
 `shutdown -r now`
+
+### Debian
+Debian 12 (bookworm) follows the same logic as Ubuntu (see above): \
+`apt-get update` \
+`cd /usr/src` \
+`apt-get source linux-image-6.4.0-0.deb12.2-amd64-unsigned` \
+`cd /usr/src/linux-6.4.4` \
+`make olddefconfig` \
+`sed -i 's/^CONFIG_LSM="\(.*\)"/CONFIG_LSM="\1,bpf"/' .config` \
+Note: Debian kernels still define void security_current_getsecid_subj(u32 *secid) so you don't need to modify EXTRAVERSION.
 
 Continue with the installation of container-ima: \
 `sudo apt update` \
