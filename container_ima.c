@@ -40,6 +40,7 @@
 #include <uapi/linux/btf.h>
 #include <uapi/linux/bpf.h>
 #include <linux/iversion.h>
+#include <linux/utsname.h>
 #include "container_ima.h"
 
 #define MODULE_NAME "ContainerIMA"
@@ -127,25 +128,26 @@ noinline int ima_store_measurement(struct ima_max_digest_data *hash,
 noinline int ima_file_measure(struct file *file, unsigned int ns, 
 		struct ima_template_desc *desc)
 {
-	int check, length, hash_algo;
-	char *buf = vmalloc(IMA_MAX_DIGEST_SIZE);
+        int check, length, hash_algo;
+	char buf[64];
 	char *extend;
 	char *path;
-	char *ns_buf = vmalloc(16);
-	char *filename = vmalloc(PATH_MAX);
-	struct ima_max_digest_data hash;
+	char filename[128];
+	char ns_buf[128];
+        struct ima_max_digest_data hash;
+
 
 	/* Measure file */
         hash_algo = ima_file_hash(file, buf, sizeof(buf));
 
 	path = ima_d_path(&file->f_path, &path, filename);
 	if (!path) {
-		goto end;
+		return 0;
 	}
 	
 	/* Catch all for policy errors, todo */
 	if (path[0] != '/')
-		goto end;
+		return 0;
 
 	sprintf(ns_buf, "%u", ns);
 	sprintf(filename, "%u:%s", ns, path);
@@ -164,15 +166,11 @@ noinline int ima_file_measure(struct file *file, unsigned int ns,
 	 * Hash the concatonated string */	
 	check = ima_calc_buffer_hash(extend, sizeof(extend), &hash.hdr);
 	if (check < 0)
-		goto end;
+		return 0;
 	
 	check = ima_store_measurement(&hash, file, filename, length, 
 			desc, hash_algo);
 
-end:
-	vfree(buf);
-	vfree(filename);
-	vfree(ns_buf);
 	return 0;
 }
 
@@ -187,15 +185,16 @@ end:
  */
 noinline int bpf_process_measurement(void *mem, int mem__sz)
 {
+
 	int ret, action, pcr;
 	struct inode *inode;
 	struct mnt_idmap *idmap;
 	const struct cred *cred;
-#ifdef _LSMSTACKING
-	struct lsmblob blob;
-#else
-	u32 secid;
-#endif /* _LSMSTACKING */
+	#ifdef _LSMSTACKING
+		struct lsmblob blob;
+	#else
+		u32 secid;
+	#endif /* _LSMSTACKING */
 	struct ima_template_desc *desc = NULL;
 	unsigned int allowed_algos = 0;
 	struct ebpf_data *data = (struct ebpf_data *) mem;
@@ -204,17 +203,20 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 	
 	if (!file)
 		return 0;
-	
+
+	if (ns == init_task.nsproxy->uts_ns->ns.inum)
+		action = 0;
+
 	inode = file->f_inode;
 	if (!S_ISREG(inode->i_mode))
                 return 0;
 
-#ifdef _LSMSTACKING
-	security_current_getsecid_subj(&blob);
-#else
-	security_current_getsecid_subj(&secid);
-#endif /* _LSMSTACKING */
-
+	#ifdef _LSMSTACKING
+		security_current_getsecid_subj(&blob);
+	#else
+		security_current_getsecid_subj(&secid);
+	#endif /* _LSMSTACKING */
+	
 	cred = current_cred();
 	if (!cred)
 		return 0;
@@ -223,15 +225,15 @@ noinline int bpf_process_measurement(void *mem, int mem__sz)
 
 	/* Get action form IMA policy */
 	pcr = 10;
-#ifdef _LSMSTACKING
-	action = ima_get_action(idmap, inode, cred, blob.secid[0], 
-					MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
+	#ifdef _LSMSTACKING
+		action = ima_get_action(idmap, inode, cred, blob.secid[0],
+					MAY_EXEC, MMAP_CHECK, &pcr, &desc,
 					NULL, &allowed_algos);
-#else
-	action = ima_get_action(idmap, inode, cred, secid, 
-					MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
-					NULL, &allowed_algos);
-#endif /* _LSMSTACKING */
+	#else
+		action = ima_get_action(idmap, inode, cred, secid, 
+			MAY_EXEC, MMAP_CHECK, &pcr, &desc, 
+			NULL, &allowed_algos);
+	#endif /* _LSMSTACKING */
 	if (!action)  
 		return 0;
 	
@@ -372,4 +374,3 @@ module_exit(container_ima_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION(MODULE_NAME);
 MODULE_AUTHOR("Avery Blanchard");
-
