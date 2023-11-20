@@ -118,9 +118,6 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 # delete failed targets
 .DELETE_ON_ERROR:
 
-# keep intermediate (.skel.h, .bpf.o, etc) targets
-.SECONDARY:
-
 ### kmod targets
 
 .PHONY: kmod
